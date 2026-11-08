@@ -1,0 +1,11 @@
+state/
+__pycache__/
+*.pyc
+.coverage
+.pytest_cache/
+projects.json
+projects.json.tmp
+.claude/settings.json
+.claude/settings.local.json
+CLAUDE.local.md
+*.migrated

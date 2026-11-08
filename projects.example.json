@@ -1,0 +1,11 @@
+{
+  "vault": "",
+  "vault_language": "en",
+  "roots": [],
+  "extras": [],
+  "ignore": [],
+  "hide_domains": [],
+  "dashboard_port": 8780,
+  "domains": {},
+  "sensitive_paths": []
+}

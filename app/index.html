@@ -1,0 +1,1486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chief of Staff</title>
+<link rel="icon" href="/logo.svg" type="image/svg+xml">
+<style>
+:root{
+  --bg:#0a0b0e;--panel:#111318;--panel-2:#171a21;--ink:#ececf1;--mute:#868b98;--line:#1d2028;--line-2:#2a2f3a;
+  --acc:#7c83ff;--acc-ink:#0b0c1a;--ok:#3ecf8e;--warn:#f5a524;--bad:#f4676b;
+  --font-ui:"Segoe UI Variable Text","Segoe UI Variable","Inter","Segoe UI",system-ui,sans-serif;
+  --font-display:"Segoe UI Variable Display","Segoe UI Variable Text","Inter","Segoe UI",system-ui,sans-serif;
+  --font-mono:"Cascadia Mono","Cascadia Code",Consolas,monospace;
+  --r:10px;--rs:8px;--ease:cubic-bezier(.16,1,.3,1);
+}
+@media (prefers-color-scheme:light){:root:not([data-theme=dark]){
+  --bg:#f7f7f9;--panel:#fff;--panel-2:#f1f2f5;--ink:#14161b;--mute:#6a7080;--line:#e6e8ec;--line-2:#d5d8df;
+  --acc:#4f56e0;--acc-ink:#fff;--ok:#12865a;--warn:#b26a00;--bad:#cf3a3f;}}
+*{box-sizing:border-box}
+html{color-scheme:dark light}
+body{margin:0;min-height:100vh;color:var(--ink);font:14px/1.5 var(--font-ui);-webkit-font-smoothing:antialiased;
+  background:radial-gradient(900px 380px at 50% -160px,color-mix(in srgb,var(--acc) 16%,transparent),transparent) no-repeat,var(--bg)}
+a{color:inherit;text-decoration:none}a:hover{color:var(--acc)}
+:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+
+.top{position:sticky;top:0;z-index:5;background:color-mix(in srgb,var(--bg) 80%,transparent);
+  backdrop-filter:blur(14px) saturate(1.4);border-bottom:1px solid var(--line)}
+.top-in{max-width:1240px;margin:0 auto;padding:14px 24px 14px}
+.brand{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 28px}
+.brand h1{display:flex;align-items:center;gap:12px;margin:0;font-weight:400}
+.brand h1 img{width:34px;height:34px;display:block;border-radius:10px;
+  box-shadow:0 4px 16px color-mix(in srgb,var(--acc) 40%,transparent),0 0 0 1px color-mix(in srgb,var(--acc) 30%,transparent)}
+.brand h1 span{display:flex;flex-direction:column;gap:5px}
+.brand h1 strong{font:650 19px/1 var(--font-display);letter-spacing:-.025em;color:var(--ink)}
+.brand h1 em{font:600 9.5px/1 var(--font-ui);font-style:normal;letter-spacing:.24em;text-transform:uppercase;color:var(--mute)}
+.stats{display:flex;gap:6px;flex-wrap:wrap}
+.stat{display:flex;align-items:baseline;gap:7px;padding:5px 11px;border-radius:99px;background:var(--panel);border:1px solid var(--line)}
+.stat strong{font:600 14px/1 var(--font-ui);font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--mute)}
+.stat.hot{border-color:color-mix(in srgb,var(--warn) 45%,transparent);background:color-mix(in srgb,var(--warn) 9%,var(--panel))}
+.stat.hot strong{color:var(--warn)}
+
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+.search{position:relative;flex:1 1 280px;max-width:420px}
+.search svg{position:absolute;left:12px;top:50%;translate:0 -50%;width:15px;height:15px;color:var(--mute);pointer-events:none}
+.search input{width:100%;height:36px;padding:0 34px 0 36px;background:var(--panel);color:var(--ink);
+  border:1px solid var(--line-2);border-radius:var(--rs);font:14px var(--font-ui);transition:border-color .15s,box-shadow .15s}
+.search input::placeholder{color:var(--mute)}
+.search input:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 4px color-mix(in srgb,var(--acc) 20%,transparent)}
+.search .x{position:absolute;right:6px;top:50%;translate:0 -50%;width:24px;height:24px;border:0;border-radius:6px;
+  background:none;color:var(--mute);cursor:pointer;font-size:16px;line-height:1;display:none}
+.search .x:hover{background:var(--panel-2);color:var(--ink)}
+.search.has .x{display:block}
+.seg{display:flex;flex-wrap:wrap;gap:2px;padding:3px;border-radius:var(--rs);background:var(--panel);border:1px solid var(--line)}
+.seg button,.tog{height:28px;padding:0 11px;border:0;background:transparent;color:var(--mute);
+  border-radius:6px;cursor:pointer;font:500 13px var(--font-ui);transition:background .15s,color .15s}
+.seg button:hover,.tog:hover{color:var(--ink);background:var(--panel-2)}
+.seg button[aria-pressed=true]{background:var(--panel-2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-2)}
+.seg button i{font:normal 12px var(--font-ui);opacity:.55;margin-left:6px;font-variant-numeric:tabular-nums}
+.tog{border:1px solid var(--line);height:34px;border-radius:var(--rs)}
+.tog[aria-pressed=true]{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,transparent)}
+.sep{display:none}
+
+main{max-width:1240px;margin:0 auto;padding:6px 24px 72px}
+h2{display:flex;align-items:center;gap:8px;font:600 15px/1 var(--font-display);margin:34px 0 14px;letter-spacing:-.005em}
+h2 em{font:500 12px var(--font-ui);color:var(--mute);padding:2px 8px;border-radius:99px;background:var(--panel-2);font-style:normal}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:15px 16px 13px;
+  transition:border-color .2s,box-shadow .2s,background .2s;animation:in .35s var(--ease) both}
+.card:hover{border-color:var(--line-2);background:color-mix(in srgb,var(--panel) 80%,var(--panel-2));box-shadow:0 6px 24px rgba(0,0,0,.18)}
+.card.dirty{border-color:color-mix(in srgb,var(--warn) 30%,var(--line))}
+@keyframes in{from{opacity:0;transform:translateY(5px)}}
+.card h3{display:flex;align-items:center;gap:8px;margin:0;font:600 15px/1.25 var(--font-display);letter-spacing:-.005em}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none;box-shadow:0 0 0 3px color-mix(in srgb,var(--ok) 18%,transparent)}
+.dot.d{background:var(--warn);box-shadow:0 0 0 3px color-mix(in srgb,var(--warn) 18%,transparent)}
+.dot.n{background:var(--line-2);box-shadow:none}
+.kind{font:600 10.5px var(--font-mono);letter-spacing:.03em;padding:1px 7px;border-radius:5px;color:var(--acc);
+  background:color-mix(in srgb,var(--acc) 13%,transparent)}.ftop .kind{margin-left:0}
+.dom{margin-left:auto;font:500 11.5px var(--font-ui);padding:2px 8px;border-radius:99px;
+  color:var(--dom,var(--mute));background:color-mix(in srgb,var(--dom,var(--mute)) 13%,transparent)}
+.path{font:11.5px var(--font-mono);color:var(--mute);margin-top:4px;word-break:break-all}
+.cp{all:unset;cursor:copy;font:inherit;color:inherit;word-break:break-all}.cp:hover{color:var(--acc)}
+.row{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
+.chip{font:500 12px var(--font-ui);padding:2px 9px;border-radius:99px;background:var(--panel-2);color:var(--mute)}
+.chip.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 13%,transparent)}
+.chip.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 13%,transparent)}
+.chip.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 13%,transparent)}
+.last{margin-top:12px;padding-top:11px;border-top:1px solid var(--line);font-size:13px;color:var(--mute);display:flex;gap:10px}
+.last time{font:12px var(--font-mono);color:var(--mute);opacity:.8;flex:none;padding-top:1px}
+.last span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{font:500 12px var(--font-ui);color:var(--mute);text-align:left;padding:10px 14px;border-bottom:1px solid var(--line)}
+td{padding:10px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}tbody tr:hover td{background:var(--panel-2)}
+td.m{font:12px var(--font-mono);color:var(--mute);white-space:nowrap}
+.empty{color:var(--mute);padding:22px;border:1px dashed var(--line-2);border-radius:var(--r);text-align:center}
+.d-banking,.d-banca{--dom:#6aa3ff}.d-personal,.d-pessoal{--dom:#c98bff}.d-product,.d-produto{--dom:#f5a524}.d-home,.d-casa{--dom:#3ecf8e}.d-tools,.d-ferramentas{--dom:#8f96a6}.d-other{--dom:#8f96a6}
+@media (max-width:600px){.top-in,main{padding-left:14px;padding-right:14px}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* features */
+.fhead{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:30px 0 12px}
+.fhead h2{margin:0;flex:1}.fhead{margin:34px 0 14px}
+.btn{height:34px;padding:0 14px;border-radius:var(--rs);border:1px solid var(--line-2);background:var(--panel);color:var(--ink);
+  font:500 13px var(--font-ui);cursor:pointer;transition:all .15s var(--ease)}
+.btn:hover:not(:disabled){background:var(--panel-2);border-color:var(--mute)}.btn:disabled{opacity:.45;cursor:default}
+.btn.pri{background:var(--acc);border-color:var(--acc);color:var(--acc-ink);font-weight:600}.btn.pri:hover:not(:disabled){background:var(--acc);filter:brightness(1.1);border-color:var(--acc)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--mute)}.btn.ghost:hover:not(:disabled){color:var(--bad);border-color:transparent}
+.feats{display:grid;gap:12px}
+.feat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;position:relative}
+.feat.s-awaiting{border-color:color-mix(in srgb,var(--acc) 60%,var(--line));box-shadow:0 0 0 4px color-mix(in srgb,var(--acc) 10%,transparent)}
+.feat.s-done,.feat.s-cancelled{opacity:.7}
+.feat h3{margin:0;font:600 17px/1.25 var(--font-display);letter-spacing:-.01em}
+.ftop{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 12px}
+.fp{font:500 12px var(--font-ui);color:var(--mute);padding:2px 9px;border-radius:99px;background:var(--panel-2)}
+.fst{margin-left:auto;font:500 12.5px var(--font-ui);color:var(--mute)}
+.s-awaiting .fst{color:var(--acc)}.s-working .fst{color:var(--ok)}.s-failed .fst{color:var(--bad)}
+.fdesc{margin:6px 0 0;color:var(--mute);font-size:13px;white-space:pre-wrap}
+.steps{display:flex;align-items:center;flex-wrap:wrap;gap:6px 0;margin:16px 0 4px;list-style:none;padding:0}
+.steps li{display:flex;align-items:center;gap:8px;font:12px var(--font-ui);color:var(--mute);flex:none}
+.steps li::before{content:attr(data-n);display:grid;place-items:center;width:22px;height:22px;border-radius:50%;
+  border:1.5px solid var(--line-2);font:11px var(--font-mono)}
+.steps li+li::after{content:"";order:-1;width:34px;height:1.5px;background:var(--line-2);margin:0 10px}
+.steps li.done{color:var(--ink)}.steps li.done::before{content:"✓";background:var(--ok);border-color:var(--ok);color:var(--bg)}
+.steps li.skip{opacity:.55}.steps li.skip::before{content:"–"}
+.steps li.cur{color:var(--ink);font-weight:600}.steps li.cur::before{border-color:var(--acc);color:var(--acc)}
+.steps li.cur.working::before{border-color:var(--ok);color:var(--ok);animation:pulse 1.6s ease-in-out infinite}
+.steps li.cur.failed::before{border-color:var(--bad);color:var(--bad)}
+@keyframes pulse{50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--ok) 25%,transparent)}}
+.fline{margin:10px 0 0;font-size:13px}.fline .path{display:inline}
+.art{margin-top:10px;border:1px solid var(--line);border-radius:var(--rs);background:var(--bg)}
+.art summary{cursor:pointer;padding:9px 14px;font:500 13px var(--font-ui);color:var(--mute)}
+.art[open] summary{border-bottom:1px solid var(--line);color:var(--ink)}
+.art pre{margin:0;padding:12px 14px;max-height:460px;overflow:auto;white-space:pre-wrap;word-break:break-word;font:12.5px/1.55 var(--font-mono)}
+.decide{margin-top:14px;border:1px solid var(--line-2);border-radius:var(--r);background:var(--bg);transition:border-color .15s,box-shadow .15s}
+.decide:focus-within{border-color:var(--acc);box-shadow:0 0 0 4px color-mix(in srgb,var(--acc) 16%,transparent)}
+.dtop{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 0}
+.dtitle{font:600 13px var(--font-display)}.dprog{font:500 12px var(--font-ui);color:var(--acc);font-variant-numeric:tabular-nums}.dprog.ok{color:var(--ok)}
+.cls{margin-top:22px}.cls>summary{cursor:pointer;font:600 13px var(--font-ui);color:var(--mute);padding:6px 2px}.cls>summary em{font-style:normal;opacity:.6;margin-left:6px}
+.clbar{margin:4px 0 2px}.clbar label{font-size:12.5px;color:var(--mute);display:inline-flex;gap:8px;align-items:center}
+.clbar select{height:28px;border:1px solid var(--line);border-radius:var(--rs);background:var(--panel);color:var(--ink);padding:0 8px;font:inherit}
+.cl{border:1px solid var(--line);border-radius:var(--rs);background:var(--panel);margin-top:8px}.cl>summary{display:flex;gap:12px;align-items:center;padding:9px 14px;cursor:pointer;list-style:none}
+.cl>summary::-webkit-details-marker{display:none}.cltt{font-weight:600;font-size:13px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cl .feat{border:0;border-top:1px solid var(--line);border-radius:0 0 var(--rs) var(--rs)}
+.fnds{display:grid;gap:8px;margin:8px 12px 0}
+.fnd{border:1px solid var(--line);border-left-width:3px;border-radius:var(--rs);background:var(--panel);padding:10px 12px}
+.fnd.sev-critical,.fnd.sev-high{border-left-color:var(--bad)}.fnd.sev-medium{border-left-color:var(--warn)}.fnd.sev-low{border-left-color:var(--line)}
+.fh{display:flex;gap:10px;align-items:baseline}.ft{font-weight:600;font-size:13px}
+.sev{font:600 10.5px var(--font-mono);letter-spacing:.04em;padding:1px 7px;border-radius:5px;background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--acc)}
+.sev-critical .sev,.sev-high .sev{background:color-mix(in srgb,var(--bad) 16%,transparent);color:var(--bad)}.sev-medium .sev{background:color-mix(in srgb,var(--warn) 16%,transparent);color:var(--warn)}
+.fb{margin:6px 0 8px;font-size:12.5px;line-height:1.5;color:var(--muted,inherit);opacity:.9}
+.fseg{display:inline-flex;border:1px solid var(--line);border-radius:var(--rs);overflow:hidden}
+.fseg label{padding:4px 14px;font-size:12.5px;cursor:pointer;user-select:none}.fseg input{position:absolute;opacity:0;pointer-events:none}
+.fseg label.on.fixo{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad);font-weight:600}
+.fseg label.on.okk{background:color-mix(in srgb,var(--ok) 16%,transparent);color:var(--ok);font-weight:600}
+.fseg label:focus-within{outline:2px solid var(--acc);outline-offset:-2px}
+.verdict{display:flex;align-items:center;gap:12px;margin:10px 12px 0;padding:10px 14px;border-radius:var(--rs);border:1px solid var(--line);font-size:13px}
+.verdict strong{font:700 13px var(--font-display)}.verdict span{color:var(--mute)}
+.verdict.approved{border-color:color-mix(in srgb,var(--ok) 55%,transparent);background:color-mix(in srgb,var(--ok) 9%,transparent)}.verdict.approved strong{color:var(--ok)}
+.verdict.reserves{border-color:color-mix(in srgb,var(--warn) 55%,transparent);background:color-mix(in srgb,var(--warn) 9%,transparent)}.verdict.reserves strong{color:var(--warn)}
+.verdict.blocked{border-color:color-mix(in srgb,var(--bad) 55%,transparent);background:color-mix(in srgb,var(--bad) 9%,transparent)}.verdict.blocked strong{color:var(--bad)}
+.verdict.unknown strong{color:var(--mute)}
+.curinfo{font-size:12.5px;color:var(--mute)}.curinfo.bad{color:var(--bad)}
+.rnote{margin:8px 14px 0;font-size:12.5px;color:var(--mute);line-height:1.5}.rnote b{color:var(--ink)}
+.qs{display:grid;gap:10px;padding:12px 12px 4px}
+.q{border:1px solid var(--line);border-radius:var(--rs);background:var(--panel);padding:12px 14px;transition:border-color .15s}
+.q:focus-within{border-color:var(--line-2)}.q.done{border-color:color-mix(in srgb,var(--ok) 45%,var(--line))}
+.qh{display:flex;align-items:center;gap:8px}
+.qid{font:600 11px var(--font-mono);padding:1px 7px;border-radius:5px;background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc)}
+.qt{font:600 14px var(--font-display)}.qok{margin-left:auto;color:var(--ok);font-weight:700;opacity:0}.q.done .qok{opacity:1}
+.qx{margin:6px 0 0;font-size:13px;color:var(--mute);line-height:1.55}.qx code,.opt code{font:12px var(--font-mono);padding:0 5px;border-radius:4px;background:var(--panel-2)}
+.opts{display:grid;gap:6px;margin-top:10px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:8px 11px;border:1px solid var(--line);border-radius:var(--rs);cursor:pointer;font-size:13px;line-height:1.45;transition:border-color .12s,background .12s}
+.opt:hover{border-color:var(--line-2);background:var(--panel-2)}
+.opt input{margin-top:3px;accent-color:var(--acc);flex:none}
+.opt:has(input:checked){border-color:var(--acc);background:color-mix(in srgb,var(--acc) 9%,transparent)}
+.rec{margin-left:8px;font:600 10.5px var(--font-ui);font-style:normal;padding:1px 7px;border-radius:99px;color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent);vertical-align:1px}
+.qnote{display:block;width:100%;margin-top:10px;min-height:36px;resize:vertical;padding:8px 10px;border:1px dashed var(--line-2);border-radius:var(--rs);
+  background:transparent;color:var(--ink);font:13px/1.5 var(--font-ui)}
+.qnote:focus{outline:none;border-style:solid;border-color:var(--acc)}.qnote::placeholder{color:var(--mute);opacity:.75}
+.dhead{display:block;padding:10px 14px 0;font:600 12px var(--font-ui);color:var(--mute);letter-spacing:.02em}
+.decide textarea{display:block;width:100%;min-height:96px;resize:vertical;border:0;background:transparent;color:var(--ink);
+  padding:6px 14px 10px;font:14px/1.6 var(--font-ui)}
+.decide textarea:focus{outline:none}.decide textarea::placeholder{color:var(--mute);opacity:.8}
+.dfoot{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 12px;border-top:1px solid var(--line)}
+.dhint{margin-right:auto;font:12px var(--font-ui);color:var(--mute);font-variant-numeric:tabular-nums}
+.acts{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;margin-top:12px}
+.acts textarea{flex:1 1 260px;min-height:36px;resize:vertical;padding:8px 10px;background:var(--bg);color:var(--ink);
+  border:1px solid var(--line-2);border-radius:var(--rs);font:13px var(--font-ui)}
+.acts textarea:focus{outline:none;border-color:var(--acc)}
+.hist{margin-top:10px;font-size:12px;color:var(--mute)}.hist summary{cursor:pointer}
+.hist ul{margin:6px 0 0;padding-left:18px}.hist li{font-family:var(--font-mono);font-size:11.5px}
+dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line-2);border-radius:14px;box-shadow:0 24px 80px rgba(0,0,0,.5);padding:0;width:min(560px,calc(100vw - 28px))}
+dialog::backdrop{background:rgba(0,0,0,.6);backdrop-filter:blur(3px)}
+dialog form{display:grid;gap:12px;padding:20px}
+dialog.wide{width:min(1040px,calc(100vw - 28px));max-height:calc(100vh - 40px);overflow:auto}
+.sbody{padding:20px;display:grid;gap:18px}.shead{display:flex;justify-content:space-between;align-items:center}
+.sset{display:grid;gap:10px}.sset h4{margin:0;font:600 14px var(--font-display);letter-spacing:.01em}
+.sset .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.sset .row input{flex:1;min-width:220px}
+.sset input{background:var(--bg);color:var(--ink);border:1px solid var(--line-2);border-radius:var(--rs);padding:7px 10px;font:inherit}
+.sset input:focus{outline:none;border-color:var(--acc)}.sset .m{color:var(--mute);font-size:11.5px}
+.sset ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}.sset li{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.sset .sdom{width:150px}.sset .smv{width:100%;min-width:200px}.sact{white-space:nowrap}.sact .btn{margin-left:4px}
+.sgit p{margin:0}.sgit .ok{color:var(--ok)}.sgit .warn{color:var(--warn)}
+dialog h3{margin:0;font:600 20px var(--font-display);letter-spacing:-.01em}
+dialog label{display:grid;gap:6px;font:500 12.5px var(--font-ui);color:var(--mute)}
+dialog input,dialog select,dialog textarea{background:var(--bg);color:var(--ink);border:1px solid var(--line-2);border-radius:var(--rs);
+  padding:9px 11px;font:14px var(--font-ui)}
+dialog textarea{min-height:110px;resize:vertical}
+dialog input:focus,dialog select:focus,dialog textarea:focus{outline:none;border-color:var(--acc)}
+dialog .note{font-size:12px;color:var(--mute);margin:0}
+dialog .end{display:flex;justify-content:flex-end;gap:8px}
+.toast{position:fixed;font-weight:500;left:50%;bottom:22px;translate:-50% 0;z-index:20;max-width:min(520px,calc(100vw - 28px));padding:10px 16px;
+  border-radius:var(--rs);background:var(--ink);color:var(--bg);font-size:13px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
+.toast.err{background:var(--bad);color:#fff}
+.banner{margin:12px 0 0;padding:9px 14px;border:1px solid color-mix(in srgb,var(--bad) 50%,transparent);background:color-mix(in srgb,var(--bad) 8%,transparent);border-radius:var(--rs);color:var(--bad);font-size:13px}
+
+/* session to-dos */
+.pends{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+.pend{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:15px 16px 13px;display:flex;flex-direction:column;gap:8px}
+.pend:hover{border-color:var(--line-2)}
+.ptop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.pfilt{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:0 0 12px}.pfilt:empty{display:none}
+.pproj{font-size:12.5px;color:var(--mute);display:inline-flex;gap:8px;align-items:center}
+.pproj select{height:30px;border:1px solid var(--line);border-radius:var(--rs);background:var(--panel);color:var(--ink);padding:0 8px;font:inherit}
+.pst{margin-left:auto;font:600 12px var(--font-ui);padding:2px 9px;border-radius:99px;color:var(--mute);background:var(--panel-2)}
+.pst.awaiting{color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,transparent)}
+.pst.blocked{color:var(--bad);background:color-mix(in srgb,var(--bad) 13%,transparent)}
+.pst.running{color:var(--ok);background:color-mix(in srgb,var(--ok) 13%,transparent)}
+.pend h3{margin:0;font:600 15px/1.3 var(--font-display);letter-spacing:-.005em}
+.pend p{margin:0;font-size:13px;color:var(--mute)}
+.pend p b{color:var(--ink);font-weight:600}
+.pfoot{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:auto;padding-top:10px;border-top:1px solid var(--line)}
+.pfoot .org{font:11.5px var(--font-mono);color:var(--mute);flex:1 0 100%;margin-bottom:2px}.pfoot .ghost{margin-left:auto}
+.btn.sm{height:28px;padding:0 10px;font-size:12px}
+
+.ptop .dom,.ftop .dom{margin-left:0}
+.thread{display:grid;gap:8px;margin-top:12px}
+.msg{max-width:92%;padding:10px 14px;border-radius:12px;font-size:13px;line-height:1.55}
+.msg .who{font:600 11px var(--font-ui);letter-spacing:.03em;margin-bottom:4px;opacity:.7}
+.msg p{margin:0}.msg .md.sm{padding:0;max-height:260px;font-size:13px}
+.msg .md h1,.msg .md h2,.msg .md h3{font:600 12px var(--font-ui);margin:.7em 0 .3em;padding:0;border:0;color:var(--mute)}.msg .md>h2:first-child{margin-top:0}
+.msg.you{justify-self:end;background:color-mix(in srgb,var(--acc) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--acc) 35%,transparent);border-bottom-right-radius:4px}
+.msg.bot{justify-self:start;background:var(--panel-2);border:1px solid var(--line);border-bottom-left-radius:4px}
+.dbt{margin-top:8px}.dbt summary{cursor:pointer;color:var(--acc);font-weight:500}
+/* artifact markdown */
+.md{padding:16px 20px;max-height:560px;overflow:auto;font:14px/1.65 var(--font-ui);word-break:break-word}
+.md>*:first-child{margin-top:0}.md>*:last-child{margin-bottom:0}
+.md h1,.md h2,.md h3,.md h4{font-family:var(--font-display);letter-spacing:-.01em;line-height:1.3;margin:1.4em 0 .5em}
+.md h1{font-size:20px}.md h2{font-size:17px;padding-bottom:.3em;border-bottom:1px solid var(--line)}.md h3{font-size:15px}.md h4,.md h5,.md h6{font-size:14px;color:var(--mute)}
+.md p{margin:.7em 0}.md ul,.md ol{margin:.6em 0;padding-left:1.4em}.md li{margin:.2em 0}.md li>ul,.md li>ol{margin:.2em 0}
+.md code{font:12.5px var(--font-mono);padding:1px 6px;border-radius:5px;background:var(--panel-2)}
+.md pre{margin:.8em 0;padding:12px 14px;overflow:auto;border-radius:var(--rs);background:var(--panel-2);border:1px solid var(--line)}
+.md pre code{padding:0;background:none;font-size:12.5px;line-height:1.55}
+.md blockquote{margin:.8em 0;padding:.1em 1em;border-left:3px solid var(--acc);color:var(--mute);background:color-mix(in srgb,var(--acc) 6%,transparent);border-radius:0 var(--rs) var(--rs) 0}
+.md hr{border:0;border-top:1px solid var(--line);margin:1.4em 0}
+.md a{color:var(--acc);text-decoration:underline;text-underline-offset:2px}
+.md .tw{overflow-x:auto;margin:.8em 0}.md table{width:100%;border:1px solid var(--line);border-radius:var(--rs)}
+.md th{background:var(--panel-2);color:var(--ink);font-weight:600;font-size:12.5px}.md td,.md th{padding:7px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+.md .chk{color:var(--acc)}.md del{opacity:.6}
+</style>
+</head>
+<body>
+<div class="top"><div class="top-in">
+  <div class="brand">
+    <h1><img src="/logo.svg" alt="" width="34" height="34"><span><strong>Chief</strong><em>of Staff</em></span></h1>
+    <div class="stats" id="stats" aria-live="polite"></div>
+  </div>
+  <div class="bar">
+    <label class="search" id="searchBox">
+      <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4" stroke-linecap="round"/></svg>
+      <input id="q" type="search" list="repos" placeholder="Filter by repo   ( / )" autocomplete="off" spellcheck="false" aria-label="Filter by repo">
+      <datalist id="repos"></datalist>
+      <button class="x" id="clear" type="button" aria-label="Clear filter">×</button>
+    </label>
+    <div class="seg" id="doms" role="group" aria-label="Filter by domain"></div>
+    <button class="btn" id="addProjBtn" type="button" title="Add a folder or repo that is already on disk">+ Add project</button>
+    <button class="btn" id="setBtn" type="button" title="Vault, project folders, categories and git connection">⚙ Settings</button>
+    <div class="seg" id="langSw" role="group" aria-label="Language"><button type="button" data-l="pt">PT</button><button type="button" data-l="en">EN</button></div>
+    <span class="curinfo" id="curInfo"></span>
+  </div>
+</div></div>
+<main>
+  <div id="banner"></div>
+  <div class="fhead"><h2>Requests <em id="nFeat"></em></h2><button class="btn pri" id="newBtn" type="button">+ New request</button></div>
+  <div class="feats" id="feats"></div>
+  <h2>Session to-dos <em id="nPend"></em></h2>
+  <div class="pfilt" id="pfilt"></div>
+  <div class="pends" id="pends"></div>
+  <div id="featsDone"></div>
+  <h2>Workers <em id="nWork"></em></h2><div id="workers"></div>
+</main>
+<dialog id="newF"><form method="dialog" id="newForm">
+  <h3>New request</h3>
+  <label>Project<select id="nfProject" required></select></label>
+  <label>Type<select id="nfKind"><option value="feature">Feature</option><option value="fix">Bug fix</option><option value="analysis">Analysis</option><option value="maintenance">Maintenance</option></select></label>
+  <label>Title<input id="nfTitle" maxlength="120" required placeholder="e.g. login with 2FA"></label>
+  <label>What you want<textarea id="nfDesc" maxlength="4000" required placeholder="Describe what the feature should do and why."></textarea></label>
+  <label>Model<select id="nfModel"><option value="">Default</option><option value="opus">Opus</option><option value="sonnet">Sonnet</option><option value="haiku">Haiku</option></select></label>
+  <p class="note" id="nfNote"></p>
+  <div class="end"><button class="btn" type="button" id="nfCancel">Cancel</button><button class="btn pri" id="nfGo" type="submit">Launch spec</button></div>
+</form></dialog>
+<dialog id="addP"><form method="dialog" id="addPForm">
+  <h3>Add project</h3>
+  <label>Category (optional)<input id="apDom" list="domList" maxlength="30" autocomplete="off" placeholder="e.g. banking, home, product"></label>
+  <label>Folder path<input id="apPath" maxlength="400" required autocomplete="off" spellcheck="false" placeholder="D:/Projects/my-repo"></label>
+  <p class="note" data-i18n>A folder that already exists on disk (git repo or plain folder). Anything inside <b>your projects folder</b> shows up by itself.</p>
+  <p class="note">The project is registered and a read-only worker studies the repo and creates its note in the vault right after.</p>
+  <div class="end"><button class="btn" type="button" id="apCancel">Cancel</button><button class="btn pri" id="apGo" type="submit">Add</button></div>
+  <hr>
+  <label>Or clone a public repo<input id="apUrl" maxlength="200" autocomplete="off" spellcheck="false" placeholder="https://github.com/owner/repo"></label>
+  <p class="note" data-i18n>Https or SSH (git@github.com:owner/repo) from the hosts in Settings. Private repos: use the login your git already has (for example, gh auth login); the Chief never asks for or stores credentials. Clones into <b>your projects folder</b>, with no push and nothing from the repo is run.</p>
+  <div class="end"><button class="btn pri" id="apClone" type="button">Clone</button></div>
+</form></dialog>
+<dialog id="setD" class="wide"><div class="sbody">
+  <div class="shead"><h3>Settings</h3><button class="btn" id="setClose" type="button">Close</button></div>
+  <datalist id="domList"></datalist>
+  <div id="setBody"></div>
+</div></dialog>
+<div id="toast" class="toast" hidden role="status"></div>
+<script>
+const T="__TOKEN__";
+// ---------- languages: English is the key; Portuguese is an optional translation; switching reloads the page ----------
+const PT = {
+  "Filter by repo   ( / )":"Filtrar por repo   ( / )",
+  "Filter by repo":"Filtrar por repo",
+  "Clear filter":"Limpar filtro",
+  "Filter by domain":"Filtrar por domínio",
+  "Language":"Idioma",
+  "Add a folder or repo that is already on disk":"Acrescentar uma pasta ou repo que já está no disco",
+  "+ Add project":"+ Adicionar projeto",
+  "+ New request":"+ Novo pedido",
+  "Session to-dos":"Pendentes das sessões",
+  "New request":"Novo pedido",
+  "Project":"Projeto",
+  "Title":"Título",
+  "e.g. login with 2FA":"ex.: login com 2FA",
+  "What you want":"O que queres",
+  "Describe what the feature should do and why.":"Descreve o que a feature deve fazer e porquê.",
+  "Model":"Modelo",
+  "Default":"Por omissão",
+  "Cancel":"Cancelar",
+  "Launch spec":"Lançar spec",
+  "This launches a worker that writes only the <b>spec</b>. Nothing moves forward (plan, code) without your “approve” here.":"Isto lança um worker que escreve só a <b>spec</b>. Nada avança (plano, código) sem o teu «aprovar» aqui.",
+  "Add project":"Adicionar projeto",
+  "Folder path":"Caminho da pasta",
+  "D:/Projects/my-repo":"D:/Projetos/meu-repo",
+  "A folder that already exists on disk (git repo or plain folder). Anything inside <b>your projects folder</b> shows up by itself.":"Pasta que já existe no disco (repo git ou pasta normal). Tudo o que estiver dentro de <b>your projects folder</b> aparece sozinho.",
+  "The project is registered and a read-only worker studies the repo and creates its note in the vault right after.":"O projeto fica registado e um worker de leitura estuda o repo e cria a nota dele no vault, logo a seguir.",
+  "Add":"Adicionar",
+  "Or clone a public repo":"Ou clonar um repo público",
+  "https://github.com/owner/repo":"https://github.com/dono/repo",
+  "Https or SSH (git@github.com:owner/repo) from the hosts in Settings. Private repos: use the login your git already has (for example, gh auth login); the Chief never asks for or stores credentials. Clones into <b>your projects folder</b>, with no push and nothing from the repo is run.":"Https ou SSH (git@github.com:dono/repo) dos anfitriões das Definições. Repos privados: usa o login que o teu git já tem (por exemplo, gh auth login); o Chief nunca pede nem guarda credenciais. Clona para <b>your projects folder</b>, sem push e sem correr nada do repo.",
+  "⚙ Settings":"⚙ Definições",
+  "Vault, project folders, categories and git connection":"Vault, pastas de projetos, categorias e ligação ao git",
+  "Settings":"Definições",
+  "Close":"Fechar",
+  "Category (optional)":"Categoria (opcional)",
+  "e.g. banking, home, product":"ex.: banca, casa, produto",
+  "Category":"Categoria",
+  "Category":"Categoria",
+  "Projects":"Projetos",
+  "Vault":"Vault",
+  "Git remote":"Remoto git",
+  "Set by you":"Definida por ti",
+  "From the vault":"Do vault",
+  "No category":"Sem categoria",
+  "No remote":"Sem remoto",
+  "Not a git repo":"Não é um repo git",
+  "Save":"Guardar",
+  "Move":"Mover",
+  "Remove":"Remover",
+  "Show again":"Mostrar de novo",
+  "No ignored folders.":"Nenhuma pasta ignorada.",
+  "GitHub CLI (gh) not found.":"GitHub CLI (gh) não encontrado.",
+  "GitHub CLI: signed in as {a}.":"GitHub CLI: sessão iniciada como {a}.",
+  "GitHub CLI installed, but not signed in.":"GitHub CLI instalado, mas sem sessão iniciada.",
+  "To clone private repos, sign in once in the terminal:":"Para clonar repos privados faz login uma vez no terminal:",
+  "Git credential manager: {h}.":"Gestor de credenciais do git: {h}.",
+  "Git has no credential manager configured.":"O git não tem gestor de credenciais configurado.",
+  "The category is a Chief setting: the vault is not changed. Projects without a category of yours use the one from the vault. Removing takes the project off the list and never deletes the folder.":"A categoria é uma definição do Chief: o vault não é alterado. Os projetos sem categoria tua usam a que vem do vault. Remover tira o projeto da lista e nunca apaga a pasta.",
+  "Vault path":"Caminho do vault",
+  "Changing the vault only takes effect after you restart the server.":"Mudar o vault só tem efeito depois de reiniciares o servidor.",
+  "Project folders":"Pastas de projetos",
+  "Every subfolder of these folders shows up as a project.":"Cada subpasta destas pastas aparece como um projeto.",
+  "New project folder":"Nova pasta de projetos",
+  "Add folder":"Adicionar pasta",
+  "Ignored folders":"Pastas ignoradas",
+  "Git and GitHub":"Git e GitHub",
+  "Private repos: the Chief uses the login your git already has and never asks for or stores passwords or tokens.":"Repos privados: o Chief usa o login que o teu git já tem e nunca pede nem guarda passwords ou tokens.",
+  "Hosts allowed for cloning":"Anfitriões permitidos para clonar",
+  "Hosts the Chief accepts cloning from (comma-separated).":"Anfitriões de onde o Chief aceita clonar (separados por vírgula).",
+  "Saved.":"Guardado.",
+  "Category saved.":"Categoria guardada.",
+  "Folder updated.":"Pasta atualizada.",
+  "Project removed from the list.":"Projeto removido da lista.",
+  "Folder added.":"Pasta adicionada.",
+  "Folder taken off the list.":"Pasta retirada da lista.",
+  "The folder shows up again.":"A pasta volta a aparecer.",
+  "Vault saved. Restart the server to use it.":"Vault guardado. Reinicia o servidor para o usar.",
+  "Take “{n}” off the list? The folder is not deleted from disk.":"Tirar «{n}» da lista? A pasta não é apagada do disco.",
+  "Clone":"Clonar",
+  "All":"Todos",
+  "I cannot talk to <b>claude</b> (agents). Worker status may be out of date.":"Não consigo falar com o <b>claude</b> (agents). O estado dos workers pode estar desatualizado.",
+  "To-dos":"Pendentes",
+  "Working":"A trabalhar",
+  "Idle sessions":"Sessões paradas",
+  "Updated":"Atualizado",
+  "Workers that finished what they had to do and left the session open waiting for input (you can close them with claude stop <id>)":"Workers que acabaram o que tinham a fazer e deixaram a sessão aberta à espera de input (podes fechá-las com claude stop <id>)",
+  "Automatic curation stopped after failures":"Curadoria automática parada após falhas",
+  "Status":"Estado",
+  "Task":"Tarefa",
+  "Started":"Início",
+  "No open workers for this filter.":"Sem workers abertos para este filtro.",
+  "No open workers.":"Nenhum worker aberto.",
+  "History ({n} finished or stopped)":"Histórico ({n} terminados ou parados)",
+  "Spec":"Spec",
+  "Plan":"Plano",
+  "Implementation":"Implementação",
+  "Review":"Revisão",
+  "Failed":"Falhou",
+  "Done":"Concluídas",
+  "Done@status":"Concluída",
+  "Cancelled":"Cancelada",
+  "Blocked":"Bloqueado",
+  "Idle":"Parado",
+  "Waiting":"À espera",
+  "Invalid response":"Resposta inválida",
+  "Error":"Erro",
+  "(skipped)":"(saltada)",
+  "the spec":"a spec",
+  "the plan":"o plano",
+  "the report":"o relatório",
+  "the review":"a revisão",
+  "{l}: fixing the review findings (round {n} of 3){w}":"{l}: a corrigir os achados da revisão (ronda {n} de 3){w}",
+  "{l}: the worker is idle waiting for you (permission or question){w}":"{l}: o worker está parado à espera de ti (permissão ou pergunta){w}",
+  "{l}: {what}{w}":"{l}: {what}{w}",
+  "An independent reviewer is analysing the code":"Um revisor independente está a analisar o código",
+  "An independent validator is checking the plan against the spec and the code":"Um validador independente está a conferir o plano com a spec e o código",
+  "The plan is being fixed after validation (round {n} of 2)":"O plano está a ser corrigido depois da validação (ronda {n} de 2)",
+  "A worker is writing":"Um worker está a escrever",
+  "To talk to the worker: {cmd}":"Para conversar com o worker: {cmd}",
+  "{l} ready, but the automatic review did not start: click “Send to review”.":"{l} pronta, mas a revisão automática não arrancou: carrega em «Enviar para revisão».",
+  "{l} ready ({v}). Read the findings and accept the implementation, or ask for fixes.":"{l} pronta ({v}). Lê os achados e aceita a implementação, ou pede correções.",
+  "ready@plan":"pronto",
+  "ready@spec":"pronta",
+  "{l} {ready}. Read {what}, answer the questions under “Your decision” and send, or approve.":"{l} {ready}. Lê {what}, responde às perguntas em «A tua decisão» e envia, ou aprova.",
+  "{l} {ready} and no open questions. Read {what} and approve, or ask for changes.":"{l} {ready} e sem perguntas em aberto. Lê {what} e aprova, ou pede alterações.",
+  "{l} {ready}. It has text under “Open questions” that I could not turn into a form: read {what} and answer in the decision field, or approve.":"{l} {ready}. Tem texto em «Perguntas em aberto» que não consegui transformar em formulário: lê {what} e responde no campo da decisão, ou aprova.",
+  "{l}: the worker finished without writing the result{w}. Check {logs} or try again.":"{l}: o worker terminou sem escrever o resultado{w}. Vê {logs} ou tenta de novo.",
+  "Done. The branch {br} is in the repo; the merge and the push are yours.":"Concluída. O ramo {br} está no repo; o merge e o push são teus.",
+  "Done in the pipeline, but <b>the report does not confirm verified execution</b> ({ex}): check the report before calling it finished.":"Concluída no pipeline, mas <b>o relatório não confirma execução verificada</b> ({ex}): confere o relatório antes de a dares por feita.",
+  "Cancelled.":"Cancelada.",
+  "Comment or question about this item (optional)":"Comentário ou pergunta sobre esta questão (opcional)",
+  "Recommended":"Recomendada",
+  "{n}/{total} answered":"{n}/{total} respondidas",
+  "Executed and verified":"Executado e verificado",
+  "The report states what was verified.":"O relatório indica o que foi verificado.",
+  "Partially executed":"Parcialmente executado",
+  "Steps remain: read “Not verified” in the report.":"Há passos por fazer: lê «Não verificado» no relatório.",
+  "Not executed":"Não executado",
+  "Nothing was actually done: the report is just an execution plan for someone to carry out.":"Nada foi feito de facto: o relatório é só um plano de execução para alguém fazer.",
+  "Execution status not stated":"Estado da execução não indicado",
+  "The report does not say what was executed and verified: do not treat it as done.":"O relatório não diz o que foi executado e verificado: não o dês por feito.",
+  "Execution: {t}":"Execução: {t}",
+  "Tests: {t}":"Testes: {t}",
+  "No regressions":"Sem regressões",
+  "The full suite passes as before and the report links each criterion to a test.":"A suite completa passa como antes e o relatório liga cada critério a um teste.",
+  "With regressions":"Com regressões",
+  "Something that used to pass no longer does: read the report's “Tests” section.":"Algo que passava deixou de passar: lê a secção «Testes» do relatório.",
+  "Tests not run":"Testes não corridos",
+  "The worker did not run the full suite: without it there is no proof.":"O worker não correu a suite completa: sem isso não há prova.",
+  "Project without tests":"Projeto sem testes",
+  "The project has no tests (or the report says why): check the justification.":"O projeto não tem testes (ou o relatório diz porquê): confere a justificação.",
+  "“Tests” section missing":"Secção «Testes» em falta",
+  "Confirmed by the reviewer":"Confirmados pelo revisor",
+  "The reviewer ran the full suite again and the numbers match.":"O revisor voltou a correr a suite completa e os números coincidem.",
+  "Divergent":"Divergentes",
+  "The reviewer got different results: I did not commit, you decide.":"O revisor obteve outros resultados: não comitei, decide tu.",
+  "{p} pass, {f} fail":"{p} passam, {f} falham",
+  "Baseline":"Linha de base",
+  "Final result":"Resultado final",
+  "Reviewer":"Revisor",
+  "New tests: {n}":"Testes novos: {n}",
+  "Review without test results":"Revisão sem resultado dos testes",
+  "The review has no “Tests” section with what the reviewer ran: it is not valid.":"A revisão não traz a secção «Testes» com o que o revisor correu: não é válida.",
+  "The reviewer's numbers do not match the implementer's report.":"Os números do revisor não coincidem com os do relatório do implementador.",
+  "Reviewer's tests: {t}":"Testes do revisor: {t}",
+  "The review was repeated: {note}.":"A revisão foi repetida: {note}.",
+  "⚠ The tests were not confirmed by the reviewer, so I did not commit: {note}":"⚠ Os testes não ficaram confirmados pelo revisor, por isso não comitei: {note}",
+  "reviewer's tests not confirmed":"testes do revisor sem confirmação",
+  "The report has neither the baseline nor the final suite result.":"O relatório não traz a linha de base nem o resultado final da suite.",
+  "Approved":"Aprovado",
+  "With reservations":"Com reservas",
+  "Verdict not identified":"Veredicto não identificado",
+  "✓ The review passed and the changes were <b>committed</b> ({note}) on the feature's feat/ branch: local, no push; the merge is yours.":"✓ Revisão passou e as alterações foram <b>comitadas</b> ({note}) no ramo feat/ da feature: local, sem push; o merge é teu.",
+  "No code worktree: nothing to commit.":"Sem worktree de código: não há nada a comitar.",
+  "⚠ The commit failed: {note}":"⚠ O commit falhou: {note}",
+  "⚠ I reached the limit of automatic fix rounds without approval: you decide (ask for fixes or cancel).":"⚠ Atingi o limite de rondas de correção automática sem aprovação: decide tu (pede correções ou cancela).",
+  "⚠ The review did not produce a verdict I can read (I already retried): read it and decide.":"⚠ A revisão não trouxe um veredicto que eu consiga ler (já repeti): lê-a e decide tu.",
+  "⚠ I could not send the fixes automatically: {note}":"⚠ Não consegui enviar as correções automaticamente: {note}",
+  "The review came back without a verdict and was repeated.":"A revisão veio sem veredicto e foi repetida.",
+  "⚠ The validator still blocks the plan after the automatic rounds: read the findings and decide.":"⚠ O validador continua a bloquear o plano depois das rondas automáticas: lê os achados e decide tu.",
+  "⚠ The plan validation did not produce a verdict I can read: read the plan and decide.":"⚠ A validação do plano não trouxe um veredicto que eu consiga ler: lê o plano e decide tu.",
+  "⚠ I could not launch the plan validation: {note}":"⚠ Não consegui lançar a validação do plano: {note}",
+  "⚠ I could not send the plan back to the worker: {note}":"⚠ Não consegui devolver o plano ao worker: {note}",
+  "No findings":"Sem achados",
+  "Plan validation: {vl}":"Validação do plano: {vl}",
+  "See the full validation":"Ver a validação completa",
+  "Validator findings: choose what the plan should fix and what you accept as is":"Achados do validador: escolhe o que o plano deve corrigir e o que aceitas como está",
+  "Decision on {k}":"Decisão sobre {k}",
+  "Fix":"Corrigir",
+  "Fix@noun":"Correção",
+  "Accept":"Aceitar",
+  "Independent review":"Revisão independente",
+  "Findings: choose what to fix and what you accept as is":"Achados: escolhe o que corrigir e o que aceitas como está",
+  "General note (optional)":"Nota geral (opcional)",
+  "Extra instructions for the fixes (optional)":"Instruções extra para as correções (opcional)",
+  "The worker receives the review findings; add here anything you want it to prioritise…":"O worker recebe os achados da revisão; acrescenta aqui o que quiseres que ele priorize…",
+  "Read the review above before deciding":"Lê a revisão acima antes de decidir",
+  "Cancel request":"Cancelar pedido",
+  "Fix {n} finding{s}":"Corrigir {n} achado{s}",
+  "Ask for fixes":"Pedir correções",
+  "Fix {n} plan finding{s}":"Corrigir {n} achado{s} do plano",
+  "Accept implementation":"Aceitar implementação",
+  "Send to review":"Enviar para revisão",
+  "Approve and move on to {next}":"Aprovar e avançar para {next}",
+  "Do you want to change anything? (optional)":"Queres alterar alguma coisa? (opcional)",
+  "Your answer to the spec's questions":"A tua resposta às perguntas da spec",
+  "Anything you want to add beyond the answers…":"Algo que queiras acrescentar além das respostas…",
+  "If you want to change something in the spec, say so here and the worker rewrites it. If it is fine, approve.":"Se quiseres mudar algo na spec, diz aqui e o worker reescreve-a. Se estiver bem, aprova.",
+  "Write your answer to the spec's open questions here…":"Escreve aqui a tua resposta às perguntas em aberto da spec…",
+  "Your decision":"A tua decisão",
+  "✓ no open questions":"✓ sem perguntas em aberto",
+  "Ctrl+Enter sends the answers":"Ctrl+Enter envia as respostas",
+  "Send answers":"Enviar respostas",
+  "Ask for changes":"Pedir alterações",
+  "Try again":"Tentar de novo",
+  "You":"Tu",
+  "Round {n}":"Ronda {n}",
+  "Reading your answers and rewriting {what}…":"A ler as tuas respostas e a reescrever {what}…",
+  "It incorporated your answers and has <b>{n} new questions</b>: answer them in the form below.":"Incorporou as tuas respostas e tem <b>{n} perguntas novas</b>: responde-lhes no formulário abaixo.",
+  "It incorporated your answers and has <b>1 new question</b>: answer it in the form below.":"Incorporou as tuas respostas e tem <b>1 pergunta nova</b>: responde-lhe no formulário abaixo.",
+  "It incorporated your answers and <b>has no more questions</b>. You can approve, or ask for more changes.":"Incorporou as tuas respostas e <b>não tem mais perguntas</b>. Podes aprovar, ou pedir mais alterações.",
+  "It incorporated your answers but left text under “Open questions” that I could not turn into a form: read the spec.":"Incorporou as tuas respostas, mas deixou texto em «Perguntas em aberto» que não consegui transformar em formulário: lê a spec.",
+  "Answer to your doubts":"Resposta às tuas dúvidas",
+  "History":"Histórico",
+  "worker launched":"worker lançado",
+  "finished":"terminou",
+  "failed":"falhou",
+  "worker still active":"worker ainda ativo",
+  "approved":"aprovado",
+  "changes requested":"alterações pedidas",
+  "fixes requested":"correções pedidas",
+  "automatic fixes":"correções automáticas",
+  "automatic review":"revisão automática",
+  "automatic review failed":"revisão automática falhou",
+  "committed":"comitado",
+  "commit failed":"commit falhou",
+  "nothing to commit":"nada para comitar",
+  "automatic fixes limit":"limite de correções automáticas",
+  "review repeated":"revisão repetida",
+  "review without verdict":"revisão sem veredicto",
+  "automatic fixes failed":"correções automáticas falharam",
+  "cancelled":"cancelado",
+  "plan validation":"validação do plano",
+  "plan validated":"plano validado",
+  "plan fixes":"correções do plano",
+  "plan fixes limit":"limite de correções do plano",
+  "plan validation failed":"validação do plano falhou",
+  "restored":"restaurada",
+  "analysis archived":"análise arquivada",
+  "analysis archiving failed":"arquivo da análise falhou",
+  "Requests":"Pedidos",
+  "Type":"Tipo",
+  "Feature":"Funcionalidade",
+  "Bug fix":"Correção de bug",
+  "Analysis":"Análise",
+  "Maintenance":"Manutenção",
+  "Diagnosis":"Diagnóstico",
+  "Verification":"Verificação",
+  "Independent verification":"Verificação independente",
+  "Accept analysis":"Aceitar análise",
+  "Request created: worker launched.":"Pedido criado: worker lançado.",
+  "{l} ready ({v}). Read the findings and accept the analysis, or ask for fixes.":"{l} pronta ({v}). Lê os achados e aceita a análise, ou pede correções.",
+  "Analysis done. The report was archived in the project and in the vault.":"Análise concluída. O relatório ficou arquivado no projeto e no vault.",
+  "This launches a worker that investigates and writes only the <b>diagnosis</b> (root cause). Nothing moves forward (plan, fix) without your “approve” here.":"Isto lança um worker que investiga e escreve só o <b>diagnóstico</b> (causa raiz). Nada avança (plano, correção) sem o teu «aprovar» aqui.",
+  "This launches a read-only worker that writes the <b>analysis</b>; another then verifies the facts. It changes nothing in the project.":"Isto lança um worker só de leitura que escreve a <b>análise</b>; depois outro verifica os factos. Não altera nada no projeto.",
+  "This launches a worker that writes only the maintenance <b>plan</b> (behavior does not change). Nothing moves forward without your “approve” here.":"Isto lança um worker que escreve só o <b>plano</b> da manutenção (o comportamento não muda). Nada avança sem o teu «aprovar» aqui.",
+  "Launch diagnosis":"Lançar diagnóstico",
+  "Launch analysis":"Lançar análise",
+  "Launch plan":"Lançar plano",
+  "spec archived":"spec arquivada",
+  "plan archived":"plano arquivado",
+  "spec archiving failed":"arquivo da spec falhou",
+  "plan archiving failed":"arquivo do plano falhou",
+  "validation without verdict":"validação sem veredicto",
+  "validation repeated":"validação repetida",
+  "plan fixes failed":"correções do plano falharam",
+  "No request in progress for this filter.":"Nenhum pedido em curso para este filtro.",
+  "Nothing in progress. Create one with “+ New request”.":"Nada em curso. Cria um com «+ Novo pedido».",
+  "Filter done items by project":"Filtrar concluídas por projeto",
+  "{a} of {b}":"{a} de {b}",
+  "Cancel this feature? The running worker will be stopped (its conversation is kept).":"Cancelar esta feature? O worker em curso será parado (a conversa dele fica guardada).",
+  "Answer a question, mark findings to fix, or write a note.":"Responde a alguma pergunta, marca achados para corrigir ou escreve uma nota.",
+  "The reviewer BLOCKED this implementation. Accept anyway?":"O revisor BLOQUEOU esta implementação. Aceitar mesmo assim?",
+  "You marked findings to fix and are about to accept without fixing them. Accept anyway?":"Marcaste achados para corrigir e vais aceitar sem os corrigir. Aceitar mesmo assim?",
+  "There are still {n} unanswered question(s). Approve anyway?":"Ainda há {n} pergunta(s) sem resposta. Aprovar mesmo assim?",
+  "Fixes sent to the implementation worker.":"Correções enviadas ao worker da implementação.",
+  "Approved: next worker launched.":"Aprovado: worker seguinte lançado.",
+  "Changes sent to the worker.":"Alterações enviadas ao worker.",
+  "Worker relaunched.":"Worker relançado.",
+  "Validating…":"A validar…",
+  "Project “{name}” added: {x}.":"Projeto «{name}» adicionado: {x}.",
+  "Cloning…":"A clonar…",
+  "Project “{name}” cloned and added: {x}.":"Projeto «{name}» clonado e adicionado: {x}.",
+  "Launching…":"A lançar…",
+  "Feature created: spec worker launched.":"Feature criada: worker da spec lançado.",
+  "To decide":"Por decidir",
+  "In progress":"Em curso",
+  "Optional":"Opcional",
+  "Missing:":"Falta:",
+  "Session":"Sessão",
+  "Opens a new terminal in this session":"Abre um terminal novo nesta sessão",
+  "Resume":"Retomar",
+  "Launches the worker that writes the spec now":"Lança já o worker que escreve a spec",
+  "Create request":"Criar pedido",
+  "Dismiss":"Dispensar",
+  "Filter to-dos by status":"Filtrar pendentes por estado",
+  "Filter to-dos by project":"Filtrar pendentes por projeto",
+  "No to-do matches this filter.":"Nenhum pendente com este filtro.",
+  "No to-dos for this filter.":"Sem pendentes para este filtro.",
+  "No to-dos.":"Sem pendentes.",
+  "Opening a terminal in the session…":"A abrir um terminal na sessão…",
+  "To-do dismissed.":"Pendente dispensado.",
+  "Copied ✓":"Copiado ✓",
+  "The server was restarted. Reload the page (F5).":"O servidor foi reiniciado. Recarrega a página (F5).",
+  "No connection to the server":"Sem ligação ao servidor"
+};
+let LANG="en";
+try{const q=new URLSearchParams(location.search).get("lang"),sv=localStorage.getItem("lang");
+  LANG=["pt","en"].includes(q)?q:["pt","en"].includes(sv)?sv:(navigator.language||"").toLowerCase().startsWith("pt")?"pt":"en";}catch(_){}
+const up1=t=>t.charAt(0).toUpperCase()+t.slice(1);
+// A key may end in "@context" (e.g. "ready@plan") to let Portuguese choose gender/number; English ignores the suffix.
+const tt=(en,v)=>{const s0=LANG==="pt"&&PT[en]!==undefined?PT[en]:en.replace(/@\w+$/,"");return v?s0.replace(/\{(\w+)\}/g,(m,k)=>k in v?v[k]:m):s0;};
+function applyStatic(){
+  document.documentElement.lang=LANG==="pt"?"pt-PT":"en";
+  document.querySelectorAll("#langSw button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.l===LANG)));
+  if(LANG!=="pt")return;
+  const skip=["feats","pends","featsDone","workers","stats","pfilt","banner","doms","toast","repos","curInfo"].map(i=>"#"+i).join(",");
+  const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{acceptNode:n=>{const p=n.parentElement;
+    return !p||["SCRIPT","STYLE"].includes(p.tagName)||p.closest("[data-i18n],"+skip)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;}});
+  const ns=[];while(w.nextNode())ns.push(w.currentNode);
+  ns.forEach(n=>{const m=n.nodeValue.match(/^(\s*)([\s\S]*?)(\s*)$/);if(m[2])n.nodeValue=m[1]+tt(m[2])+m[3];});
+  document.querySelectorAll("[placeholder],[title],[aria-label]").forEach(e=>{
+    for(const a of ["placeholder","title","aria-label"])if(e.hasAttribute(a))e.setAttribute(a,tt(e.getAttribute(a)));});
+  document.querySelectorAll("[data-i18n]").forEach(e=>{e.innerHTML=tt(e.innerHTML.trim());});
+}
+let S=null;
+// the filters live in the URL hash: #q=repo&d=domain
+const F={q:"",d:"all"};
+const $=id=>document.getElementById(id);
+const dom=p=>p.domain||"other";
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const cp=t=>`<button type="button" class="cp" data-cp="${esc(t)}" title="Copiar">${esc(t)}</button>`;
+
+function readHash(){
+  const h=new URLSearchParams(location.hash.slice(1));
+  F.q=h.get("q")||"";F.d=h.get("d")||"all";
+}
+function writeHash(){
+  const h=new URLSearchParams();
+  if(F.q)h.set("q",F.q);if(F.d!=="all")h.set("d",F.d);
+  history.replaceState(null,"",h.toString()?"#"+h:location.pathname);
+}
+const matchName=(s,q)=>String(s||"").toLowerCase().includes(q.toLowerCase());
+
+function render(){
+  if(!S)return;
+  const all=S.projects;
+  $("repos").innerHTML=all.map(p=>`<option value="${esc(p.name)}">`).join("");
+  if(!SET)$("domList").innerHTML=[...new Set(all.map(dom).filter(d=>d&&d!=="other"))].sort().map(d=>`<option value="${esc(cap(d))}">`).join("");
+
+  const domOf=new Map(all.map(p=>[p.name,dom(p)]));
+  const open=[...(S.features||[]).filter(f=>!["done","cancelled"].includes(f.status)),...(S.pending||[])];
+  const doms=["all",...[...new Set(all.map(dom))].sort()];
+  $("doms").innerHTML=doms.map(d=>{
+    const n=d==="all"?open.length:open.filter(x=>domOf.get(x.project)===d).length;
+    return `<button type="button" aria-pressed="${d===F.d}" data-d="${esc(d)}">${esc(d==="all"?tt("All"):cap(d))}${n?`<i>${n}</i>`:""}</button>`;
+  }).join("");
+  const names=new Set(all.filter(p=>(!F.q||matchName(p.name,F.q))&&(F.d==="all"||dom(p)===F.d)).map(p=>p.name));
+  const filtering=!!F.q||F.d!=="all";
+
+  const ws=S.workers.filter(w=>filtering?names.has(w.project):true);
+
+  const fts=(S.features||[]).filter(f=>filtering?names.has(f.project):true);
+  const pds=(S.pending||[]).filter(x=>filtering?names.has(x.project):true);
+  const waiting=(S.features||[]).filter(f=>f.status==="awaiting").length;
+  $("banner").innerHTML=S.claude_ok===false?`<p class="banner">${tt("I cannot talk to <b>claude</b> (agents). Worker status may be out of date.")}</p>`:"";
+  const act=S.workers.filter(w=>["working","running"].includes(w.state)).length;
+  const parados=S.workers.filter(w=>["blocked","idle","waiting"].includes(w.state)).length;
+  $("stats").innerHTML=
+    `<div class="stat ${waiting?'hot':''}"><strong>${waiting}</strong><span>${tt("To decide")}</span></div>`+
+    `<div class="stat ${(S.pending||[]).length?'hot':''}"><strong>${(S.pending||[]).length}</strong><span>${tt("To-dos")}</span></div>`+
+    `<div class="stat"><strong>${act}</strong><span>${tt("Working")}</span></div>`+
+    (parados?`<div class="stat" title="${esc(tt("Workers that finished what they had to do and left the session open waiting for input (you can close them with claude stop <id>)"))}"><strong>${parados}</strong><span>${tt("Idle sessions")}</span></div>`:"")+
+    `<div class="stat"><strong>${esc(S.updated)}</strong><span>${tt("Updated")}</span></div>`;
+
+  renderFeatures(fts,filtering);
+  renderPending(pds,filtering);
+  $("nWork").textContent=ws.filter(w=>["working","running","blocked","idle","waiting"].includes(w.state)).length;
+  {const cu=S.curation||{attempts:0},ci=$("curInfo");   // only warns when the automation stopped because of failures
+    ci.textContent=cu.attempts>=3?tt("Automatic curation stopped after failures"):"";ci.className="curinfo bad";}
+  $("searchBox").classList.toggle("has",!!F.q);
+
+  {const live=w=>["working","running","blocked","idle","waiting"].includes(w.state);
+    const row=w=>`<tr><td>${esc(w.name)}<br><span class="path">${cp('claude attach '+w.id)}</span></td><td>${esc(cap(w.project))}</td><td>${esc(W_LABEL[w.state]||cap(w.state))}</td><td>${esc(w.task.slice(0,160))}</td><td class="m">${esc(w.started.replace("T"," "))}</td></tr>`;
+    const tbl=l=>`<div class="wrap"><table><thead><tr><th>Worker</th><th>${tt("Project")}</th><th>${tt("Status")}</th><th>${tt("Task")}</th><th>${tt("Started")}</th></tr></thead><tbody>${l.map(row).join("")}</tbody></table></div>`;
+    const on=ws.filter(live),old=ws.filter(w=>!live(w));
+    $("workers").innerHTML=(on.length?tbl(on):`<div class="empty">${filtering?tt("No open workers for this filter."):tt("No open workers.")}</div>`)+(old.length?`<details><summary class="m">${tt("History ({n} finished or stopped)",{n:old.length})}</summary>${tbl(old)}</details>`:"");}
+}
+
+// ---------- features ----------
+const STG=[["spec",tt("Spec")],["plan",tt("Plan")],["build",tt("Implementation")],["review",tt("Review")]];
+const KIND_LABEL={feature:tt("Feature"),fix:tt("Bug fix"),analysis:tt("Analysis"),maintenance:tt("Maintenance")};
+const KIND_STG={feature:["spec","plan","build","review"],fix:["spec","plan","build","review"],maintenance:["plan","build","review"],analysis:["build","review"]};
+const KIND_NAME={fix:{spec:tt("Diagnosis"),build:tt("Fix@noun")},analysis:{build:tt("Analysis"),review:tt("Verification")}};
+const stg=f=>{const k=KIND_STG[f.kind]?f.kind:"feature";return KIND_STG[k].map(id=>[id,(KIND_NAME[k]||{})[id]||STG.find(x=>x[0]===id)[1]]);};
+const ST_LABEL={working:tt("Working"),awaiting:tt("To decide"),failed:tt("Failed"),done:tt("Done@status"),cancelled:tt("Cancelled")};
+const W_LABEL={working:tt("Working"),running:tt("Working"),blocked:tt("Blocked"),idle:tt("Idle"),waiting:tt("Waiting")};
+const cap=t=>t?t[0].toUpperCase()+t.slice(1):t;
+const FUI={};
+const fui=id=>FUI[id]||(FUI[id]={comment:"",open:{},qa:{},qs:[],fx:{}});
+let toastT;
+function toast(msg,err){const t=$("toast");t.textContent=msg;t.className="toast"+(err?" err":"");t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,err?6000:2500);}
+async function api(path,body){
+  const r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json","X-Token":T,"X-Lang":LANG},body:JSON.stringify(body||{})});
+  const j=await r.json().catch(()=>({error:tt("Invalid response")}));
+  if(!r.ok)throw new Error(j.error||tt("Error"));
+  return j;
+}
+function stepper(f){
+  const cur=stg(f).findIndex(s=>s[0]===f.stage);
+  return `<ol class="steps">${stg(f).map(([k,l],i)=>{
+    const done=f.status==="done"?i<=cur:i<cur;
+    const skipped=f.status==="done"&&i>cur;   // accepted before reaching this phase (e.g. “accept without review”)
+    const c=done?"done":skipped?"skip":i===cur?`cur ${f.status}`:"";
+    return `<li class="${c}" data-n="${i+1}">${l}${skipped?" "+tt("(skipped)"):""}</li>`;}).join("")}</ol>`;
+}
+function statusLine(f){
+  const l=stg(f).find(s=>s[0]===f.stage)[1];
+  const w=f.worker_id?` · ${cp("claude attach "+f.worker_id)}${f.worker_state?` <span class="chip ${["working","running"].includes(f.worker_state)?"ok":"warn"}">${esc(f.worker_state)}</span>`:""}`:"";
+  const what={spec:tt("the spec"),plan:tt("the plan"),build:tt("the report"),review:tt("the review")}[f.stage];
+  const parado=f.worker_state==="blocked"||f.worker_state==="idle"||f.worker_state==="waiting";
+  const checking=f.stage==="plan"&&f.pv&&f.pv.checking;
+  const working=f.stage==="build"&&f.auto&&f.auto.fixes>0&&!parado?tt("{l}: fixing the review findings (round {n} of 3){w}",{l,n:f.auto.fixes,w})
+    :parado?tt("{l}: the worker is idle waiting for you (permission or question){w}",{l,w})
+    :tt("{l}: {what}{w}",{l,w,what:f.stage==="review"?tt("An independent reviewer is analysing the code")
+      :checking?tt("An independent validator is checking the plan against the spec and the code")
+      :f.stage==="plan"&&f.pv&&f.pv.fixes>0&&f.history.some(h=>h.event==="plan fixes")?tt("The plan is being fixed after validation (round {n} of 2)",{n:f.pv.fixes})
+      :tt("A worker is writing")});
+  const attach=tt("To talk to the worker: {cmd}",{cmd:cp("claude attach "+f.worker_id)});
+  let awaiting;
+  if(f.stage==="build"&&f.history.some(h=>h.event==="automatic review failed"))awaiting=tt("{l} ready, but the automatic review did not start: click “Send to review”.",{l});
+  else if(f.stage==="review"&&f.kind==="analysis")awaiting=tt("{l} ready ({v}). Read the findings and accept the analysis, or ask for fixes.",{l,v:VERDICT[parseReview(f.artifacts.review).verdict][0].toLowerCase()});
+  else if(f.stage==="review")awaiting=tt("{l} ready ({v}). Read the findings and accept the implementation, or ask for fixes.",{l,v:VERDICT[parseReview(f.artifacts.review).verdict][0].toLowerCase()});
+  else{
+    const st=questionsFor(f).status,ready=f.stage==="plan"?tt("ready@plan"):tt("ready@spec");
+    awaiting={form:tt("{l} {ready}. Read {what}, answer the questions under “Your decision” and send, or approve.",{l,ready,what}),
+      none:tt("{l} {ready} and no open questions. Read {what} and approve, or ask for changes.",{l,ready,what}),
+      unparsed:tt("{l} {ready}. It has text under “Open questions” that I could not turn into a form: read {what} and answer in the decision field, or approve.",{l,ready,what})}[st];
+  }
+  const m={working,
+    awaiting:`${awaiting} ${attach}`,
+    failed:tt("{l}: the worker finished without writing the result{w}. Check {logs} or try again.",{l,w,logs:`<span class="path">claude logs ${esc(f.worker_id)}</span>`}),
+    done:f.kind==="analysis"?tt("Analysis done. The report was archived in the project and in the vault."):(()=>{const ex=parseExecution(f.artifacts.build);
+      return ex==="done"?tt("Done. The branch {br} is in the repo; the merge and the push are yours.",{br:`<b class="path">feat/${esc(f.id)}</b>`})
+        :tt("Done in the pipeline, but <b>the report does not confirm verified execution</b> ({ex}): check the report before calling it finished.",{ex:EXEC[ex][0].toLowerCase()});})(),
+    cancelled:tt("Cancelled.")};
+  return `<p class="fline">${m[f.status]||""}</p>`;
+}
+// ---------- markdown reader (minimal and safe: escapes everything before formatting) ----------
+function mdInline(t){
+  const codes=[];
+  t=String(t).replace(/`([^`]+)`/g,(_,c)=>{codes.push(c);return "\u0000"+(codes.length-1)+"\u0000";});
+  t=esc(t);
+  t=t.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>")
+     .replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\*)/g,"$1<em>$2</em>")
+     .replace(/~~([^~]+)~~/g,"<del>$1</del>")
+     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  return t.replace(/\u0000(\d+)\u0000/g,(_,n)=>"<code>"+esc(codes[+n])+"</code>");
+}
+function mdTable(rows){
+  const cells=r=>r.trim().replace(/^\||\|$/g,"").split("|").map(c=>c.trim());
+  const head=cells(rows[0]),body=rows.slice(2).map(cells);
+  return `<div class="tw"><table><thead><tr>${head.map(c=>`<th>${mdInline(c)}</th>`).join("")}</tr></thead><tbody>${
+    body.map(r=>`<tr>${r.map(c=>`<td>${mdInline(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+function mdList(items){
+  let html="";const stack=[];
+  for(const it of items){
+    const tag=/\d/.test(it.mark)?"ol":"ul";
+    while(stack.length&&it.indent<stack[stack.length-1].indent){html+=`</li></${stack.pop().tag}>`;}
+    const top=stack[stack.length-1];
+    if(!top||it.indent>top.indent){html+=`<${tag}>`;stack.push({indent:it.indent,tag});}
+    else html+="</li>";
+    const task=it.text.match(/^\[([ xX])\]\s+(.*)$/);
+    html+="<li>"+(task?`<span class="chk">${task[1]===" "?"☐":"☑"}</span> ${mdInline(task[2])}`:mdInline(it.text));
+  }
+  while(stack.length)html+=`</li></${stack.pop().tag}>`;
+  return html;
+}
+function md(src){
+  const L=String(src??"").replace(/\r\n/g,"\n").split("\n"),out=[];
+  let i=0;
+  const blank=l=>!l.trim();
+  const LIST=/^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
+  while(i<L.length){
+    const l=L[i];
+    if(blank(l)){i++;continue;}
+    let m;
+    if(/^\s*```/.test(l)){
+      const buf=[];i++;
+      while(i<L.length&&!/^\s*```/.test(L[i]))buf.push(L[i++]);
+      i++;out.push(`<pre><code>${esc(buf.join("\n"))}</code></pre>`);continue;
+    }
+    if((m=l.match(/^(#{1,6})\s+(.*?)\s*#*$/))){out.push(`<h${m[1].length}>${mdInline(m[2])}</h${m[1].length}>`);i++;continue;}
+    if(/^\s*([-*_])(\s*\1){2,}\s*$/.test(l)){out.push("<hr>");i++;continue;}
+    if(l.includes("|")&&i+1<L.length&&/^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(L[i+1])){
+      const rows=[];while(i<L.length&&L[i].includes("|")&&!blank(L[i]))rows.push(L[i++]);
+      out.push(mdTable(rows));continue;
+    }
+    if(/^\s*>/.test(l)){
+      const buf=[];while(i<L.length&&/^\s*>/.test(L[i]))buf.push(L[i++].replace(/^\s*>\s?/,""));
+      out.push(`<blockquote>${md(buf.join("\n"))}</blockquote>`);continue;
+    }
+    if(LIST.test(l)){
+      const items=[];
+      while(i<L.length&&(m=L[i].match(LIST))){items.push({indent:m[1].replace(/\t/g,"  ").length,mark:m[2],text:m[3]});i++;}
+      out.push(mdList(items));continue;
+    }
+    const buf=[];
+    while(i<L.length&&!blank(L[i])&&!/^(#{1,6}\s|\s*```|\s*>)/.test(L[i])&&!LIST.test(L[i]))buf.push(L[i++]);
+    if(!buf.length)buf.push(L[i++]);
+    out.push(`<p>${buf.map(mdInline).join("<br>")}</p>`);
+  }
+  return out.join("\n");
+}
+function artifacts(f){
+  const u=fui(f.id);
+  return stg(f).filter(([k])=>f.artifacts[k]).map(([k,l])=>{
+    const open=u.open[k]!==undefined?u.open[k]:(f.status==="awaiting"&&k===f.stage);
+    return `<details class="art" data-id="${esc(f.id)}" data-k="${k}"${open?" open":""}><summary>${l}</summary><div class="md">${md(f.artifacts[k])}</div></details>`;
+  }).join("");
+}
+// <questions>
+// labels of the yes/no options generated for free-text questions (LANG only exists in the page, not in the tests)
+function yesNo(){return typeof LANG!=="undefined"&&LANG==="pt"?["Sim","Não"]:["Yes","No"];}
+function mdPlain(t){return String(t??"").replace(/\*\*|`|\*/g,"").trim();}
+function cleanOption(raw){
+  let t=String(raw).replace(/^\[[ xX]\]\s*/,"").trim();
+  const rec=/\(\s*(?:recomendad[ao]|recommended)\s*\)/i.test(t);
+  t=t.replace(/\s*\(\s*(?:recomendad[ao]|recommended)\s*\)/i,"").trim();
+  return {label:t,rec};
+}
+function buildQuestion(it,n){
+  const m=it.head.match(/^\*\*\s*(P?\d+|[A-Za-z]\d+)\s*[—–:.-]+\s*(.+?)\s*:?\s*\*\*\s*:?\s*(.*)$/);
+  let id,title,text;
+  if(m){id=m[1];title=m[2].replace(/:$/,"");text=m[3];}
+  else{
+    const h=it.head.match(/^(P?\d+)\s*[—–:.-]+\s*(.*)$/);
+    id=h?h[1]:"Q"+(n+1);
+    const body=h?h[2]:it.head;
+    title=mdPlain(body).split(/[.:?]/)[0].slice(0,60)||id;text=body;
+  }
+  text=[text,...it.cont].join(" ").trim();
+  let options=it.kids.map(cleanOption).filter(o=>o.label);
+  if(!options.length){
+    const ia=text.search(/\(a\)\s/);
+    if(ia>=0){
+      const stem=text.slice(0,ia).replace(/op(?:tions|[cç][oõ]es)\s*:?\s*$/i,"").trim();
+      options=text.slice(ia).split(/\s*;\s*(?=\([a-z]\)\s)/).map(p=>cleanOption(p.replace(/^\([a-z]\)\s*/,""))).filter(o=>o.label);
+      text=stem;
+    }
+  }
+  if(!options.length&&/^\s*(do you|can we|can i|should we|should i|shall i|may i|are you|is it ok|autorizas|confirmas|queres|concordas|podes|posso|deves|devem|deve|pode)\b/i.test(mdPlain(text))){
+    options=yesNo().map(label=>({label,rec:false}));
+  }
+  return {id,title,text,options};
+}
+function parseQuestions(src){
+  const L=String(src||"").replace(/\r\n/g,"\n").split("\n");
+  const start=L.findIndex(l=>/^#{2,3}\s+(?:perguntas\s+em\s+aberto|open\s+questions)/i.test(l));
+  if(start<0)return [];
+  let end=L.length;
+  for(let i=start+1;i<L.length;i++){if(/^#{1,2}\s/.test(L[i])){end=i;break;}}
+  const sec=L.slice(start+1,end),items=[];
+  const byHeading=sec.some(l=>/^#{3,4}\s/.test(l));
+  let cur=null;
+  for(const l of sec){
+    const hd=byHeading&&l.match(/^#{3,4}\s+(.*)$/);
+    const top=!byHeading&&l.match(/^(?:[-*+]|\d+[.)])\s+(.*)$/);
+    if(hd||top){cur={head:(hd||top)[1].trim(),kids:[],cont:[]};items.push(cur);continue;}
+    if(!cur||!l.trim())continue;
+    const kid=l.match(byHeading?/^\s*(?:[-*+]|\d+[.)])\s+(.*)$/:/^\s+(?:[-*+]|\d+[.)])\s+(.*)$/);
+    if(kid)cur.kids.push(kid[1]);else cur.cont.push(l.trim());
+  }
+  const seen={};
+  return items.map(buildQuestion).map(q=>{seen[q.id]=(seen[q.id]||0)+1;return seen[q.id]>1?{...q,id:q.id+"-"+seen[q.id]}:q;});
+}
+const OUT_TXT={
+  pt:{ans:"## Respostas às perguntas em aberto",none:"(sem opção escolhida)",note:"Comentário/pergunta",general:"## Nota geral",
+    fix:"## Achados a corrigir (escolhidos pelo utilizador)",keep:"## Achados aceites pelo utilizador (não alterar)"},
+  en:{ans:"## Answers to the open questions",none:"(no option chosen)",note:"Comment/question",general:"## General note",
+    fix:"## Findings to fix (chosen by the user)",keep:"## Findings accepted by the user (do not change)"}};
+const outTxt=lang=>OUT_TXT[lang==="pt"?"pt":"en"];
+function compileAnswers(qs,qa,general,lang){
+  const X=outTxt(lang),lines=[];
+  for(const q of qs){
+    const a=(qa&&qa[q.id])||{};
+    const opt=a.opt!=null&&q.options[a.opt]?q.options[a.opt].label.slice(0,240):"";
+    const note=(a.note||"").trim();
+    if(!opt&&!note)continue;
+    lines.push(`- **${q.id} — ${q.title}:** ${opt||X.none}`);
+    if(note)lines.push(`  - ${X.note}: ${note}`);
+  }
+  const out=[];
+  if(lines.length)out.push(X.ans,...lines);
+  if((general||"").trim())out.push(X.general,general.trim());
+  return out.join("\n");
+}
+function parseFindings(src){
+  // findings of review.md: “- **[SEVERITY] title:** body”, one per line, in the “Findings” section
+  const out=[];
+  for(const l of extractSection(src,/^#{2,3}\s+(?:achados|findings)/i).split("\n")){
+    const m=l.match(/^\s*[-*]\s+\*\*\[\s*(CRITICAL|HIGH|MEDIUM|LOW)\s*\]\s*(.+?)\s*:?\*\*:?\s*(.*)$/);
+    if(m)out.push({id:"A"+(out.length+1),sev:m[1],title:m[2].replace(/:$/,""),body:m[3].trim()});
+  }
+  return out;
+}
+function findingFix(fd,fx){
+  // decision per finding: what the user chose or, by default, fix CRITICAL/HIGH and accept the rest
+  const v=fx&&fx[fd.id];
+  return typeof v==="boolean"?v:(fd.sev==="CRITICAL"||fd.sev==="HIGH");
+}
+function compileFixes(fds,fx,general,lang){
+  const X=outTxt(lang);
+  const fix=fds.filter(x=>findingFix(x,fx)),keep=fds.filter(x=>!findingFix(x,fx));
+  const line=x=>`- **${x.id} [${x.sev}] ${x.title}:** ${x.body}`.slice(0,700);
+  const out=[];
+  if(fix.length)out.push(X.fix,...fix.map(line));
+  if(keep.length)out.push(X.keep,...keep.map(x=>`- ${x.id} [${x.sev}] ${x.title}`));
+  if((general||"").trim())out.push(X.general,general.trim());
+  return out.join("\n");
+}
+function questionsStatus(src,qs){
+  // "form": questions were read; "none": the spec has none (or says so); "unparsed": there is text that could not be read
+  if(qs.length)return "form";
+  const L=String(src||"").split("\n");
+  const i=L.findIndex(l=>/^#{2,3}\s+(?:perguntas\s+em\s+aberto|open\s+questions)/i.test(l));
+  if(i<0)return "none";
+  const body=[];
+  for(let j=i+1;j<L.length&&!/^#{1,2}\s/.test(L[j]);j++)body.push(L[j]);
+  const t=mdPlain(body.join(" ")).trim();
+  if(!t||/^(nenhuma|nenhum|sem\s+perguntas|n\/a|n[aã]o\s+h[aá]|none|no\s+(?:open\s+)?questions|there\s+are\s+no)/i.test(t))return "none";
+  return "unparsed";
+}
+function extractSection(src,re){
+  // body of the section whose heading matches `re`, up to the next heading of the same level or higher
+  const L=String(src||"").replace(/\r\n/g,"\n").split("\n");
+  const i=L.findIndex(l=>re.test(l));
+  if(i<0)return "";
+  const level=(L[i].match(/^#+/)||["##"])[0].length;
+  const out=[];
+  for(let j=i+1;j<L.length;j++){
+    const h=L[j].match(/^(#+)\s/);
+    if(h&&h[1].length<=level)break;
+    out.push(L[j]);
+  }
+  return out.join("\n").trim();
+}
+function parseReview(src){
+  // veredicto e contagem de achados por gravidade de um review.md
+  const counts={CRITICAL:0,HIGH:0,MEDIUM:0,LOW:0};
+  for(const m of String(src||"").matchAll(/\*\*\[\s*(CRITICAL|HIGH|MEDIUM|LOW)\s*\]/g))counts[m[1]]++;
+  const t=mdPlain(extractSection(src,/^#{2,3}\s+(?:veredicto|verdict)/i)).toUpperCase();
+  let verdict="unknown";
+  if(/^\s*(?:BLOQUEAD|BLOCKED)/.test(t))verdict="blocked";
+  else if(/^\s*(?:COM\s+RESERVAS|WITH\s+RESERVATIONS)/.test(t))verdict="reserves";
+  else if(/^\s*(?:APROVAD|APPROVED)/.test(t))verdict="approved";
+  return {verdict,counts};
+}
+function questionsFor(f){
+  // the worker's structured file (f.questions) has priority; the spec's markdown is the fallback
+  const src=(f.artifacts&&f.artifacts[f.stage])||"";
+  if(Array.isArray(f.questions)){
+    const qs=f.questions.map(q=>({id:q.id,title:q.title,text:q.text,options:(q.options||[]).map(o=>({label:o.label,rec:!!o.rec}))}));
+    return {qs,status:qs.length?"form":"none"};
+  }
+  const qs=parseQuestions(src);
+  return {qs,status:questionsStatus(src,qs)};
+}
+function parseExecution(src){
+  // execution status declared in the implementation report: done | partial | none | unknown
+  const t=mdPlain(extractSection(src,/^#{2,3}\s+(?:estado\s+da\s+execu[çc][ãa]o|execution\s+status)/i)).toUpperCase();
+  if(/^\s*(?:N[ÃA]O\s+EXECUTAD|NOT\s+EXECUTED)/.test(t))return "none";
+  if(/^\s*(?:PARCIALMENTE|PARTIALLY)/.test(t))return "partial";
+  if(/^\s*(?:EXECUTAD|EXECUTED)/.test(t))return "done";
+  return "unknown";
+}
+function parseTests(src){
+  // “Tests” section of the report: ok | regress | notrun | notests | unknown (from the first line)
+  const t=mdPlain(extractSection(src,/^#{2,3}\s+(?:testes|tests)\s*$/i)).toUpperCase();
+  if(/^\s*(?:COM\s+REGRESS|REGRESSIONS)/.test(t))return "regress";
+  if(/^\s*(?:CONFIRMADOS|CONFIRMED)/.test(t))return "confirmed";
+  if(/^\s*(?:DIVERGENTES|DIVERGENT)/.test(t))return "diverged";
+  if(/^\s*(?:SEM\s+REGRESS|NO\s+REGRESSIONS)/.test(t))return "ok";
+  if(/^\s*(?:N[ÃA]O\s+CORRIDOS|NOT\s+RUN)/.test(t))return "notrun";
+  if(/^\s*(?:SEM\s+TESTES|NO\s+TESTS)/.test(t))return "notests";
+  return "unknown";
+}
+function parseTestNumbers(src){
+  // lines “KEY: P passed, F failed” of the “Tests” section: base, final (implementer) and reviewer; new = “NEW TESTS: N”
+  const sec=extractSection(src,/^#{2,3}\s+(?:testes|tests)\s*$/i),out={};
+  const R="(\\d+)\\s*(?:passam|passed|pass)\\s*[,;]?\\s*(\\d+)\\s*(?:falham|falhas|failed|fail)";
+  for(const [k,rx] of [["base","(?:linha\\s+de\\s+base|baseline)"],["final","(?:resultado\\s+final|final\\s+result)"],["reviewer","(?:resultado\\s+do\\s+revisor|reviewer\\s+result)"]]){
+    const m=sec.match(new RegExp("^\\W*"+rx+"\\s*:\\s*"+R,"im"));if(m)out[k]=[+m[1],+m[2]];}
+  const n=sec.match(/^\W*(?:testes\s+novos|new\s+tests)\s*:\s*(\d+)/im);if(n)out.novos=+n[1];
+  return out;
+}
+// </questions>
+function decideState(id){
+  const u=fui(id),qs=u.qs||[];let n=0;
+  for(const q of qs){const a=u.qa[q.id];if(a&&(a.opt!=null||(a.note||"").trim()))n++;}
+  return {n,total:qs.length,any:n>0||!!(u.comment||"").trim()};
+}
+function questionsHtml(fid,qs){
+  const u=fui(fid),id=esc(fid);
+  return qs.map(q=>{
+    const a=u.qa[q.id]||{},qid=esc(q.id),done=a.opt!=null||(a.note||"").trim();
+    const opts=q.options.map((o,i)=>`<label class="opt"><input type="radio" name="q-${id}-${qid}" data-qopt="${qid}" data-fid="${id}" value="${i}"${a.opt===i?" checked":""}><span>${mdInline(o.label)}${o.rec?`<em class="rec">${tt("Recommended")}</em>`:""}</span></label>`).join("");
+    return `<div class="q${done?" done":""}" data-qwrap="${qid}"><div class="qh"><span class="qid">${qid}</span><span class="qt">${esc(q.title)}</span><span class="qok" aria-hidden="true">✓</span></div>
+      ${q.text?`<p class="qx">${mdInline(q.text)}</p>`:""}${opts?`<div class="opts">${opts}</div>`:""}
+      <textarea class="qnote" rows="1" data-qnote="${qid}" data-fid="${id}" maxlength="600" placeholder="${esc(tt("Comment or question about this item (optional)"))}">${esc(a.note||"")}</textarea></div>`;
+  }).join("");
+}
+function refreshDecide(fid){
+  const box=document.querySelector(`#feats .decide [data-comment="${CSS.escape(fid)}"]`)?.closest(".decide");if(!box)return;
+  const st=decideState(fid),u=fui(fid);
+  const pr=box.querySelector("[data-prog]");if(pr)pr.textContent=tt("{n}/{total} answered",{n:st.n,total:st.total});
+  const rv=box.querySelector('[data-act="revise"]'),pf=S.features.find(x=>x.id===fid);
+  if(rv){const n=pf?planFixCount(pf):0;rv.disabled=!st.any&&!n;if(n)rv.textContent=tt("Fix {n} plan finding{s}",{n,s:n===1?"":"s"});}
+  const fb=box.querySelector('[data-act="fix"]'),fds=parseFindings((S.features.find(x=>x.id===fid)||{artifacts:{}}).artifacts.review);
+  if(fb&&fds.length){const n=fds.filter(x=>findingFix(x,u.fx)).length;fb.textContent=tt("Fix {n} finding{s}",{n,s:n===1?"":"s"});fb.disabled=!n&&!st.any;}
+  box.querySelectorAll("[data-qwrap]").forEach(w=>{const a=u.qa[w.dataset.qwrap]||{};w.classList.toggle("done",a.opt!=null||!!(a.note||"").trim());});
+}
+const EXEC={done:[tt("Executed and verified"),"approved",tt("The report states what was verified.")],
+  partial:[tt("Partially executed"),"reserves",tt("Steps remain: read “Not verified” in the report.")],
+  none:[tt("Not executed"),"blocked",tt("Nothing was actually done: the report is just an execution plan for someone to carry out.")],
+  unknown:[tt("Execution status not stated"),"unknown",tt("The report does not say what was executed and verified: do not treat it as done.")]};
+const TESTS={ok:[tt("No regressions"),"approved",tt("The full suite passes as before and the report links each criterion to a test.")],
+  regress:[tt("With regressions"),"blocked",tt("Something that used to pass no longer does: read the report's “Tests” section.")],
+  notrun:[tt("Tests not run"),"blocked",tt("The worker did not run the full suite: without it there is no proof.")],
+  notests:[tt("Project without tests"),"reserves",tt("The project has no tests (or the report says why): check the justification.")],
+  confirmed:[tt("Confirmed by the reviewer"),"approved",tt("The reviewer ran the full suite again and the numbers match.")],
+  diverged:[tt("Divergent"),"blocked",tt("The reviewer got different results: I did not commit, you decide.")],
+  unknown:[tt("“Tests” section missing"),"unknown",tt("The report has neither the baseline nor the final suite result.")]};
+const fmtRes=r=>r?tt("{p} pass, {f} fail",{p:r[0],f:r[1]}):"—";
+const testNumbers=src=>fmtNums(parseTestNumbers(src));
+function fmtNums(n){
+  return [[tt("Baseline"),n.base],[tt("Final result"),n.final],[tt("Reviewer"),n.reviewer]].filter(x=>x[1])
+    .map(([k,v])=>`${k}: ${fmtRes(v)}`).concat(n.novos!==undefined?[tt("New tests: {n}",{n:n.novos})]:[]).join(" · ");
+}
+function reviewTestsHtml(f){
+  if(f.kind==="analysis")return "";
+  const src=f.artifacts.review||"",st=parseTests(src),n=parseTestNumbers(src),fin=parseTestNumbers(f.artifacts.build||"").final;
+  const differs=n.reviewer&&fin&&(n.reviewer[0]!==fin[0]||n.reviewer[1]!==fin[1]);
+  const [tl,tc,td]=st==="unknown"?[tt("Review without test results"),"blocked",tt("The review has no “Tests” section with what the reviewer ran: it is not valid.")]
+    :differs?[tt("Divergent"),"blocked",tt("The reviewer's numbers do not match the implementer's report.")]:(TESTS[st]||TESTS.unknown);
+  const nums=fmtNums({...parseTestNumbers(f.artifacts.build||""),reviewer:n.reviewer});
+  return `<div class="verdict ${tc}"><strong>${tt("Reviewer's tests: {t}",{t:tl})}</strong><span>${td}${nums?" · "+esc(nums):""}</span></div>`;
+}
+function execBanner(f){
+  if(f.stage!=="build"||f.kind==="analysis")return "";
+  const [t,c,d]=EXEC[parseExecution(f.artifacts.build)],[tl,tc,td]=TESTS[parseTests(f.artifacts.build)];
+  return `<div class="verdict ${c}"><strong>${tt("Execution: {t}",{t})}</strong><span>${d}</span></div>
+    <div class="verdict ${tc}"><strong>${tt("Tests: {t}",{t:tl})}</strong><span>${td}${testNumbers(f.artifacts.build)?" · "+esc(testNumbers(f.artifacts.build)):""}</span></div>`;
+}
+const VERDICT={approved:[tt("Approved"),"approved"],reserves:[tt("With reservations"),"reserves"],blocked:[tt("Blocked"),"blocked"],unknown:[tt("Verdict not identified"),"unknown"]};
+const NOTES={"committed":h=>tt("✓ The review passed and the changes were <b>committed</b> ({note}) on the feature's feat/ branch: local, no push; the merge is yours.",{note:esc(h.note)}),
+  "nothing to commit":()=>tt("No code worktree: nothing to commit."),
+  "commit failed":h=>tt("⚠ The commit failed: {note}",{note:esc(h.note)}),
+  "automatic fixes limit":()=>tt("⚠ I reached the limit of automatic fix rounds without approval: you decide (ask for fixes or cancel)."),
+  "review without verdict":()=>tt("⚠ The review did not produce a verdict I can read (I already retried): read it and decide."),
+  "automatic fixes failed":h=>tt("⚠ I could not send the fixes automatically: {note}",{note:esc(h.note)}),
+  "review repeated":h=>tt("The review was repeated: {note}.",{note:esc(h.note)}),
+  "reviewer's tests not confirmed":h=>tt("⚠ The tests were not confirmed by the reviewer, so I did not commit: {note}",{note:esc(h.note)})};
+const PLAN_NOTES={"plan fixes limit":()=>tt("⚠ The validator still blocks the plan after the automatic rounds: read the findings and decide."),
+  "validation without verdict":()=>tt("⚠ The plan validation did not produce a verdict I can read: read the plan and decide."),
+  "plan validation failed":h=>tt("⚠ I could not launch the plan validation: {note}",{note:esc(h.note)}),
+  "plan fixes failed":h=>tt("⚠ I could not send the plan back to the worker: {note}",{note:esc(h.note)})};
+function planCheckHtml(f,id){
+  const t=f.artifacts.planreview,last=f.history.filter(h=>h.stage==="plan"&&PLAN_NOTES[h.event]).slice(-1)[0];
+  const note=last&&f.history.indexOf(last)>f.history.length-8?`<p class="rnote">${PLAN_NOTES[last.event](last)}</p>`:"";
+  if(!t)return note;
+  const rv=parseReview(t),[vl,vc]=VERDICT[rv.verdict],c=rv.counts;
+  const found=["CRITICAL","HIGH","MEDIUM","LOW"].filter(k=>c[k]).map(k=>`${c[k]} ${k}`).join(" · ")||tt("No findings");
+  const fds=parseFindings(t);
+  return `<div class="verdict ${vc}"><strong>${tt("Plan validation: {vl}",{vl})}</strong><span>${found}</span></div>${note}
+    <details class="dbt"><summary>${tt("See the full validation")}</summary><div class="md sm">${md(t)}</div></details>
+    ${fds.length?`<div class="dhead">${tt("Validator findings: choose what the plan should fix and what you accept as is")}</div>${findingsHtml(f,fds)}`:""}`;
+}
+function planFixCount(f){
+  const fds=f.stage==="plan"&&f.artifacts?parseFindings(f.artifacts.planreview):[],u=fui(f.id);
+  return fds.filter(x=>findingFix(x,u.fx)).length;
+}
+function reviewNotes(f){
+  const last=f.history.filter(h=>h.stage==="review"&&NOTES[h.event]&&!(f.kind==="analysis"&&h.event==="nothing to commit")).slice(-1)[0];
+  return last?`<p class="rnote">${NOTES[last.event](last)}</p>`:"";
+}
+function findingsHtml(f,fds){
+  const u=fui(f.id),id=esc(f.id);
+  return `<div class="fnds">${fds.map(x=>{
+    const fix=findingFix(x,u.fx),k=esc(x.id);
+    return `<div class="fnd sev-${x.sev.toLowerCase()}" data-fnd="${k}"><div class="fh"><span class="sev">${x.sev}</span><span class="ft">${mdInline(x.title)}</span></div>
+      ${x.body?`<p class="fb">${mdInline(x.body)}</p>`:""}
+      <div class="fseg" role="radiogroup" aria-label="${esc(tt("Decision on {k}",{k}))}">
+        <label class="${fix?"on fixo":""}"><input type="radio" name="fx-${id}-${k}" data-fx="${k}" data-fid="${id}" value="1"${fix?" checked":""}>${tt("Fix")}</label>
+        <label class="${fix?"":"on okk"}"><input type="radio" name="fx-${id}-${k}" data-fx="${k}" data-fid="${id}" value="0"${fix?"":" checked"}>${tt("Accept")}</label></div></div>`;}).join("")}</div>`;
+}
+function reviewPanel(f,id,go){
+  const rv=parseReview(f.artifacts.review),[vl,vc]=VERDICT[rv.verdict];
+  const fds=parseFindings(f.artifacts.review),u0=fui(f.id),nfix=fds.filter(x=>findingFix(x,u0.fx)).length;
+  const c=rv.counts,found=["CRITICAL","HIGH","MEDIUM","LOW"].filter(k=>c[k]).map(k=>`${c[k]} ${k}`).join(" · ")||tt("No findings");
+  const u=fui(f.id),qf=questionsFor(f);u.qs=qf.qs;
+  const st=decideState(f.id);
+  return `<div class="decide"><div class="dtop"><span class="dtitle">${f.kind==="analysis"?tt("Independent verification"):tt("Independent review")}</span>
+    ${qf.status==="form"?`<span class="dprog" data-prog="${id}">${tt("{n}/{total} answered",{n:st.n,total:st.total})}</span>`:""}</div>
+    <div class="verdict ${vc}"><strong>${vl}</strong><span>${found}</span></div>
+    ${reviewTestsHtml(f)}
+    ${reviewNotes(f)}
+    ${fds.length?`<div class="dhead">${tt("Findings: choose what to fix and what you accept as is")}</div>${findingsHtml(f,fds)}`:""}
+    ${u.qs.length?`<div class="qs">${questionsHtml(f.id,u.qs)}</div>`:""}
+    <label class="dhead" for="c-${id}">${u.qs.length||fds.length?tt("General note (optional)"):tt("Extra instructions for the fixes (optional)")}</label>
+    <textarea id="c-${id}" data-comment="${id}" maxlength="2000" rows="2" placeholder="${esc(tt("The worker receives the review findings; add here anything you want it to prioritise…"))}">${esc(u.comment)}</textarea>
+    <div class="dfoot"><span class="dhint">${tt("Read the review above before deciding")}</span>
+      <button class="btn ghost" data-act="cancel" data-id="${id}" type="button">${tt("Cancel request")}</button>
+      <button class="btn" data-act="fix" data-id="${id}" type="button"${fds.length&&!nfix&&!st.any?" disabled":""}>${fds.length?tt("Fix {n} finding{s}",{n:nfix,s:nfix===1?"":"s"}):tt("Ask for fixes")}</button>
+      <button class="btn pri" data-act="approve" data-id="${id}" type="button" data-verdict="${rv.verdict}"${fds.length&&nfix?' data-fixing="1"':""}>${go}</button></div></div>`;
+}
+function actions(f){
+  const st2=stg(f),i=st2.findIndex(s=>s[0]===f.stage),last=i===st2.length-1;
+  const go=last?(f.kind==="analysis"?tt("Accept analysis"):tt("Accept implementation")):f.stage==="build"?tt("Send to review"):tt("Approve and move on to {next}",{next:st2[i+1][1].toLowerCase()});
+  const id=esc(f.id);
+  if(f.status==="awaiting"){
+    if(f.stage==="review")return reviewPanel(f,id,go);
+    const u=fui(f.id),qf=questionsFor(f);u.qs=qf.qs;
+    const qst=qf.status;
+    const st=decideState(f.id);
+    const label={form:tt("General note (optional)"),none:tt("Do you want to change anything? (optional)"),unparsed:tt("Your answer to the spec's questions")}[qst];
+    const hold=esc({form:tt("Anything you want to add beyond the answers…"),none:tt("If you want to change something in the spec, say so here and the worker rewrites it. If it is fine, approve."),
+      unparsed:tt("Write your answer to the spec's open questions here…")}[qst]);
+    return `<div class="decide"><div class="dtop"><span class="dtitle">${tt("Your decision")}</span>
+      ${qst==="form"?`<span class="dprog" data-prog="${id}">${tt("{n}/{total} answered",{n:st.n,total:st.total})}</span>`:qst==="none"?`<span class="dprog ok">${tt("✓ no open questions")}</span>`:""}</div>
+      ${execBanner(f)}
+      ${f.stage==="plan"?planCheckHtml(f,id):""}
+      ${u.qs.length?`<div class="qs">${questionsHtml(f.id,u.qs)}</div>`:""}
+      <label class="dhead" for="c-${id}">${label}</label>
+      <textarea id="c-${id}" data-comment="${id}" maxlength="2000" rows="2" placeholder="${hold}">${esc(u.comment)}</textarea>
+      <div class="dfoot"><span class="dhint">${tt("Ctrl+Enter sends the answers")}</span>
+        <button class="btn ghost" data-act="cancel" data-id="${id}" type="button">${tt("Cancel request")}</button>
+        <button class="btn" data-act="revise" data-id="${id}" type="button"${st.any||planFixCount(f)?"":" disabled"}>${planFixCount(f)?tt("Fix {n} plan finding{s}",{n:planFixCount(f),s:planFixCount(f)===1?"":"s"}):qst==="form"?tt("Send answers"):tt("Ask for changes")}</button>
+        <button class="btn pri" data-act="approve" data-id="${id}" type="button">${go}</button></div></div>`;
+  }
+  if(f.status==="failed")return `<div class="acts"><button class="btn pri" data-act="retry" data-id="${id}" type="button">${tt("Try again")}</button>
+    <button class="btn ghost" data-act="cancel" data-id="${id}" type="button">${tt("Cancel")}</button></div>`;
+  if(f.status==="working")return `<div class="acts"><button class="btn ghost" data-act="cancel" data-id="${id}" type="button">${tt("Cancel")}</button></div>`;
+  return "";
+}
+function threadHtml(f){
+  // the current phase's conversation: what the user sent and what the worker answered
+  const rounds=f.history.filter(h=>h.stage===f.stage&&h.event==="changes requested");
+  if(!rounds.length||!["working","awaiting"].includes(f.status))return "";
+  const hm=a=>esc(String(a).slice(11,16));
+  const you=rounds.map((h,i)=>`<div class="msg you"><div class="who">${tt("You")} · ${hm(h.at)}${rounds.length>1?` · ${tt("Round {n}",{n:i+1})}`:""}</div><div class="md sm">${md(h.note)}</div></div>`).join("");
+  let bot;
+  if(f.status==="working"){
+    const what={spec:tt("the spec"),plan:tt("the plan"),build:tt("the report")}[f.stage];
+    bot=`<div class="msg bot"><div class="who">Worker</div><p>${tt("Reading your answers and rewriting {what}…",{what})}</p></div>`;
+  }else{
+    const src=f.artifacts[f.stage]||"",{qs,status:st}=questionsFor(f);
+    const done=[...f.history].reverse().find(h=>h.stage===f.stage&&h.event==="finished");
+    const many=qs.length>1;
+    const head={form:many?tt("It incorporated your answers and has <b>{n} new questions</b>: answer them in the form below.",{n:qs.length})
+        :tt("It incorporated your answers and has <b>1 new question</b>: answer it in the form below."),
+      none:tt("It incorporated your answers and <b>has no more questions</b>. You can approve, or ask for more changes."),
+      unparsed:tt("It incorporated your answers but left text under “Open questions” that I could not turn into a form: read the spec.")}[st];
+    const doubts=extractSection(src,/^#{2,3}\s+(?:respostas\s+[àa]s\s+tuas\s+d[úu]vidas|answers\s+to\s+your\s+doubts)/i);
+    bot=`<div class="msg bot"><div class="who">Worker${done?` · ${hm(done.at)}`:""}</div><p>${head}</p>${
+      doubts?`<details class="dbt"><summary>${tt("Answer to your doubts")}</summary><div class="md sm">${md(doubts)}</div></details>`:""}</div>`;
+  }
+  return `<div class="thread">${you}${bot}</div>`;
+}
+function featCard(f){
+  const hist=f.history.map(h=>`<li>${esc(h.at.replace("T"," "))} · ${esc(h.stage)} · ${esc(up1(tt(h.event)))}${h.note?" — "+esc(h.note):""}</li>`).join("");
+  return `<article class="feat s-${esc(f.status)}"><div class="ftop"><h3>${esc(f.title)}</h3><span class="fp">${esc(cap(f.project))}</span><span class="kind">${esc(KIND_LABEL[f.kind]||KIND_LABEL.feature)}</span>${(()=>{const pr=S.projects.find(q=>q.name===f.project),d=pr?dom(pr):"other";return `<span class="dom d-${esc(d)}">${esc(cap(d))}</span>`;})()}
+    <span class="fst">${esc(ST_LABEL[f.status]||f.status)}</span></div>
+    <p class="fdesc">${esc(f.desc)}</p>${stepper(f)}${statusLine(f)}${threadHtml(f)}${artifacts(f)}${actions(f)}
+    <details class="hist"><summary>${tt("History")}</summary><ul>${hist}</ul></details></article>`;
+}
+let featHtml="";
+const CLOSED=["done","cancelled"];
+let doneHtml="";
+function closedItem(f){
+  const last=f.history.length?f.history[f.history.length-1].at:"";
+  return `<details class="cl" data-cl="${esc(f.id)}"><summary><span class="cltt">${esc(f.title)}</span><span class="fp">${esc(cap(f.project))}</span><span class="fst">${esc(ST_LABEL[f.status]||f.status)}</span><time class="m">${esc(last.slice(0,16).replace("T"," "))}</time></summary>${featCard(f)}</details>`;
+}
+let doneProj="",lastFs=[],lastFiltering=false;
+function renderFeatures(fs,filtering){
+  lastFs=fs;lastFiltering=filtering;
+  const open=fs.filter(f=>!CLOSED.includes(f.status)),closed=fs.filter(f=>CLOSED.includes(f.status));
+  $("nFeat").textContent=open.length;
+  const html=open.map(featCard).join("")||`<div class="empty">${filtering?tt("No request in progress for this filter."):tt("Nothing in progress. Create one with “+ New request”.")}</div>`;
+  const a=document.activeElement;
+  if(!(html===featHtml||(a&&a.matches&&a.matches("[data-comment],[data-qnote]")))){featHtml=html;$("feats").innerHTML=html;}
+  const keep=new Set([...document.querySelectorAll("#featsDone details.cl[open]")].map(d=>d.dataset.cl));
+  const projs=[...new Set(closed.map(f=>f.project))].sort();
+  if(doneProj&&!projs.includes(doneProj))doneProj="";
+  const shown=doneProj?closed.filter(f=>f.project===doneProj):closed;
+  const bar=projs.length>1?`<div class="clbar"><label>${tt("Project")} <select id="doneProj" aria-label="${esc(tt("Filter done items by project"))}"><option value="">${tt("All")} (${closed.length})</option>${projs.map(n=>`<option value="${esc(n)}"${n===doneProj?" selected":""}>${esc(cap(n))} (${closed.filter(f=>f.project===n).length})</option>`).join("")}</select></label></div>`:"";
+  const dh=closed.length?`<details class="cls"${doneOpen?" open":""}><summary>${tt("Done")} <em>${doneProj?tt("{a} of {b}",{a:shown.length,b:closed.length}):closed.length}</em></summary>${bar}${shown.map(closedItem).join("")}</details>`:"";
+  if(dh===doneHtml)return;
+  doneHtml=dh;$("featsDone").innerHTML=dh;
+  document.querySelectorAll("#featsDone details.cl").forEach(d=>{if(keep.has(d.dataset.cl))d.open=true;});
+}
+let doneOpen=false;
+$("featsDone").addEventListener("change",e=>{if(e.target.id!=="doneProj")return;doneProj=e.target.value;renderFeatures(lastFs,lastFiltering);});
+$("featsDone").addEventListener("toggle",e=>{if(e.target.classList.contains("cls"))doneOpen=e.target.open;},true);
+$("feats").addEventListener("input",e=>{
+  const t=e.target;
+  if(t.dataset.comment){fui(t.dataset.comment).comment=t.value;refreshDecide(t.dataset.comment);return;}
+  if(t.dataset.qnote){const q=fui(t.dataset.fid).qa;(q[t.dataset.qnote]=q[t.dataset.qnote]||{opt:null}).note=t.value;refreshDecide(t.dataset.fid);}
+});
+$("feats").addEventListener("change",e=>{
+  const r=e.target.closest("input[data-fx]");if(!r)return;
+  fui(r.dataset.fid).fx[r.dataset.fx]=r.value==="1";
+  const row=r.closest(".fnd"),on=r.value==="1";
+  row.querySelectorAll("label").forEach((l,i)=>{l.className=(i===0)===on?(on?"on fixo":"on okk"):"";});
+  refreshDecide(r.dataset.fid);
+});
+$("feats").addEventListener("click",e=>{
+  const r=e.target.closest("input[data-qopt]");if(!r)return;
+  const qa=fui(r.dataset.fid).qa,k=r.dataset.qopt,cur=qa[k]=qa[k]||{opt:null,note:""};
+  if(cur.opt===+r.value){cur.opt=null;r.checked=false;}else cur.opt=+r.value;   // clicar outra vez desmarca
+  refreshDecide(r.dataset.fid);
+});
+$("feats").addEventListener("keydown",e=>{
+  const d=e.target.dataset;
+  if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)&&d&&(d.comment||d.qnote)){
+    const b=e.target.closest(".decide").querySelector('[data-act="revise"]');if(b&&!b.disabled)b.click();
+  }
+});
+$("feats").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-act]");if(!b)return;
+  const id=b.dataset.id,act=b.dataset.act;
+  if(act==="cancel"&&!confirm(tt("Cancel this feature? The running worker will be stopped (its conversation is kept).")))return;
+  const body={};
+  const u=fui(id);
+  if(act==="revise"){
+    const ff=S.features.find(x=>x.id===id)||{artifacts:{}},pf=ff.stage==="plan"?parseFindings(ff.artifacts.planreview):[];
+    body.comment=pf.length?[compileAnswers(u.qs||[],u.qa,"",ff.lang),compileFixes(pf,u.fx,u.comment,ff.lang)].filter(Boolean).join("\n\n").trim():compileAnswers(u.qs||[],u.qa,u.comment,ff.lang);
+    if(!body.comment||(pf.length&&!planFixCount(ff)&&!decideState(id).any)){toast(tt("Answer a question, mark findings to fix, or write a note."),true);return;}}
+  if(act==="approve"&&b.dataset.verdict==="blocked"&&!confirm(tt("The reviewer BLOCKED this implementation. Accept anyway?")))return;
+  if(act==="fix"){
+    const fe=S.features.find(x=>x.id===id)||{artifacts:{}},fds=parseFindings(fe.artifacts.review);
+    const ans=u.qs&&u.qs.length?compileAnswers(u.qs,u.qa,"",fe.lang):"";
+    if(fds.length){body.selected=true;body.comment=[ans,compileFixes(fds,u.fx,u.comment,fe.lang)].filter(Boolean).join("\n\n").trim();}
+    else body.comment=(u.qs&&u.qs.length?compileAnswers(u.qs,u.qa,u.comment,fe.lang):u.comment).trim();
+  }
+  if(act==="approve"&&b.dataset.fixing==="1"&&!confirm(tt("You marked findings to fix and are about to accept without fixing them. Accept anyway?")))return;
+  if(act==="approve"){const st=decideState(id);if(st.total>st.n&&!confirm(tt("There are still {n} unanswered question(s). Approve anyway?",{n:st.total-st.n})))return;}
+  document.querySelectorAll(`#feats [data-id="${id}"].btn`).forEach(x=>x.disabled=true);
+  try{await api(`/api/features/${encodeURIComponent(id)}/${act}`,body);
+    if(act==="revise"){u.comment="";u.qa={};u.fx={};}
+    if(act==="fix"){u.comment="";u.qa={};u.fx={};}
+    toast(tt({fix:"Fixes sent to the implementation worker.",approve:"Approved: next worker launched.",revise:"Changes sent to the worker.",retry:"Worker relaunched.",cancel:"Cancelled."}[act]));
+  }catch(err){toast(err.message,true);}
+  featHtml="";await load();
+});
+$("newBtn").addEventListener("click",()=>{
+  if(!S)return;
+  $("nfProject").innerHTML=S.projects.map(p=>`<option value="${esc(p.name)}">${esc(cap(p.name))}</option>`).join("");
+  const only=S.projects.filter(p=>!F.q||matchName(p.name,F.q));
+  if(only.length===1)$("nfProject").value=only[0].name;
+  nfSync();$("newF").showModal();$("nfTitle").focus();
+});
+$("doms").addEventListener("click",e=>{const b=e.target.closest("button");if(b){F.d=b.dataset.d;update();}});
+// ---------- settings ----------
+let SET=null,moving="";
+async function loadSettings(){
+  try{const r=await fetch("/api/settings?t="+T);if(!r.ok)throw new Error(tt("Error"));SET=await r.json();renderSettings();}
+  catch(err){toast(err.message,true);}
+}
+function renderSettings(){
+  if(!SET)return;
+  const g=SET.github;
+  $("domList").innerHTML=SET.domains.map(d=>`<option value="${esc(cap(d))}">`).join("");
+  const rows=SET.projects.map(p=>{
+    const n=esc(p.name),shown=esc(cap(p.name)),origin=p.custom?tt("Set by you"):p.from_vault?tt("From the vault"):tt("No category");
+    const remote=p.remote?esc(p.remote):(p.git?tt("No remote"):tt("Not a git repo"));
+    const mv=moving===p.name
+      ?`<input class="smv" data-name="${n}" value="${esc(p.path)}" maxlength="400"><button class="btn sm" data-sact="move-ok" data-name="${n}" type="button">${tt("Save")}</button>`
+      :(p.kind==="extra"?`<button class="btn sm ghost" data-sact="move" data-name="${n}" type="button">${tt("Move")}</button>`:"");
+    return `<tr><td>${shown}<br><span class="path">${esc(p.path)}</span></td>
+      <td><input class="sdom" list="domList" data-name="${n}" value="${esc(cap(p.domain))}" placeholder="${esc(tt("Category"))}" maxlength="30"><br><span class="m">${origin}</span></td>
+      <td>${remote}</td><td class="sact">${mv}<button class="btn sm ghost" data-sact="remove" data-name="${n}" type="button">${tt("Remove")}</button></td></tr>`;}).join("");
+  const roots=SET.roots.map(r=>`<li><span class="path">${esc(r)}</span><button class="btn sm ghost" data-sact="root-rm" data-path="${esc(r)}" type="button">${tt("Remove")}</button></li>`).join("");
+  const ign=SET.ignore.length?`<ul>${SET.ignore.map(n=>`<li><span>${esc(n)}</span><button class="btn sm ghost" data-sact="ign-rm" data-name="${esc(n)}" type="button">${tt("Show again")}</button></li>`).join("")}</ul>`:`<p class="m">${tt("No ignored folders.")}</p>`;
+  const gh=!g.gh?`<p class="warn">${tt("GitHub CLI (gh) not found.")}</p>`
+    :g.logged_in?`<p class="ok">${tt("GitHub CLI: signed in as {a}.",{a:esc(g.account)})}</p>`
+    :`<p class="warn">${tt("GitHub CLI installed, but not signed in.")}</p>`;
+  const login=g.gh&&!g.logged_in?`<p class="m">${tt("To clone private repos, sign in once in the terminal:")} ${cp("gh auth login")}</p>`:"";
+  const helpers=g.helpers.length?tt("Git credential manager: {h}.",{h:esc(g.helpers.join(", "))}):tt("Git has no credential manager configured.");
+  $("setBody").innerHTML=`
+    <section class="sset"><h4>${tt("Projects")}</h4>
+      <p class="m">${tt("The category is a Chief setting: the vault is not changed. Projects without a category of yours use the one from the vault. Removing takes the project off the list and never deletes the folder.")}</p>
+      <div class="wrap"><table><thead><tr><th>${tt("Project")}</th><th>${tt("Category")}</th><th>${tt("Git remote")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>
+    <section class="sset"><h4>${tt("Vault")}</h4>
+      <div class="row"><input id="sVault" value="${esc(SET.vault)}" maxlength="400" aria-label="${esc(tt("Vault path"))}"><button class="btn" data-sact="vault" type="button">${tt("Save")}</button></div>
+      <p class="m">${tt("Changing the vault only takes effect after you restart the server.")}</p></section>
+    <section class="sset"><h4>${tt("Project folders")}</h4>
+      <p class="m">${tt("Every subfolder of these folders shows up as a project.")}</p><ul>${roots}</ul>
+      <div class="row"><input id="sRoot" placeholder="D:/Projetos" maxlength="400" aria-label="${esc(tt("New project folder"))}"><button class="btn" data-sact="root-add" type="button">${tt("Add folder")}</button></div>
+      <h4>${tt("Ignored folders")}</h4>${ign}</section>
+    <section class="sset sgit"><h4>${tt("Git and GitHub")}</h4>${gh}${login}<p class="m">${helpers}</p>
+      <p class="m">${tt("Private repos: the Chief uses the login your git already has and never asks for or stores passwords or tokens.")}</p>
+      <div class="row"><input id="sHosts" value="${esc(SET.hosts.join(", "))}" maxlength="300" aria-label="${esc(tt("Hosts allowed for cloning"))}"><button class="btn" data-sact="hosts" type="button">${tt("Save")}</button></div>
+      <p class="m">${tt("Hosts the Chief accepts cloning from (comma-separated).")}</p></section>`;
+}
+async function setAct(path,body,ok){
+  try{const r=await api("/api/settings/"+path,body);toast(ok||tt("Saved."));
+    if(r&&r.restart)toast(tt("Vault saved. Restart the server to use it."));
+    await load();}
+  catch(err){toast(err.message,true);}
+  await loadSettings();
+}
+$("setBtn").addEventListener("click",()=>{$("setD").showModal();loadSettings();});
+$("setClose").addEventListener("click",()=>$("setD").close());
+$("setBody").addEventListener("change",e=>{
+  const t=e.target;
+  if(t.classList.contains("sdom"))setAct("domain",{name:t.dataset.name,domain:t.value},tt("Category saved."));
+});
+$("setBody").addEventListener("click",e=>{
+  const b=e.target.closest("[data-sact]");if(!b)return;
+  const act=b.dataset.sact,name=b.dataset.name;
+  if(act==="move"){moving=name;renderSettings();return;}
+  if(act==="move-ok"){const v=b.parentElement.querySelector(".smv").value;moving="";setAct("extra_move",{name,path:v},tt("Folder updated."));return;}
+  if(act==="remove"){if(confirm(tt("Take “{n}” off the list? The folder is not deleted from disk.",{n:name})))setAct("project_remove",{name},tt("Project removed from the list."));return;}
+  if(act==="vault"){setAct("vault",{path:$("sVault").value});return;}
+  if(act==="root-add"){setAct("root_add",{path:$("sRoot").value},tt("Folder added."));return;}
+  if(act==="root-rm"){setAct("root_remove",{path:b.dataset.path},tt("Folder taken off the list."));return;}
+  if(act==="ign-rm"){setAct("ignore_remove",{name},tt("The folder shows up again."));return;}
+  if(act==="hosts"){setAct("hosts",{hosts:$("sHosts").value});return;}
+});
+$("addProjBtn").addEventListener("click",()=>{$("addP").showModal();$("apPath").focus();});
+$("apCancel").addEventListener("click",()=>$("addP").close());
+$("addPForm").addEventListener("submit",async e=>{
+  e.preventDefault();const go=$("apGo");go.disabled=true;go.textContent=tt("Validating…");
+  try{const r=await api("/api/projects",{path:$("apPath").value,domain:$("apDom").value});
+    $("addP").close();$("addPForm").reset();toast(tt("Project “{name}” added: {x}.",{name:r.name,x:r.extraction}));await load();
+  }catch(err){toast(err.message,true);}
+  go.disabled=false;go.textContent=tt("Add");
+});
+$("apClone").addEventListener("click",async()=>{
+  const b=$("apClone");if(!$("apUrl").value.trim()){$("apUrl").focus();return;}
+  b.disabled=true;b.textContent=tt("Cloning…");
+  try{const r=await api("/api/projects/clone",{url:$("apUrl").value,domain:$("apDom").value});
+    $("addP").close();$("addPForm").reset();toast(tt("Project “{name}” cloned and added: {x}.",{name:r.name,x:r.extraction}));await load();
+  }catch(err){toast(err.message,true);}
+  b.disabled=false;b.textContent=tt("Clone");
+});
+const NF={
+  feature:["This launches a worker that writes only the <b>spec</b>. Nothing moves forward (plan, code) without your “approve” here.","Launch spec"],
+  fix:["This launches a worker that investigates and writes only the <b>diagnosis</b> (root cause). Nothing moves forward (plan, fix) without your “approve” here.","Launch diagnosis"],
+  analysis:["This launches a read-only worker that writes the <b>analysis</b>; another then verifies the facts. It changes nothing in the project.","Launch analysis"],
+  maintenance:["This launches a worker that writes only the maintenance <b>plan</b> (behavior does not change). Nothing moves forward without your “approve” here.","Launch plan"]};
+function nfSync(){const k=NF[$("nfKind").value]?$("nfKind").value:"feature";
+  $("nfNote").innerHTML=tt(NF[k][0]);$("nfGo").textContent=tt(NF[k][1]);}
+$("nfKind").addEventListener("change",nfSync);
+$("newForm").addEventListener("reset",()=>setTimeout(nfSync,0));
+$("nfCancel").addEventListener("click",()=>$("newF").close());
+$("newForm").addEventListener("submit",async e=>{
+  e.preventDefault();const go=$("nfGo");go.disabled=true;go.textContent=tt("Launching…");
+  try{await api("/api/features",{project:$("nfProject").value,title:$("nfTitle").value,desc:$("nfDesc").value,model:$("nfModel").value,kind:$("nfKind").value});
+    $("newF").close();$("newForm").reset();toast(tt("Request created: worker launched."));featHtml="";await load();
+  }catch(err){toast(err.message,true);}
+  go.disabled=false;nfSync();
+});
+
+// ---------- session to-dos ----------
+const PEND_LABEL={awaiting:tt("To decide"),blocked:tt("Blocked"),running:tt("In progress"),optional:tt("Optional")};
+let pendStatus="",pendProj="",lastPend=[],lastPendFiltering=false,pfiltHtml="";
+let pendHtml="";
+function pendCard(x){
+  const proj=S.projects.find(p=>p.name===x.project);
+  const canResume=!!(proj&&x.session);
+  const id=esc(x.id);
+  return `<article class="pend"><div class="ptop"><span class="fp">${esc(cap(x.project))}</span><span class="dom d-${esc(proj?dom(proj):"other")}">${esc(cap(proj?dom(proj):"other"))}</span><span class="pst ${esc(x.status)}">${PEND_LABEL[x.status]||esc(x.status)}</span></div>
+    <h3>${esc(x.title)}</h3>${x.summary?`<p>${esc(x.summary)}</p>`:""}${x.missing?`<p><b>${tt("Missing:")}</b> ${esc(x.missing)}</p>`:""}
+    <div class="pfoot"><span class="org">${tt("Session")} ${esc((x.session||"").slice(0,8))} · ${esc(x.date)}</span>
+      ${canResume?`<button class="btn sm" type="button" data-pres="${id}" title="${esc(tt("Opens a new terminal in this session"))}">${tt("Resume")}</button>`:""}
+      <button class="btn sm pri" type="button" data-pfeat="${id}" title="${esc(tt("Launches the worker that writes the spec now"))}">${tt("Create request")}</button>
+      <button class="btn sm ghost" type="button" data-pdis="${id}">${tt("Dismiss")}</button></div></article>`;
+}
+function renderPending(list,filtering){
+  lastPend=list;lastPendFiltering=filtering;
+  $("nPend").textContent=list.length;
+  const statuses=Object.keys(PEND_LABEL).filter(k=>list.some(x=>x.status===k));
+  const projs=[...new Set(list.map(x=>x.project))].sort();
+  if(pendStatus&&!estados.includes(pendStatus))pendStatus="";
+  if(pendProj&&!projs.includes(pendProj))pendProj="";
+  const shown=list.filter(x=>(!pendStatus||x.status===pendStatus)&&(!pendProj||x.project===pendProj));
+  const chip=(k,t,n)=>`<button type="button" data-pe="${k}" aria-pressed="${pendStatus===k}">${t}<i>${n}</i></button>`;
+  const bar=list.length>1?`<div class="seg" role="group" aria-label="${esc(tt("Filter to-dos by status"))}">${chip("",tt("All"),list.length)}${statuses.map(k=>chip(k,PEND_LABEL[k],list.filter(x=>x.status===k).length)).join("")}</div>`+
+    (projs.length>1?`<label class="pproj">${tt("Project")} <select id="pendProj" aria-label="${esc(tt("Filter to-dos by project"))}"><option value="">${tt("All")}</option>${projs.map(n=>`<option value="${esc(n)}"${n===pendProj?" selected":""}>${esc(cap(n))} (${list.filter(x=>x.project===n).length})</option>`).join("")}</select></label>`:""):"";
+  if(bar!==pfiltHtml){pfiltHtml=bar;$("pfilt").innerHTML=bar;}
+  const html=shown.map(pendCard).join("")||`<div class="empty" style="grid-column:1/-1">${list.length?tt("No to-do matches this filter."):filtering?tt("No to-dos for this filter."):tt("No to-dos.")}</div>`;
+  if(html===pendHtml)return;
+  pendHtml=html;$("pends").innerHTML=html;
+}
+$("pfilt").addEventListener("click",e=>{const b=e.target.closest("button[data-pe]");if(!b)return;pendStatus=b.dataset.pe;renderPending(lastPend,lastPendFiltering);});
+$("pfilt").addEventListener("change",e=>{if(e.target.id!=="pendProj")return;pendProj=e.target.value;renderPending(lastPend,lastPendFiltering);});
+$("pends").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-pres],[data-pfeat],[data-pdis]");if(!b)return;
+  const act=b.dataset.pres?"resume":b.dataset.pfeat?"feature":"dismiss";
+  const id=b.dataset.pres||b.dataset.pfeat||b.dataset.pdis;
+  const msg={resume:tt("Opening a terminal in the session…"),feature:tt("Feature created: spec worker launched."),dismiss:tt("To-do dismissed.")};
+  b.disabled=true;
+  try{await api(`/api/pending/${encodeURIComponent(id)}/${act}`,{});toast(msg[act]);}
+  catch(err){toast(err.message,true);}
+  b.disabled=false;
+  if(act!=="resume"){pendHtml="";featHtml="";await load();}
+});
+function update(){writeHash();render();}
+
+$("q").addEventListener("input",e=>{F.q=e.target.value.trim();update();});
+$("clear").addEventListener("click",()=>{F.q="";$("q").value="";update();$("q").focus();});
+document.addEventListener("click",async e=>{
+  const b=e.target.closest(".cp");if(!b)return;
+  try{await navigator.clipboard.writeText(b.dataset.cp);const o=b.textContent;b.textContent=tt("Copied ✓");setTimeout(()=>b.textContent=o,1200);}catch(_){}
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="/"&&document.activeElement!==$("q")){e.preventDefault();$("q").focus();}
+  if(e.key==="Escape"&&F.q){F.q="";$("q").value="";update();}
+});
+// the server generates a new token on every start: an old tab reloads itself (at most once every 10 s)
+function reloadForNewToken(){
+  let last=0;try{last=+sessionStorage.getItem("reloaded")||0;}catch(_){}
+  if(Date.now()-last<10000){$("banner").innerHTML=`<p class="banner">${tt("The server was restarted. Reload the page (F5).")}</p>`;return;}
+  try{sessionStorage.setItem("reloaded",String(Date.now()));}catch(_){}
+  location.reload();
+}
+let UI_V="";
+async function load(){
+  try{const r=await fetch("/api/state?t="+T);
+    if(r.status===403){reloadForNewToken();return;}
+    if(r.ok){S=await r.json();
+      // the server changes “version” when index.html changes: reload so old code (and buttons that do nothing) is not kept
+      if(UI_V&&S.ui&&S.ui!==UI_V&&!(document.activeElement&&document.activeElement.matches&&document.activeElement.matches("textarea,input[type=search]")))location.reload();
+      UI_V=UI_V||S.ui;render();}}
+  catch(e){$("stats").innerHTML=`<div class="stat hot"><strong style="font-size:14px">${tt("No connection to the server")}</strong></div>`;}
+}
+document.querySelectorAll("#langSw button").forEach(b=>b.addEventListener("click",()=>{
+  if(b.dataset.l===LANG)return;
+  try{localStorage.setItem("lang",b.dataset.l);}catch(_){}
+  const u=new URL(location.href);u.searchParams.delete("lang");location.href=u.toString();
+}));
+applyStatic();
+readHash();$("q").value=F.q;load();setInterval(load,8000);
+</script>
+</body>
+</html>
