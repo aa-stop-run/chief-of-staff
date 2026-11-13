@@ -54,13 +54,21 @@ SHIP_PUSH_OK = re.compile(r"^git push -u [A-Za-z0-9][A-Za-z0-9._-]* [A-Za-z0-9][
 SHIP_DEFAULT_BRANCHES = {"main", "master", "develop", "trunk", "production", "prod", "release"}
 
 
+_STATUS_HEAD = r"^#{1,3}[ \t]+(?:Execution status|Estado da execução)[ \t]*\n+"
+
+
+def execution_not_run(report: str) -> bool:
+    """Does the report's «Execution status» (English or Portuguese heading) say the work was NOT EXECUTED?"""
+    return bool(re.search(_STATUS_HEAD + r"\W*(?:NOT EXECUTED|NÃO EXECUTADO)", report or "", re.M | re.I))
+
+
 def ship_gate(report: str) -> str:
     """Is a prepared commit's report fit to be approved for publication? ok | missing (no «Ready to publish» section) |
     notexecuted (the commit was not made) | badpush (a `git push` that is not `git push -u <remote name> <branch>` on a non-default branch)."""
     m = re.search(r"^#{2,3}[ \t]+Ready to publish[ \t]*$(.*?)(?=^#{2,3}[ \t]|\Z)", report or "", re.M | re.S | re.I)
     if not m:
         return "missing"
-    if re.search(r"^#{1,3}[ \t]+Execution status[ \t]*\n+\W*(?:NOT EXECUTED|NÃO EXECUTADO)", report, re.M | re.I):
+    if execution_not_run(report):
         return "notexecuted"
     for cmd in re.findall(r"git\s+push\b[^`\n]*", m.group(1)):
         c = " ".join(cmd.split())
@@ -137,7 +145,10 @@ def required_sections(text: str, sections) -> list:
 
 
 def _g_execution_status(a, c):
-    return GateResult("ok", "")
+    text = c.read(a.get("file", "report.md"))
+    if not re.search(_STATUS_HEAD, text, re.M | re.I):
+        return GateResult("missing", "the report has no «Execution status» section")
+    return GateResult("notexecuted", "the report says the work was not executed") if execution_not_run(text) else GateResult("ok", "")
 
 
 def _g_review_tests(a, c):

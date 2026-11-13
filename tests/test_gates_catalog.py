@@ -72,3 +72,28 @@ def test_no_critical_findings_cases(tmp_path):
 def test_unknown_gate_is_refused(tmp_path):
     with pytest.raises(KeyError):
         gates.run("rm_rf", {}, GateCtx(tmp_path))
+
+
+@pytest.mark.parametrize("text,code", [
+    ("## Execution status\nEXECUTED AND VERIFIED — ok\n", "ok"),
+    ("## Execution status\nPARTIALLY EXECUTED — half\n", "ok"),
+    ("## Execution status\nNOT EXECUTED — nothing ran\n", "notexecuted"),
+    ("## Estado da execução\nNÃO EXECUTADO — nada correu\n", "notexecuted"),
+    ("## Estado da execução\nEXECUTADO E VERIFICADO — ok\n", "ok"),
+    ("no status at all", "missing"),
+])
+def test_execution_status_gate(tmp_path, text, code):
+    (tmp_path / "report.md").write_text(text, encoding="utf-8")
+    assert gates.run("execution_status", {}, GateCtx(tmp_path)).code == code
+
+
+def test_ship_gate_and_execution_status_agree_on_not_executed(tmp_path):
+    report = "## Execution status\nNOT EXECUTED — no\n## Ready to publish\n`git push -u origin feat/x`\n"
+    assert gates.ship_gate(report) == "notexecuted"
+    assert gates.execution_not_run(report) is True
+    assert gates.execution_not_run("## Execution status\nEXECUTED AND VERIFIED — ok\n") is False
+
+
+def test_the_catalogue_has_seven_gates_and_only_execution_status_is_new_code():
+    assert sorted(gates.GATES) == ["execution_status", "no_critical_findings", "release_plan", "release_verdict",
+                                   "required_sections", "review_tests", "ship_ready"]

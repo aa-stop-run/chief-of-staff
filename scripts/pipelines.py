@@ -12,7 +12,7 @@ from pathlib import Path
 import gates
 
 FORMAT = 1
-MAX_BYTES, MAX_STEPS, MAX_PROMPT, MAX_TOOL_RULES, MAX_ROUNDS = 64 * 1024, 30, 20_000, 24, 10
+MAX_BYTES, MAX_STEPS, MAX_PROMPT, MAX_TOOL_RULES, MAX_ROUNDS, MAX_NOTES = 64 * 1024, 30, 20_000, 24, 10, 500
 PIPELINE_ID = re.compile(r"^[a-z0-9-]{1,40}$")
 STEP_ID = re.compile(r"^[a-z0-9-]{1,30}$")
 PHASE = re.compile(r"^[a-z-]{1,24}$")
@@ -24,7 +24,7 @@ END = "end"
 # The {fields} a prompt may use (what the prompts are formatted with today).
 MARKERS = frozenset({"title", "fid", "project", "desc", "path", "qpath", "spec", "plan", "report", "work", "out",
                      "feedback", "prev", "review", "comment"})
-_COMMON = {"id", "type", "label", "next"}
+_COMMON = {"id", "type", "label", "next", "notes"}
 _WORKER = _COMMON | {"phase", "artifact", "mode", "prompt", "skills", "questions", "model", "effort", "permissions",
                      "archive", "report_gate", "inputs", "keep_questions_on_next"}
 ACCEPTED_KEYS = {
@@ -161,6 +161,9 @@ def _check_step(s, where: str) -> None:
     _keys(s, kind, where)
     if not STEP_ID.match(str(s.get("id", ""))):
         raise PipelineError(where + ".id", "must match [a-z0-9-]{1,30}")
+    notes = s.get("notes")
+    if notes is not None and not (isinstance(notes, str) and len(notes) <= MAX_NOTES):
+        raise PipelineError(where + ".notes", f"free text of at most {MAX_NOTES} characters")
     if kind == "approval":
         if s.get("requires_user", True) is not True:
             raise PipelineError(where + ".requires_user", "an approval always needs the user")
@@ -282,6 +285,8 @@ def load(source, *, builtin: bool = False) -> Pipeline:
     filename_id = None
     if isinstance(source, (str, Path)):
         path = Path(source)
+        if path.is_symlink():   # a file in the user's folder may not point somewhere else
+            raise PipelineError("file", "a symbolic link is not accepted")
         try:
             raw = path.read_bytes()
         except OSError as e:

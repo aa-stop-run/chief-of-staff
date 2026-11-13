@@ -5,7 +5,9 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from features import MAX_AUTO_FIXES, MAX_PLAN_FIXES, MAX_REVIEW_RETRIES, Features, parse_review  # noqa: E402
+from features import Features, parse_review  # noqa: E402
+# the automatic-round limits are data now: the built-in feature pipeline's `max_rounds` / `retry`
+MAX_AUTO_FIXES, MAX_PLAN_FIXES, MAX_REVIEW_RETRIES = 3, 2, 2
 
 TESTS_OK = "\n## Tests\nCONFIRMED\nREVIEWER RESULT: 10 passed, 0 failed\n"
 REVIEW_OK = "## Verdict\nAPPROVED — all good.\n\n## Findings\nNone.\n" + TESTS_OK
