@@ -1,0 +1,117 @@
+{
+ "archived": [],
+ "commits": [],
+ "history": [
+  {
+   "event": "worker launched",
+   "note": "cos-w1",
+   "stage": "build"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "build"
+  }
+ ],
+ "trace": [
+  {
+   "action": [
+    "create"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git switch -c:*)",
+      "Bash(git checkout -b:*)"
+     ],
+     "deny": [
+      "Bash(git push:*)",
+      "Bash(git remote add:*)",
+      "Bash(git remote set-url:*)",
+      "Bash(git config:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git commit --amend:*)",
+      "Bash(git commit*--amend*)"
+     ],
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-build",
+     "model": "m-build",
+     "project": "Alfa",
+     "task": "Language: the user works in English. Write EVERY artifact, question, report and your final message in English.\n\nFeature «Login with 2FA» (id <fid>) in project Alfa.\n\n## User request\nI want 2FA\n\nWrite the artifact to <home>/features/<fid>/report.md (create the file; markdown in English). The user will read it in the dashboard and approve it or\nask for changes, so write it complete and self-contained.\n\nDoubts you need the user to resolve (do not guess) go in TWO places:\n1. In the \"## Open questions\" section of the artifact, readable by someone who only reads the document:\n   - **P1 — Short title:** clear, closed question?\n     - [ ] Option A (recommended) — consequence in one sentence\n     - [ ] Option B — consequence in one sentence\n2. In the file <home>/features/<fid>/questions.json, which the dashboard uses to build the answer form (valid JSON; `[]` if there are no doubts):\n   [{\"id\": \"P1\", \"title\": \"Short title\", \"text\": \"Clear, closed question?\",\n     \"options\": [{\"label\": \"Option A — consequence\", \"recommended\": true}, {\"label\": \"Option B — consequence\"}]}]\nGive 2 to 4 concrete, mutually exclusive options and mark your recommendation with \"recommended\" (and \"(recommended)\" in the document).\nThe user may also write a comment or a question on each item. If you need answers before you can finish, still write the best\nprovisional version of the artifact, with your assumptions flagged, and the questions in both places.\nEnd with [DONE].\n\n## Phase 1: prepare the commit (local ONLY)\nYou work in the repo of the current folder (there is NO worktree: this is the user's real repo, so be careful). The user's request is above and says\nwhat to commit and, if it says so, whether the result should go to a PR or to the remote.\n1. Look at the state: `git status`, `git diff --stat`, `git branch -a`, `git remote -v`, `git log --oneline -10`. If what the request wants committed is\n   OUTSIDE git (ignored folders or outside the repo), say so in the report instead of forcing it.\n2. If you are on the main branch (main/master) or on a branch that is not the request's, create a new branch with a clear name (or the one the request gives).\n3. Stage ONLY the files that belong to the request, one by one (`git add <path>`; never `git add -A` or `git add .`). Never stage .env*, keys, tokens,\n   secret files, large binaries or anything the request does not mention; leave the rest as it is and list it in the report.\n4. Commit with a clear message (type: subject, and a short body). You may make more than one commit if the request justifies it.\n5. Do NOT push, do NOT open a PR, do NOT change remotes or git configuration (`git remote add/set-url`, `git config`), do NOT use --force, --amend,\n   reset --hard, rebase, stash or delete branches, and do NOT switch to a branch other than the request's. This phase only creates the commit in the local repo.\n   If the request's commits already exist on the branch (the phase is being repeated), do not duplicate them: describe them in the report.\n6. Run the tests/linter the project already has, if any, and record the result.\nThe report (the file indicated above) opens with «## Execution status» (EXECUTED AND VERIFIED / PARTIALLY EXECUTED / NOT EXECUTED — reason) and has a\n«## Ready to publish» section with: the repo path, the current and base branch, the remote (name and URL WITHOUT credentials), the commits\n(`git log --oneline <base>..HEAD`), the changed files (`git diff --stat`), what was left out and why, the test result, the proposed PR title and\nbody, and the EXACT commands that publishing will run: `git push -u <remote name> <branch>` (the NAME of a remote that already exists in\n`git remote`, never a URL, and a new branch that is NOT main/master/develop) and, if the request wants a PR, `gh pr create ...`. Write the push\ncommand alone on a line. The server refuses the approval if the command is anything else.\nIf the request is commit-only, write «Publication: not requested» in that section. End with [DONE] only if the commit exists; otherwise [BLOCKED]."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "ship",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "build",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "report.md"
+   ],
+   "error": "",
+   "launches": [],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "ship",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "build",
+    "status": "awaiting"
+   }
+  },
+  {
+   "action": [
+    "approve"
+   ],
+   "error": "the report has no “Ready to publish” section: ask for changes so the worker writes it",
+   "launches": [],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "ship",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "build",
+    "status": "awaiting"
+   }
+  }
+ ]
+}

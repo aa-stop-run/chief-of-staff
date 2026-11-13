@@ -1,0 +1,42 @@
+{
+ "format": 1,
+ "id": "ship",
+ "version": 1,
+ "name": "Publish (commit, push, pull request)",
+ "limits": {
+  "max_total_rounds": 12
+ },
+ "steps": [
+  {
+   "id": "build",
+   "type": "worker",
+   "phase": "build",
+   "mode": "local_commit",
+   "artifact": "report.md",
+   "prompt": {
+    "ref": "builtin:ship.build"
+   },
+   "questions": true,
+   "report_gate": {
+    "use": "ship_ready"
+   }
+  },
+  {
+   "id": "ok-build",
+   "type": "approval",
+   "of": "build",
+   "requires_user": true,
+   "confirm": "Approving authorises exactly the commands in «Ready to publish»."
+  },
+  {
+   "id": "review",
+   "type": "worker",
+   "phase": "review",
+   "mode": "publish",
+   "artifact": "review.md",
+   "prompt": {
+    "ref": "builtin:ship.review"
+   }
+  }
+ ]
+}

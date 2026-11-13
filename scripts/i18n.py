@@ -32,6 +32,7 @@ PAIRS = [
     ("comment too long (max. {0} characters)", "comentário grande demais (máx. {0} caracteres)"),
     ("comment required (max. {0} characters)", "comentário obrigatório (máx. {0} caracteres)"),
     ("fixes can only be requested after the review", "as correções pedem-se depois da revisão"),
+    ("this step has no built-in prompt", "este passo não tem um prompt incluído"),
     ("already finished", "já terminada"),
     ("current state «{0}»; this action needs «{1}»", "estado atual «{0}»; esta ação precisa de «{1}»"),
     ("could not launch the worker: {0}", "não consegui lançar o worker: {0}"),

@@ -77,7 +77,8 @@ LEDGER = usage.Ledger(chief.STATE / "usage.json")  # what each worker cost, meas
 FEATURES = Features(chief.STATE, chief.launch_worker, _is_active, grace_s=GRACE_S, is_busy=_is_busy,
                     on_release=chief.stop_worker, auto_review=True, committer=chief.commit_worktree,
                     publisher=chief.archive_doc, note_lang=chief.SCHEMA["name"],
-                    has_vault=chief.vault_enabled(), session=SESSIONS.current_id, on_launch=chief.tag_worker, limit=chief.worker_limit, route=chief.route, tools=chief.tools_for)
+                    has_vault=chief.vault_enabled(), session=SESSIONS.current_id, on_launch=chief.tag_worker, limit=chief.worker_limit, route=chief.route, tools=chief.tools_for,
+                    route_step=chief.route_step, tools_for_step=chief.tools_for_step)
 TICK_S = 10
 PENDING = Pending(chief.STATE)
 PROPOSALS = Proposals(chief.STATE)          # requests that workers suggested; only the user turns one into a request

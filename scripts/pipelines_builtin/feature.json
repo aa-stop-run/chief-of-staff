@@ -1,0 +1,125 @@
+{
+ "format": 1,
+ "id": "feature",
+ "version": 1,
+ "name": "Feature",
+ "limits": {
+  "max_total_rounds": 12
+ },
+ "steps": [
+  {
+   "id": "spec",
+   "type": "worker",
+   "phase": "spec",
+   "mode": "read_only",
+   "artifact": "spec.md",
+   "prompt": {
+    "ref": "builtin:feature.spec"
+   },
+   "questions": true,
+   "archive": "spec"
+  },
+  {
+   "id": "ok-spec",
+   "type": "approval",
+   "of": "spec",
+   "requires_user": true
+  },
+  {
+   "id": "plan",
+   "type": "worker",
+   "phase": "plan",
+   "mode": "read_only",
+   "artifact": "plan.md",
+   "prompt": {
+    "ref": "builtin:feature.plan"
+   },
+   "questions": true,
+   "archive": "plan",
+   "inputs": [
+    "spec"
+   ]
+  },
+  {
+   "id": "plancheck",
+   "type": "check",
+   "phase": "plan-validation",
+   "mode": "read_only",
+   "artifact": "plan-review.md",
+   "prompt": {
+    "ref": "builtin:feature.plancheck"
+   },
+   "on": {
+    "blocked": {
+     "goto": "plan",
+     "max_rounds": 2
+    },
+    "unknown": {
+     "retry": 2
+    }
+   },
+   "label": "Independent plan validation"
+  },
+  {
+   "id": "ok-plan",
+   "type": "approval",
+   "of": "plan",
+   "requires_user": true
+  },
+  {
+   "id": "build",
+   "type": "worker",
+   "phase": "build",
+   "mode": "worktree",
+   "artifact": "report.md",
+   "prompt": {
+    "ref": "builtin:feature.build"
+   },
+   "questions": true,
+   "inputs": [
+    "spec",
+    "plan"
+   ]
+  },
+  {
+   "id": "review",
+   "type": "check",
+   "phase": "review",
+   "mode": "read_only",
+   "artifact": "review.md",
+   "prompt": {
+    "ref": "builtin:feature.review"
+   },
+   "on": {
+    "approved": {
+     "do": "commit_worktree"
+    },
+    "reserves": {
+     "do": "commit_worktree"
+    },
+    "blocked": {
+     "goto": "build",
+     "max_rounds": 3
+    },
+    "unknown": {
+     "retry": 2
+    }
+   },
+   "gates": [
+    {
+     "use": "review_tests"
+    }
+   ],
+   "inputs": [
+    "plan",
+    "report"
+   ]
+  },
+  {
+   "id": "accept",
+   "type": "approval",
+   "of": "review",
+   "requires_user": true
+  }
+ ]
+}

@@ -17,7 +17,7 @@ import report
 import usage
 
 SESSION_NOW, SESSION_YESTERDAY, SESSION_BEFORE = "ws-demo-today", "ws-demo-yesterday", "ws-demo-before"
-SCHEMA_VERSION = 2       # the schema the sample data is written in (kept equal to migrations.CURRENT by a test)
+SCHEMA_VERSION = 3       # the schema the sample data is written in (kept equal to migrations.CURRENT by a test)
 DEMO_PORT = 8790
 NOTICE = "Demo mode: sample data and simulated workers. Nothing here runs a real worker or touches your projects."
 
@@ -420,6 +420,8 @@ def seed(base: Path, now: datetime | None = None) -> Path:
         f["closed"] = {"at": hist[-1]["at"], "session": sess}
         done.append(f)
     _write(state / "features.json", [feat1, feat2, feat3, feat4, feat5, *done])
+    import migrations
+    migrations.to_schema_3(state)          # the sample requests carry their pipeline like any request of the current schema
 
     # workers and what each cost: (id, project, folder, request, phase, started N minutes ago, session, model, task, usage per model)
     # usage rows are (model, messages, input, output, cache read, 1-hour cache write)

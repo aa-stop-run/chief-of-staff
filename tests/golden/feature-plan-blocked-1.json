@@ -1,0 +1,395 @@
+{
+ "archived": [
+  [
+   "spec",
+   "Alfa",
+   "Login with 2FA",
+   "<fid>",
+   "<date>",
+   "# ok",
+   "en"
+  ],
+  [
+   "plan",
+   "Alfa",
+   "Login with 2FA",
+   "<fid>",
+   "<date>",
+   "# ok",
+   "en"
+  ]
+ ],
+ "commits": [],
+ "history": [
+  {
+   "event": "worker launched",
+   "note": "cos-w1",
+   "stage": "spec"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "spec"
+  },
+  {
+   "event": "approved",
+   "note": "",
+   "stage": "spec"
+  },
+  {
+   "event": "spec archived",
+   "note": "published",
+   "stage": "spec"
+  },
+  {
+   "event": "worker launched",
+   "note": "cos-w2",
+   "stage": "plan"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "plan"
+  },
+  {
+   "event": "plan validation",
+   "note": "cos-w3",
+   "stage": "plan"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "plan"
+  },
+  {
+   "event": "plan fixes",
+   "note": "the validator blocked the plan",
+   "stage": "plan"
+  },
+  {
+   "event": "worker launched",
+   "note": "cos-w4",
+   "stage": "plan"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "plan"
+  },
+  {
+   "event": "plan validation",
+   "note": "cos-w5",
+   "stage": "plan"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "plan"
+  },
+  {
+   "event": "plan validated",
+   "note": "approved",
+   "stage": "plan"
+  },
+  {
+   "event": "approved",
+   "note": "",
+   "stage": "plan"
+  },
+  {
+   "event": "plan archived",
+   "note": "published",
+   "stage": "plan"
+  },
+  {
+   "event": "worker launched",
+   "note": "cos-w6",
+   "stage": "build"
+  }
+ ],
+ "trace": [
+  {
+   "action": [
+    "create"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-spec",
+     "model": "m-spec",
+     "project": "Alfa",
+     "task": "Language: the user works in English. Write EVERY artifact, question, report and your final message in English.\n\nFeature «Login with 2FA» (id <fid>) in project Alfa.\n\n## User request\nI want 2FA\n\nWrite the artifact to <home>/features/<fid>/spec.md (create the file; markdown in English). The user will read it in the dashboard and approve it or\nask for changes, so write it complete and self-contained.\n\nDoubts you need the user to resolve (do not guess) go in TWO places:\n1. In the \"## Open questions\" section of the artifact, readable by someone who only reads the document:\n   - **P1 — Short title:** clear, closed question?\n     - [ ] Option A (recommended) — consequence in one sentence\n     - [ ] Option B — consequence in one sentence\n2. In the file <home>/features/<fid>/questions.json, which the dashboard uses to build the answer form (valid JSON; `[]` if there are no doubts):\n   [{\"id\": \"P1\", \"title\": \"Short title\", \"text\": \"Clear, closed question?\",\n     \"options\": [{\"label\": \"Option A — consequence\", \"recommended\": true}, {\"label\": \"Option B — consequence\"}]}]\nGive 2 to 4 concrete, mutually exclusive options and mark your recommendation with \"recommended\" (and \"(recommended)\" in the document).\nThe user may also write a comment or a question on each item. If you need answers before you can finish, still write the best\nprovisional version of the artifact, with your assumptions flagged, and the questions in both places.\nEnd with [DONE].\n\n## Phase 1: specification\nUse the `superpowers:brainstorming` skill (Skill tool) to explore the request and design the spec. Mandatory adaptations, because\nyou are a background worker and cannot talk to the user: do NOT ask questions in chat or wait for answers (record each doubt in\n\"Open questions\", in the format above, with your recommendation); do NOT write to docs/superpowers/specs or commit to the repo\n(the artifact is the file indicated above, outside the repo); skip the step that asks for approval of the document (approval is\ndone in the dashboard, by the user).\nRead the code and the project's vault note to anchor the spec in what exists. Do NOT write product code.\nSections: Goal and why · Out of scope · Requirements · Acceptance criteria (verifiable) · Risks · Open questions."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "spec",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "spec.md"
+   ],
+   "error": "",
+   "launches": [],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "spec",
+    "status": "awaiting"
+   }
+  },
+  {
+   "action": [
+    "approve"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-plan",
+     "model": "m-plan",
+     "project": "Alfa",
+     "task": "Language: the user works in English. Write EVERY artifact, question, report and your final message in English.\n\nFeature «Login with 2FA» (id <fid>) in project Alfa.\n\n## User request\nI want 2FA\n\nWrite the artifact to <home>/features/<fid>/plan.md (create the file; markdown in English). The user will read it in the dashboard and approve it or\nask for changes, so write it complete and self-contained.\n\nDoubts you need the user to resolve (do not guess) go in TWO places:\n1. In the \"## Open questions\" section of the artifact, readable by someone who only reads the document:\n   - **P1 — Short title:** clear, closed question?\n     - [ ] Option A (recommended) — consequence in one sentence\n     - [ ] Option B — consequence in one sentence\n2. In the file <home>/features/<fid>/questions.json, which the dashboard uses to build the answer form (valid JSON; `[]` if there are no doubts):\n   [{\"id\": \"P1\", \"title\": \"Short title\", \"text\": \"Clear, closed question?\",\n     \"options\": [{\"label\": \"Option A — consequence\", \"recommended\": true}, {\"label\": \"Option B — consequence\"}]}]\nGive 2 to 4 concrete, mutually exclusive options and mark your recommendation with \"recommended\" (and \"(recommended)\" in the document).\nThe user may also write a comment or a question on each item. If you need answers before you can finish, still write the best\nprovisional version of the artifact, with your assumptions flagged, and the questions in both places.\nEnd with [DONE].\n\n## Phase 2: implementation plan\nUse the `superpowers:writing-plans` skill (Skill tool) to write the plan. Adaptations: the plan is the file indicated above, not\ndocs/superpowers/plans; no commits to the repo; do not offer execution options (execution is the next phase, decided by the user in\nthe dashboard); doubts go in \"Open questions\", not in chat.\nThe approved spec is in <home>/features/<fid>/spec.md. Read it. Do NOT write product code.\nSections: Approach · Files to create/change (real repo paths) · Tests · Ordered steps, each with the test that validates it (tests\nfirst) · Risks and rollback · Open questions.\nThe \"Tests\" section is mandatory and has: (1) the command that runs the project's FULL suite (find it in the repo: README, scripts,\nCI) and where the tests live, following the convention the repo already uses; (2) a table \"Acceptance criterion | Test scenario |\nWhere (file::test)\", with at least one test per criterion of the spec and the relevant error and boundary cases; (3) the regression\nrule: the implementer runs the full suite BEFORE changing anything (baseline) and again at the end, and nothing that passed may fail.\nIf the repo has NO tests, the plan's first step creates the minimum to have them (framework, a command to run them, one real test).\nException: repos without code (documentation, infrastructure): write \"no tests: <reason>\" and say how to check by hand."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "plan",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "plan.md"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-validate-plan",
+     "model": "m-plan-validation",
+     "project": "Alfa",
+     "task": "Language: the user works in English. Write EVERY artifact, question, report and your final message in English.\n\nFeature «Login with 2FA» (id <fid>) in project Alfa.\n\n## User request\nI want 2FA\n\n## Phase 2b: independent plan validation\nYou are the independent plan validator: you did NOT write it and must not trust it. It is READ-ONLY: do NOT change code or the\nplan, do NOT commit or check out and do NOT install anything; you only read and run verification commands (ls, git log, grep).\nDo not read or print .env*, keys, tokens or secret files. Work only inside the project's repo and the artifacts folder.\nApproved spec: <home>/features/<fid>/spec.md. Plan to validate: <home>/features/<fid>/plan.md. Read both and check the plan against the real repo.\nCheck, in this order:\n1. Coverage: every requirement and acceptance criterion of the spec has plan steps that meet it; nothing from \"out of scope\" crept in.\n2. Reality: the files, functions, modules and commands the plan cites exist (confirm with commands); the files to create do not\n   collide with existing ones.\n3. Order and tests: tests first; each step names the test that validates it; each step depends only on earlier steps.\n4. Scope: no more work than the spec asks for.\n5. Safety and rollback: irreversible actions or actions on shared or production systems are left as steps for the user, after the\n   review; there is a rollback for what changes; there are no secrets in the plan.\n6. Open questions: the spec's are answered or explicitly assumed; the plan does not hide decisions still to be made.\n7. Tests: the plan's \"Tests\" section exists and has the full-suite command, one test scenario per acceptance criterion (and the\n   relevant error and boundary cases) and the baseline-plus-regression rule. Check in the repo whether it already has tests: if it\n   has NONE and the plan does not create the minimum to have them (framework, command, one real test) as the first step, that is HIGH\n   and the verdict is BLOCKED. Exception: repos without code (documentation, infrastructure), where the plan must say \"no tests:\n   <reason>\" and how to check by hand.\nWrite the result to <home>/features/<fid>/plan-review.md (not to chat), exactly in this format:\n## Verdict\nAPPROVED, WITH RESERVATIONS or BLOCKED, and one sentence. (BLOCKED if there is any CRITICAL or HIGH.)\n## Checks\nThe commands you ran and the real result.\n## Acceptance criteria coverage\n| Criterion | Plan steps that meet it | Status |\n## Findings\n- **[CRITICAL|HIGH|MEDIUM|LOW] plan section — title:** what is wrong and how to fix it\nCRITICAL = the plan would lead to data loss, a security failure or something contrary to the spec; HIGH = a gap or error that would\nmake the implementation fail or come out wrong; MEDIUM = ambiguity or risk; LOW = style.\nIf there are no findings write \"None.\"\nEnd with [DONE]."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {
+     "checking": true,
+     "fixes": 0,
+     "retries": 0
+    },
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "plan",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "plan-review.md"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-plan",
+     "model": "m-plan",
+     "project": "Alfa",
+     "task": "Language: the user works in English. Write EVERY artifact, question, report and your final message in English.\n\nFeature «Login with 2FA» (id <fid>) in project Alfa.\n\n## User request\nI want 2FA\n\nWrite the artifact to <home>/features/<fid>/plan.md (create the file; markdown in English). The user will read it in the dashboard and approve it or\nask for changes, so write it complete and self-contained.\n\nDoubts you need the user to resolve (do not guess) go in TWO places:\n1. In the \"## Open questions\" section of the artifact, readable by someone who only reads the document:\n   - **P1 — Short title:** clear, closed question?\n     - [ ] Option A (recommended) — consequence in one sentence\n     - [ ] Option B — consequence in one sentence\n2. In the file <home>/features/<fid>/questions.json, which the dashboard uses to build the answer form (valid JSON; `[]` if there are no doubts):\n   [{\"id\": \"P1\", \"title\": \"Short title\", \"text\": \"Clear, closed question?\",\n     \"options\": [{\"label\": \"Option A — consequence\", \"recommended\": true}, {\"label\": \"Option B — consequence\"}]}]\nGive 2 to 4 concrete, mutually exclusive options and mark your recommendation with \"recommended\" (and \"(recommended)\" in the document).\nThe user may also write a comment or a question on each item. If you need answers before you can finish, still write the best\nprovisional version of the artifact, with your assumptions flagged, and the questions in both places.\nEnd with [DONE].\n\n## Phase 2: implementation plan\nUse the `superpowers:writing-plans` skill (Skill tool) to write the plan. Adaptations: the plan is the file indicated above, not\ndocs/superpowers/plans; no commits to the repo; do not offer execution options (execution is the next phase, decided by the user in\nthe dashboard); doubts go in \"Open questions\", not in chat.\nThe approved spec is in <home>/features/<fid>/spec.md. Read it. Do NOT write product code.\nSections: Approach · Files to create/change (real repo paths) · Tests · Ordered steps, each with the test that validates it (tests\nfirst) · Risks and rollback · Open questions.\nThe \"Tests\" section is mandatory and has: (1) the command that runs the project's FULL suite (find it in the repo: README, scripts,\nCI) and where the tests live, following the convention the repo already uses; (2) a table \"Acceptance criterion | Test scenario |\nWhere (file::test)\", with at least one test per criterion of the spec and the relevant error and boundary cases; (3) the regression\nrule: the implementer runs the full suite BEFORE changing anything (baseline) and again at the end, and nothing that passed may fail.\nIf the repo has NO tests, the plan's first step creates the minimum to have them (framework, a command to run them, one real test).\nException: repos without code (documentation, infrastructure): write \"no tests: <reason>\" and say how to check by hand.\n\n## Changes requested by the user\nThe independent plan validation (file <home>/features/<fid>/plan-review.md) blocked it. Read it and fix the plan: the CRITICAL and HIGH ones first, then the rest where it makes sense. Keep the structure and the sections.\nThe previous version is at <home>/features/<fid>/plan.v1.md; review it and write the new version to <home>/features/<fid>/plan.md.\nIf the user asked questions or has doubts, answer them directly in a section “## Answers to your doubts”, treat the answered questions as decided, and leave in “## Open questions” only what is still missing (same format, with options)."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {
+     "checking": false,
+     "fixes": 1,
+     "retries": 0
+    },
+    "rev": {
+     "build": 0,
+     "plan": 1,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "plan",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "plan.md"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-validate-plan",
+     "model": "m-plan-validation",
+     "project": "Alfa",
+     "task": "Language: the user works in English. Write EVERY artifact, question, report and your final message in English.\n\nFeature «Login with 2FA» (id <fid>) in project Alfa.\n\n## User request\nI want 2FA\n\n## Phase 2b: independent plan validation\nYou are the independent plan validator: you did NOT write it and must not trust it. It is READ-ONLY: do NOT change code or the\nplan, do NOT commit or check out and do NOT install anything; you only read and run verification commands (ls, git log, grep).\nDo not read or print .env*, keys, tokens or secret files. Work only inside the project's repo and the artifacts folder.\nApproved spec: <home>/features/<fid>/spec.md. Plan to validate: <home>/features/<fid>/plan.md. Read both and check the plan against the real repo.\nCheck, in this order:\n1. Coverage: every requirement and acceptance criterion of the spec has plan steps that meet it; nothing from \"out of scope\" crept in.\n2. Reality: the files, functions, modules and commands the plan cites exist (confirm with commands); the files to create do not\n   collide with existing ones.\n3. Order and tests: tests first; each step names the test that validates it; each step depends only on earlier steps.\n4. Scope: no more work than the spec asks for.\n5. Safety and rollback: irreversible actions or actions on shared or production systems are left as steps for the user, after the\n   review; there is a rollback for what changes; there are no secrets in the plan.\n6. Open questions: the spec's are answered or explicitly assumed; the plan does not hide decisions still to be made.\n7. Tests: the plan's \"Tests\" section exists and has the full-suite command, one test scenario per acceptance criterion (and the\n   relevant error and boundary cases) and the baseline-plus-regression rule. Check in the repo whether it already has tests: if it\n   has NONE and the plan does not create the minimum to have them (framework, command, one real test) as the first step, that is HIGH\n   and the verdict is BLOCKED. Exception: repos without code (documentation, infrastructure), where the plan must say \"no tests:\n   <reason>\" and how to check by hand.\nWrite the result to <home>/features/<fid>/plan-review.md (not to chat), exactly in this format:\n## Verdict\nAPPROVED, WITH RESERVATIONS or BLOCKED, and one sentence. (BLOCKED if there is any CRITICAL or HIGH.)\n## Checks\nThe commands you ran and the real result.\n## Acceptance criteria coverage\n| Criterion | Plan steps that meet it | Status |\n## Findings\n- **[CRITICAL|HIGH|MEDIUM|LOW] plan section — title:** what is wrong and how to fix it\nCRITICAL = the plan would lead to data loss, a security failure or something contrary to the spec; HIGH = a gap or error that would\nmake the implementation fail or come out wrong; MEDIUM = ambiguity or risk; LOW = style.\nIf there are no findings write \"None.\"\nEnd with [DONE]."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {
+     "checking": true,
+     "fixes": 1,
+     "retries": 0
+    },
+    "rev": {
+     "build": 0,
+     "plan": 1,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "plan",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "plan-review.md"
+   ],
+   "error": "",
+   "launches": [],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {
+     "checking": false,
+     "fixes": 1,
+     "retries": 0
+    },
+    "rev": {
+     "build": 0,
+     "plan": 1,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "plan",
+    "status": "awaiting"
+   }
+  },
+  {
+   "action": [
+    "approve"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-build",
+     "model": "m-build",
+     "project": "Alfa",
+     "task": "Language: the user works in English. Write EVERY artifact, question, report and your final message in English.\n\nFeature «Login with 2FA» (id <fid>) in project Alfa.\n\n## User request\nI want 2FA\n\nWrite the artifact to <home>/features/<fid>/report.md (create the file; markdown in English). The user will read it in the dashboard and approve it or\nask for changes, so write it complete and self-contained.\n\nDoubts you need the user to resolve (do not guess) go in TWO places:\n1. In the \"## Open questions\" section of the artifact, readable by someone who only reads the document:\n   - **P1 — Short title:** clear, closed question?\n     - [ ] Option A (recommended) — consequence in one sentence\n     - [ ] Option B — consequence in one sentence\n2. In the file <home>/features/<fid>/questions.json, which the dashboard uses to build the answer form (valid JSON; `[]` if there are no doubts):\n   [{\"id\": \"P1\", \"title\": \"Short title\", \"text\": \"Clear, closed question?\",\n     \"options\": [{\"label\": \"Option A — consequence\", \"recommended\": true}, {\"label\": \"Option B — consequence\"}]}]\nGive 2 to 4 concrete, mutually exclusive options and mark your recommendation with \"recommended\" (and \"(recommended)\" in the document).\nThe user may also write a comment or a question on each item. If you need answers before you can finish, still write the best\nprovisional version of the artifact, with your assumptions flagged, and the questions in both places.\nEnd with [DONE].\n\n## Phase 3: implementation\nApproved spec: <home>/features/<fid>/spec.md. Approved plan: <home>/features/<fid>/plan.md. Read both and follow the plan with the `superpowers:executing-plans` skill.\nFor all new code use `superpowers:test-driven-development` (failing test first, then minimal implementation, then refactor) and, if\na test fails for no obvious reason, `superpowers:systematic-debugging`. Before saying it is done, use\n`superpowers:verification-before-completion`: run the commands and confirm the result, do not assume it. The worktree is defined\nbelow, so do not use `superpowers:using-git-worktrees` or `superpowers:finishing-a-development-branch` (the merge is the user's).\nOther features may be running in parallel in this repository, so do NOT check out or change anything in the repo's main folder.\nCreate your own worktree, on a new branch, and work only inside it:\n  git worktree add -b feat/<fid> \"<home>/features/<fid>/work\"\nBEFORE changing any file, run the project's FULL test suite (the command is in the plan's \"Tests\" section) and record the baseline:\nhow many pass and how many already fail. If the repo has no tests, first create the minimum the plan describes.\nTests first, then code. Do NOT commit: leave the changes uncommitted in the worktree (the pipeline commits only after the\nindependent review); do NOT push and do not remove the worktree (say in the report where it is).\nDo not run irreversible actions or actions on shared or production systems (servers, deleting data, deploys, real migrations):\nwrite them as steps for the user to run AFTER the review.\nRun the project's tests and linter before saying it is done, and do not claim they pass without having run them.\nThe artifact is the report: what changed (files), real test results, how to check by hand, what is left to do.\nAfter the \"Execution status\", the report has a \"## Tests\" section whose first line is exactly one of these:\nNO REGRESSIONS | REGRESSIONS | NOT RUN — <reason> | NO TESTS IN PROJECT — <reason>\nFollowed, exactly in this format and with the REAL numbers of the FULL suite, by:\nBASELINE: <P> passed, <F> failed   (before you changed anything)\nFINAL RESULT: <P> passed, <F> failed   (afterwards, with the same command)\nNEW TESTS: <N>\nand then the command used and the table \"Acceptance criterion | Test (file::name)\". Regression rule: nothing that passed in the baseline may fail\nat the end; if something fails, fix it or say so here, never hide it.\nThe report ALWAYS starts with the section \"## Execution status\", whose first line is exactly one of these:\nEXECUTED AND VERIFIED | PARTIALLY EXECUTED | NOT EXECUTED — <reason in one sentence>\nFollowed by \"Verified by me\" (each item with the command you ran and the real result) and \"Not verified\" (what depends on someone\nelse or on access you do not have). If you ran nothing that proves the result, the status is NOT EXECUTED: a report of steps \"for\nyou to run\" is a runbook, not an implementation. End with [DONE] only if the status is EXECUTED AND VERIFIED; otherwise end with\n[BLOCKED] and say what is missing. If the project is not a git repository there is no worktree: say so in the report."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {
+     "checking": false,
+     "fixes": 1,
+     "retries": 0
+    },
+    "rev": {
+     "build": 0,
+     "plan": 1,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "build",
+    "status": "working"
+   }
+  }
+ ]
+}

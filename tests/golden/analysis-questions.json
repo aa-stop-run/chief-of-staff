@@ -1,0 +1,164 @@
+{
+ "archived": [],
+ "commits": [],
+ "history": [
+  {
+   "event": "worker launched",
+   "note": "cos-w1",
+   "stage": "build"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "build"
+  },
+  {
+   "event": "automatic review",
+   "note": "",
+   "stage": "review"
+  },
+  {
+   "event": "worker launched",
+   "note": "cos-w2",
+   "stage": "review"
+  },
+  {
+   "event": "failed",
+   "note": "",
+   "stage": "review"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "review"
+  },
+  {
+   "event": "nothing to commit",
+   "note": "no code worktree",
+   "stage": "review"
+  }
+ ],
+ "trace": [
+  {
+   "action": [
+    "create"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-build",
+     "model": "m-build",
+     "project": "Alfa",
+     "task": "Language: the user works in English. Write EVERY artifact, question, report and your final message in English.\n\nFeature «Login with 2FA» (id <fid>) in project Alfa.\n\n## User request\nI want 2FA\n\nWrite the artifact to <home>/features/<fid>/report.md (create the file; markdown in English). The user will read it in the dashboard and approve it or\nask for changes, so write it complete and self-contained.\n\nDoubts you need the user to resolve (do not guess) go in TWO places:\n1. In the \"## Open questions\" section of the artifact, readable by someone who only reads the document:\n   - **P1 — Short title:** clear, closed question?\n     - [ ] Option A (recommended) — consequence in one sentence\n     - [ ] Option B — consequence in one sentence\n2. In the file <home>/features/<fid>/questions.json, which the dashboard uses to build the answer form (valid JSON; `[]` if there are no doubts):\n   [{\"id\": \"P1\", \"title\": \"Short title\", \"text\": \"Clear, closed question?\",\n     \"options\": [{\"label\": \"Option A — consequence\", \"recommended\": true}, {\"label\": \"Option B — consequence\"}]}]\nGive 2 to 4 concrete, mutually exclusive options and mark your recommendation with \"recommended\" (and \"(recommended)\" in the document).\nThe user may also write a comment or a question on each item. If you need answers before you can finish, still write the best\nprovisional version of the artifact, with your assumptions flagged, and the questions in both places.\nEnd with [DONE].\n\n## Phase 1: analysis\nYou are an ANALYSIS worker. READ-ONLY: do NOT change anything in the repo or outside it, do NOT commit, do NOT install anything, do NOT create\nworktrees and do NOT write product code; you only read and run verification commands (ls, git log, grep, the tests\nthat already exist without modifying them). Do not read or print .env*, keys, tokens or secret files. The only thing you may run\nthat writes anything is the suggestion command of rule 6 (it creates a dashboard card; it changes nothing in the project).\nAnswer the user's request above with evidence. Read the project's vault note and the code. There is no spec, plan or worktree.\nThe artifact is the analysis report, with the sections: Question · Short answer (3 to 5 lines) · Evidence (every claim with its source:\nfile:line, or the command and its result) · What I could not confirm · Options and next steps (if any; each with cost and risk) ·\nOpen questions. No claim without evidence: what you did not verify goes under \"What I could not confirm\"."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "analysis",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "build",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "report.md"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-review",
+     "model": "m-review",
+     "project": "Alfa",
+     "task": "Language: the user works in English. Write EVERY artifact, question, report and your final message in English.\n\nFeature «Login with 2FA» (id <fid>) in project Alfa.\n\n## User request\nI want 2FA\n\nWrite the artifact to <home>/features/<fid>/review.md (create the file; markdown in English). The user will read it in the dashboard and approve it or\nask for changes, so write it complete and self-contained.\n\nDoubts you need the user to resolve (do not guess) go in TWO places:\n1. In the \"## Open questions\" section of the artifact, readable by someone who only reads the document:\n   - **P1 — Short title:** clear, closed question?\n     - [ ] Option A (recommended) — consequence in one sentence\n     - [ ] Option B — consequence in one sentence\n2. In the file <home>/features/<fid>/questions.json, which the dashboard uses to build the answer form (valid JSON; `[]` if there are no doubts):\n   [{\"id\": \"P1\", \"title\": \"Short title\", \"text\": \"Clear, closed question?\",\n     \"options\": [{\"label\": \"Option A — consequence\", \"recommended\": true}, {\"label\": \"Option B — consequence\"}]}]\nGive 2 to 4 concrete, mutually exclusive options and mark your recommendation with \"recommended\" (and \"(recommended)\" in the document).\nThe user may also write a comment or a question on each item. If you need answers before you can finish, still write the best\nprovisional version of the artifact, with your assumptions flagged, and the questions in both places.\nEnd with [DONE].\n\n## Phase 2: independent verification of the analysis\nYou are the independent verifier: you did NOT do the analysis and must not trust it. READ-ONLY: do NOT change anything in the repo or outside it, do NOT commit, do NOT install anything, do NOT create\nworktrees and do NOT write product code; you only read and run verification commands (ls, git log, grep, the tests\nthat already exist without modifying them). Do not read or print .env*, keys, tokens or secret files. The only thing you may run\nthat writes anything is the suggestion command of rule 6 (it creates a dashboard card; it changes nothing in the project).\nThe ONLY exception to the read-only rule is the artifact file indicated above: you MUST create it there (not in chat; without that\nfile the verification counts as failed).\nReport to verify: <home>/features/<fid>/report.md. The user's request is above. Do, in this order:\n1. List the report's factual claims (at least those that support the short answer) and verify them again YOURSELF, with commands and\n   by reading the code; do not accept the cited evidence without confirming it.\n2. Check that the answer really answers the question and whether there are conclusions without evidence or that the evidence does not support.\n3. Look for what is missing: relevant files, cases or risks the analysis ignored.\nWrite the artifact exactly in this format:\n## Verdict\nAPPROVED, WITH RESERVATIONS or BLOCKED, and one sentence. (BLOCKED if a main conclusion is wrong or without evidence.)\n## Checks\nThe commands you ran and the real result.\n## Claims\n| Claim | Status (confirmed / not confirmed / not verifiable) | Evidence |\n## Findings\n- **[CRITICAL|HIGH|MEDIUM|LOW] report section — title:** what is wrong and how to fix it\nCRITICAL = a main conclusion is wrong; HIGH = an important claim without evidence or wrong; MEDIUM = a gap; LOW = style.\nIf there are no findings write \"None.\""
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "analysis",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "review",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "questions.json"
+   ],
+   "error": "",
+   "launches": [],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "analysis",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "review",
+    "status": "failed"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "review.md"
+   ],
+   "error": "",
+   "launches": [],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "analysis",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "review",
+    "status": "awaiting"
+   }
+  }
+ ]
+}

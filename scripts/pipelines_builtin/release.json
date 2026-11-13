@@ -1,0 +1,61 @@
+{
+ "format": 1,
+ "id": "release",
+ "version": 1,
+ "name": "Production release",
+ "limits": {
+  "max_total_rounds": 12
+ },
+ "steps": [
+  {
+   "id": "plan",
+   "type": "worker",
+   "phase": "plan",
+   "mode": "read_only",
+   "artifact": "plan.md",
+   "prompt": {
+    "ref": "builtin:release.plan"
+   },
+   "questions": true,
+   "report_gate": {
+    "use": "release_plan"
+   }
+  },
+  {
+   "id": "ok-plan",
+   "type": "approval",
+   "of": "plan",
+   "requires_user": true
+  },
+  {
+   "id": "build",
+   "type": "worker",
+   "phase": "build",
+   "mode": "worktree",
+   "artifact": "report.md",
+   "prompt": {
+    "ref": "builtin:release.build"
+   },
+   "report_gate": {
+    "use": "release_verdict"
+   }
+  },
+  {
+   "id": "ok-build",
+   "type": "approval",
+   "of": "build",
+   "requires_user": true,
+   "confirm": "The regression verdict must be POSITIVE for the planned commit."
+  },
+  {
+   "id": "review",
+   "type": "worker",
+   "phase": "review",
+   "mode": "production",
+   "artifact": "review.md",
+   "prompt": {
+    "ref": "builtin:release.review"
+   }
+  }
+ ]
+}
