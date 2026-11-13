@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Personal Chief of Staff: project registry, status, workers. Standard library only.
 
+  python scripts/chief.py doctor                  # check the dependencies
+  python scripts/chief.py costs [--project P] [--json]   # estimated AI cost
+  python scripts/chief.py session [end]           # the open work session
+  python scripts/chief.py plan                    # plan usage (5-hour, 7-day) and how to connect it
   python scripts/chief.py home                    # where the application and your data live
   python scripts/chief.py projects
   python scripts/chief.py status [project]
@@ -16,17 +20,31 @@ import subprocess
 import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import home
 import migrations
+import planusage
+import report
+import usage
+import worksession
 
 ROOT = home.APP_ROOT                  # the application's folder: code only
 HOME = home.default_home()            # the user's data: configuration, state, backups (see home.py)
 CFG = home.read_config(HOME)          # reading never writes; home.ensure() creates and migrates the data at start-up
 VAULT = Path(CFG["vault"])
 STATE = home.state_dir(HOME)
+
+
+def work_sessions() -> "worksession.WorkSessions":
+    """The store of work sessions in the current data folder."""
+    return worksession.WorkSessions(STATE / "work_sessions.json")
+
+
+def vault_enabled() -> bool:
+    """Is there a vault to use? It is optional: without one the Chief works the same, minus the notes and the curation."""
+    return str(VAULT) not in ("", ".") and VAULT.is_dir()
 NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 ACTIVE = ("working", "running", "blocked", "idle", "waiting")  # session open
 BUSY = ("working", "running")  # working right now
@@ -61,6 +79,19 @@ DRAFT_TEXTS = {
 }
 DRAFT_TEXT = DRAFT_TEXTS[VAULT_LANG]
 
+PREAMBLE_NO_VAULT = """You were launched by the personal Chief of Staff to work on the project "{name}" ({cwd}).
+Rules (mandatory):
+1. Before starting, read the repo's README and CLAUDE.md, if they exist.
+2. Work only inside {cwd}. Do not push, do not delete branches or files you did not create, do not touch secrets (.env, keys, tokens) and do not print them.
+3. If you need a decision from the user, stop and write the question in your final result instead of guessing.
+4. Do not create notes or files outside what the task asks for: your final message is the record.
+5. Your last message starts with [DONE], [BLOCKED] or [QUESTION] and summarises in 5 lines.
+6. If you find follow-up work that deserves its own request (for example a commit or a pull request after an analysis), you may SUGGEST it: python "{chief}/scripts/proposals.py" add --project "{name}" --kind <feature|fix|maintenance|analysis|ship> --title "..." --desc "..." --by "{worker}". It only creates a card on the dashboard that the user accepts or dismisses; you cannot start work with it. Describe what and why; never put secrets in it.
+
+## Task
+{task}
+"""
+
 PREAMBLE = """You were launched by the personal Chief of Staff to work on the project "{name}" ({cwd}).
 Rules (mandatory):
 1. Before starting, read the project's note in the vault ({hub}) and the repo's CLAUDE.md, if they exist.
@@ -68,6 +99,7 @@ Rules (mandatory):
 3. If you need a decision from the user, stop and write the question in your final result instead of guessing.
 4. At the end, create ONE note in {vault}/inbox/ named 'YYYY-MM-DD {name} - <subject>.md' (format in {vault}/inbox/{readme}) with what you did, what you decided and what is missing. Write the note in {note_lang}.
 5. Your last message starts with [DONE], [BLOCKED] or [QUESTION] and summarises in 5 lines.
+6. If you find follow-up work that deserves its own request (for example a commit or a pull request after an analysis), you may SUGGEST it: python "{chief}/scripts/proposals.py" add --project "{name}" --kind <feature|fix|maintenance|analysis|ship> --title "..." --desc "..." --by "{worker}". It only creates a card on the dashboard that the user accepts or dismisses; you cannot start work with it. Describe what and why; never put secrets in it.
 
 ## Task
 {task}
@@ -84,6 +116,8 @@ def norm(p):
 
 def hubs():
     out = []
+    if not vault_enabled():
+        return out
     for folder in SCHEMA["hub_dirs"]:
         for f in (VAULT / folder).glob("*.md"):
             t = f.read_text(encoding="utf-8", errors="ignore")
@@ -186,6 +220,8 @@ def draft_header(project: str, day: str) -> str:
 
 def _draft_note(path: Path, stored: str, what: str) -> None:
     """Inbox draft asking for the project hub (an extra: failing must not break the registration)."""
+    if not vault_enabled():
+        return
     safe = re.sub(r'[<>:"/\\|?*]', "", path.name).strip() or DRAFT_TEXT["fallback"]
     day = f"{datetime.now():%Y-%m-%d}"
     note = VAULT / "inbox" / f"{day} {safe} - {DRAFT_TEXT['title']}.md"
@@ -204,6 +240,62 @@ _CLONE_URL = re.compile(r"https://([a-z0-9.-]+)/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-
 
 _SSH_URL = re.compile(r"git@([a-z0-9.-]+):([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+?)(?:\.git)?", re.I)
 DOMAIN_RE = re.compile(r"^[a-zà-ú0-9][a-zà-ú0-9 _-]{0,29}$")
+
+
+DEFAULT_MODELS = ("opus", "sonnet", "haiku")
+
+
+EFFORTS = ("low", "medium", "high", "xhigh", "max")      # what `claude --effort` accepts
+DEFAULT_PHASE_MODELS = {"qa": "sonnet"}                  # read-only questions are cheap work; a request's own model or `phase_models` outrank this
+_MODEL_OK = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,79}$")
+
+
+def route(phase: str, request_model: str = "") -> tuple:
+    """(model, effort) for a worker doing `phase` of a request; None means "whatever Claude Code uses".
+
+    Model: `phase_models[phase]` in projects.json wins, then the model chosen for the request, then a built-in default (only
+    read-only questions: Sonnet). A phase set to "" in `phase_models` follows the request. Effort: `phase_efforts[phase]`, else
+    Claude Code's own default. Invalid values are ignored, never passed to the command line."""
+    pm, pe = CFG.get("phase_models"), CFG.get("phase_efforts")
+    pm, pe = (pm if isinstance(pm, dict) else {}), (pe if isinstance(pe, dict) else {})
+    ok = lambda m: bool(m) and isinstance(m, str) and bool(_MODEL_OK.match(m))   # noqa: E731
+    model = next((m for m in (pm.get(phase), request_model, None if phase in pm else DEFAULT_PHASE_MODELS.get(phase)) if ok(m)), None)
+    return model, (pe.get(phase) if pe.get(phase) in EFFORTS else None)
+
+
+# Permission rules handed to `claude --allowedTools / --disallowedTools` for the phases that must run git commands a background worker
+# cannot ask about. Keyed "<kind>:<stage>"; `phase_tools` in projects.json replaces an entry (an empty list switches it off). They are
+# narrow and only exist in those phases: the commit phase of «ship», and its publication phase, which starts only after the user's click.
+# Claude Code's own `settings.json` is never touched.
+DEFAULT_PHASE_TOOLS = {
+    "ship:build": {"allow": ["Bash(git add:*)", "Bash(git commit:*)", "Bash(git switch -c:*)", "Bash(git checkout -b:*)"],
+                   "deny": ["Bash(git push:*)", "Bash(git remote add:*)", "Bash(git remote set-url:*)", "Bash(git config:*)",
+                            "Bash(git reset --hard:*)", "Bash(git commit --amend:*)", "Bash(git commit*--amend*)"]},
+    "ship:review": {"allow": ["Bash(git push -u:*)", "Bash(gh pr create:*)"],
+                    "deny": ["Bash(git push*--force*)", "Bash(git push*-f *)", "Bash(git push*--delete*)", "Bash(git push*--mirror*)",
+                             "Bash(git push*+*)", "Bash(git remote add:*)", "Bash(git remote set-url:*)", "Bash(git config:*)",
+                             "Bash(gh pr merge:*)", "Bash(gh auth:*)"]},
+}
+_TOOL_OK = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\([^\n,]{1,200}\))?$")
+MAX_TOOL_RULES = 24
+
+
+def _tool_list(v) -> list:
+    return [x for x in v if isinstance(x, str) and _TOOL_OK.match(x)][:MAX_TOOL_RULES] if isinstance(v, list) else []
+
+
+def tools_for(kind: str, stage: str) -> tuple:
+    """(allow, deny) permission rules for a worker doing `stage` of a request of `kind`: the entry in `phase_tools` of projects.json
+    (`{"ship:review": {"allow": [...], "deny": [...]}}`) or the built-in default. Invalid rules are dropped, never passed on."""
+    key = f"{kind}:{stage}"
+    cfg = CFG.get("phase_tools")
+    entry = cfg[key] if isinstance(cfg, dict) and isinstance(cfg.get(key), dict) else DEFAULT_PHASE_TOOLS.get(key, {})
+    return _tool_list(entry.get("allow")), _tool_list(entry.get("deny"))
+
+
+def models() -> list:
+    """Models offered in the dashboard (`models` in projects.json). The empty choice always means "whatever Claude Code uses"."""
+    return list(CFG.get("models") or DEFAULT_MODELS)
 
 
 def clone_hosts() -> list:
@@ -314,7 +406,7 @@ def git(path, *args):
 def git_info(path):
     if git(path, "rev-parse", "--is-inside-work-tree") != "true":
         return {"git": False}
-    st = git(path, "status", "--porcelain") or ""
+    st = git(path, "--no-optional-locks", "status", "--porcelain") or ""   # background polling must not take .git/index.lock
     last = git(path, "log", "-1", "--format=%cs|%s") or "|"
     ahead = git(path, "rev-list", "--count", "@{u}..HEAD")
     return {"git": True, "branch": git(path, "branch", "--show-current") or "?",
@@ -324,6 +416,8 @@ def git_info(path):
 
 
 def inbox_notes():
+    if not vault_enabled():
+        return []
     d = VAULT / "inbox"
     return [f for f in d.glob("*.md") if f.name != SCHEMA["readme"]] if d.is_dir() else []
 
@@ -342,6 +436,17 @@ def sessions():
     return sessions_checked() or []
 
 
+def session_state(s: dict) -> str:
+    """The state of a background session as the Chief understands it. Claude Code can report `state: working` for a session whose main
+    thread has stopped (`status: idle`) because a background sub-agent it started is still running: the worker's result is already
+    written, and waiting for the sub-agent would hold the request for as long as it lives. That is `idle` here, which is what a
+    session left open after its work is. A session without a `state` falls back to its `status`."""
+    st = s.get("state")
+    if st in BUSY and s.get("status") == "idle":
+        return "idle"
+    return st if st is not None else {"busy": "working", "idle": "idle"}.get(s.get("status"), "finished")
+
+
 def load_workers():
     try:
         return json.loads((STATE / "workers.json").read_text(encoding="utf-8"))
@@ -356,7 +461,7 @@ def full_state(live_list=None, with_git=True):
     workers = load_workers()
     for w in workers:
         s = live.get(w["id"])
-        w["state"] = s["state"] if s else "finished"
+        w["state"] = session_state(s) if s else "finished"
     if with_git:
         with ThreadPoolExecutor(max_workers=8) as pool:
             infos = list(pool.map(lambda q: git_info(q["path"]), projs))
@@ -364,8 +469,198 @@ def full_state(live_list=None, with_git=True):
             p.update(info)
         p["inbox"] = sum(1 for n in notes if slug(p["name"]) in slug(n.stem))
         p["workers"] = sum(1 for w in workers if w["project"] == p["name"] and w["state"] in ACTIVE)
-    return {"projects": projs, "workers": workers[::-1][:40], "inbox": sorted(n.name for n in notes)[::-1],
+    return {"projects": projs, "workers": workers[::-1][:500], "inbox": sorted(n.name for n in notes)[::-1],
             "updated": datetime.now().strftime("%H:%M:%S")}
+
+
+MIN_PYTHON = (3, 10)
+PROVIDER_ENV = ("ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX")
+
+
+def _first_line(cmd: list) -> str | None:
+    """First line printed by a command, or None if it is missing or fails."""
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=20, encoding="utf-8", errors="replace",
+                           creationflags=NO_WINDOW)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    text = (r.stdout or r.stderr or "").strip()
+    return text.splitlines()[0] if r.returncode == 0 and text else None
+
+
+def doctor_checks() -> list:
+    """Everything the Chief needs from the machine. Each check: {level: ok|warn|fail, name, detail, hint}.
+
+    `fail` = required and missing; `warn` = optional and missing. Only reads; never installs or changes anything."""
+    out = []
+
+    def add(level, name, detail, hint=""):
+        out.append({"level": level, "name": name, "detail": detail, "hint": hint})
+
+    v = sys.version_info
+    add("ok" if (v.major, v.minor) >= MIN_PYTHON else "fail", "Python", f"{v.major}.{v.minor}.{v.micro}",
+        "" if (v.major, v.minor) >= MIN_PYTHON else f"Python {MIN_PYTHON[0]}.{MIN_PYTHON[1]} or newer is required: https://www.python.org/downloads/")
+    git_v = _first_line(["git", "--version"]) if shutil.which("git") else None
+    add("ok" if git_v else "fail", "git", git_v or "not found", "" if git_v else "Required (worktrees and commits): https://git-scm.com/downloads")
+    claude_v = _first_line(["claude", "--version"]) if shutil.which("claude") else None
+    if not claude_v:
+        add("fail", "Claude Code", "not found", "Required: every worker is a `claude --bg` session. Install it: https://code.claude.com/docs")
+    else:
+        help_text = ""
+        try:
+            help_text = subprocess.run(["claude", "--help"], capture_output=True, text=True, timeout=20, encoding="utf-8",
+                                       errors="replace", creationflags=NO_WINDOW).stdout
+        except (OSError, subprocess.SubprocessError):
+            pass
+        bg = "--bg" in help_text
+        add("ok" if bg else "fail", "Claude Code", claude_v + ("" if bg else " (no background sessions: `--bg` is missing)"),
+            "" if bg else "Update Claude Code to a version that supports `claude --bg`.")
+    used = [k for k in PROVIDER_ENV if os.environ.get(k)]
+    add("ok", "Model / provider", ("set in the environment: " + ", ".join(used)) if used else
+        "Claude Code's own configuration (nothing overridden in the environment)",
+        "Workers use whatever model and provider your Claude Code is configured for; `models` in projects.json only fills the dashboard's menu.")
+    gh_v = _first_line(["gh", "--version"]) if shutil.which("gh") else None
+    add("ok" if gh_v else "warn", "GitHub CLI (gh)", gh_v or "not found",
+        "" if gh_v else "Optional (cloning private repos, showing the GitHub account): https://cli.github.com")
+    node_v = _first_line(["node", "--version"]) if shutil.which("node") else None
+    add("ok" if node_v else "warn", "Node.js", node_v or "not found", "" if node_v else "Optional, only for running the tests: https://nodejs.org")
+    try:
+        import pytest  # noqa: F401
+        add("ok", "pytest", "installed")
+    except ImportError:
+        add("warn", "pytest", "not installed", "Optional, only for running the tests: pip install pytest")
+    add("ok", "Data folder", f"{HOME} (schema {home.schema_version(HOME)})")
+    add("ok" if CFG.get("roots") else "warn", "Projects folders", ", ".join(CFG.get("roots") or []) or "none configured yet",
+        "" if CFG.get("roots") else "Add one in the dashboard's Settings (or `roots` in projects.json).")
+    if not CFG.get("vault"):
+        add("ok", "Vault", "none (optional): the Chief works without one")
+    elif VAULT.is_dir():
+        add("ok", "Vault", CFG["vault"])
+    else:
+        add("warn", "Vault", f"{CFG['vault']} (folder not found)", "Fix the path in Settings, or leave it empty to work without a vault.")
+    return out
+
+
+def cmd_doctor(_):
+    marks = {"ok": "[ ok ]", "warn": "[ -- ]", "fail": "[FAIL]"}
+    checks = doctor_checks()
+    print("Chief of Staff: environment check\n")
+    for c in checks:
+        print(f"{marks[c['level']]} {c['name']}: {c['detail']}")
+        if c["hint"]:
+            print(f"         {c['hint']}")
+    failed = [c["name"] for c in checks if c["level"] == "fail"]
+    print("\n" + ("Something required is missing: " + ", ".join(failed) if failed else "Ready. Start the dashboard with: python app/server.py"))
+    if failed:
+        sys.exit(1)
+
+
+_NOTICES = planusage.NoticeCache()
+
+
+def worker_limit(worker_id: str):
+    """The usage-limit notice currently stopping a worker (read from the end of its Claude Code log), or None."""
+    w = next((x for x in load_workers() if x.get("id") == worker_id), None)
+    return _NOTICES.notice(usage.find_transcript(worker_id, w.get("cwd", ""))) if w else None
+
+
+def plan_view() -> dict:
+    return planusage.view(STATE / planusage.STATUS_FILE)
+
+
+def plan_setup() -> dict:
+    """What to add to ~/.claude/settings.json so Claude Code feeds the plan percentages to the Chief. The Chief never edits that file."""
+    script = (ROOT / "scripts" / "chief.py").as_posix()
+    python = Path(sys.executable).as_posix()
+    return {"snippet": {"statusLine": {"type": "command", "command": f'"{python}" "{script}" statusline'}},
+            "file": "~/.claude/settings.json",
+            "note": "If you already have a statusLine command, keep it: append --then \"<your command>\" and it still runs first."}
+
+
+def _read_features() -> list:
+    try:
+        return json.loads((STATE / "features.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+
+
+def _cost_report() -> dict:
+    """Measure the workers' logs now and build the sessions-and-costs report."""
+    ledger = usage.Ledger(STATE / "usage.json")
+    ledger.refresh(load_workers(), CFG.get("prices"))
+    data = ledger.load()
+    return report.build(work_sessions(), data, _read_features(), load_workers(), CFG.get("prices"), report.plan_summary(data, plan_view()))
+
+
+def cmd_costs(a):
+    rep = _cost_report()
+    if a.project:
+        t = usage.aggregate(usage.Ledger(STATE / "usage.json").load(), project=a.project)
+        rep = {"project": a.project, "cost_usd": t["cost_usd"], "tokens": t["tokens"], "by_model": t["by_model"], "workers": t["workers"]}
+    print(json.dumps(rep, indent=1) if a.json else (report.render_text(rep) if "current" in rep else
+          f"{a.project}: {report.money(rep['cost_usd'])} over {rep['workers']} workers\n" + "\n".join(
+              f"    {m:34} {report.money(v['cost_usd']):>10}" for m, v in sorted(rep["by_model"].items(), key=lambda kv: -kv[1]["cost_usd"]))))
+
+
+def cmd_statusline(a):
+    """The command Claude Code runs as its status line: save the plan percentages it is given and print them. Never fails."""
+    raw = ""
+    try:
+        raw = sys.stdin.read()
+        planusage.record_statusline(json.loads(raw), STATE / planusage.STATUS_FILE)
+    except Exception:  # noqa: BLE001 - a status line must never break the user's session
+        pass
+    shown = ""
+    if a.then:
+        try:
+            shown = subprocess.run(a.then, shell=True, input=raw, capture_output=True, text=True, timeout=10, encoding="utf-8",
+                                   errors="replace", creationflags=NO_WINDOW).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            shown = ""
+    try:
+        text = planusage.statusline_text(plan_view())
+    except Exception:  # noqa: BLE001
+        text = ""
+    print(" ".join(x for x in (shown, text) if x))
+
+
+def cmd_plan(_):
+    v, data = plan_view(), usage.Ledger(STATE / "usage.json").load()
+    now = datetime.now(timezone.utc)
+    if not v["connected"]:
+        print("Plan usage is not connected. Add this to ~/.claude/settings.json (the Chief never edits it):\n")
+        print(json.dumps(plan_setup()["snippet"], indent=2))
+        print("\nThen it shows up once an interactive Claude Code session has answered, and the dashboard shows the two meters.")
+    for key, label in (("five_hour", "5-hour"), ("seven_day", "7-day")):
+        w = v["windows"].get(key)
+        if w:
+            print(f"{label:7} {w['percent']:5.1f}% used" + ("  (window has reset)" if w["expired"] else f"  resets in {report.duration(w['resets_in_s'])}"))
+    if v["connected"]:
+        print(f"as of {report.duration(v['age_s'])} ago")
+    print(f"Chief workers, estimated: last 5 hours {report.money(usage.spend_in_window(data, now - timedelta(hours=5), now))}"
+          f" · last 7 days {report.money(usage.spend_in_window(data, now - timedelta(days=7), now))}")
+
+
+def cmd_session(a):
+    ws = work_sessions()
+    cur = ws.current()
+    if a.action == "end":
+        if cur is None:
+            sys.exit("no session is open (start the dashboard, or `python app/server.py`)")
+        ledger = usage.Ledger(STATE / "usage.json")
+        ledger.refresh(load_workers(), CFG.get("prices"))
+        out = ws.end(report.totals_now(ledger.load(), cur["id"]))
+        print(f"ended {out['ended']['id']}: {report.duration(out['ended']['active_s'])} active, {report.money(out['ended']['totals']['cost_usd'])} estimated")
+        return
+    if cur is None:
+        print("no session is open: it starts with the dashboard (`python app/server.py`)")
+        return
+    t = usage.aggregate(_ledger_data(), session=cur["id"])
+    print(f"{cur['id']}: started {cur['started']}, {report.duration(ws.active_seconds(cur))} active, {report.money(t['cost_usd'])} estimated")
+
+
+def _ledger_data() -> dict:
+    return usage.Ledger(STATE / "usage.json").load()
 
 
 def cmd_home(_):
@@ -375,7 +670,7 @@ def cmd_home(_):
 
 def cmd_projects(_):
     for p in load_projects():
-        print(f"{p['name']:32} {p['domain'] or '-':12} {p['path']}" + ("" if p["hub"] else "   (no note in the vault)"))
+        print(f"{p['name']:32} {p['domain'] or '-':12} {p['path']}" + ("" if p["hub"] or not vault_enabled() else "   (no note in the vault)"))
 
 
 def cmd_status(a):
@@ -388,51 +683,87 @@ def cmd_status(a):
         print(f"{p['name']:30} {g}  | inbox {p['inbox']} | workers {p['workers']}")
 
 
-def build_command(p, task, mode="auto", model=None, extra_dirs=(), label=None):
+def build_command(p, task, mode="auto", model=None, extra_dirs=(), label=None, effort=None, allow=(), deny=()):
     base = slug(label)[:40].strip("-") if label else ""
     prefix = base or f"cos-{p['slug']}"
     n = sum(1 for w in load_workers() if w["name"] == prefix or w["name"].startswith(prefix + "-")) + 1
     name = f"{prefix}-{n}" if not base or n > 1 else base
-    prompt = PREAMBLE.format(name=p["name"], cwd=p["path"], hub=p["hub"] or "(no note in the vault)",
+    prompt = (PREAMBLE if vault_enabled() else PREAMBLE_NO_VAULT).format(name=p["name"], cwd=p["path"], hub=p["hub"] or "(no note in the vault)",
                              vault=str(VAULT).replace("\\", "/"), readme=SCHEMA["readme"],
-                             note_lang=SCHEMA["name"], task=task.strip())
+                             note_lang=SCHEMA["name"], task=task.strip(),
+                             chief=str(ROOT).replace("\\", "/"), worker=name)
     cmd = ["claude", "--bg", "-n", name]
-    if CFG.get("vault"):                      # a fresh clone has no vault configured yet
+    if vault_enabled():                       # the vault is optional
         cmd += ["--add-dir", str(VAULT)]
     for d in extra_dirs:
         cmd += ["--add-dir", str(d)]
     cmd += ["--permission-mode", mode]
     if model:
         cmd += ["--model", model]
-    return name, cmd + [prompt], prompt
+    if effort in EFFORTS:
+        cmd += ["--effort", effort]
+    allow, deny = _tool_list(list(allow)), _tool_list(list(deny))
+    if allow:                                  # one `=` argument each, then «--»: these options are variadic and must not swallow the prompt
+        cmd += ["--allowedTools=" + ",".join(allow)]
+    if deny:
+        cmd += ["--disallowedTools=" + ",".join(deny)]
+    return name, cmd + (["--"] if allow or deny else []) + [prompt], prompt
 
 
 _LAUNCH_LOCK = threading.Lock()  # unique names and lossless workers.json when several are launched at once
 
 
-def launch_worker(project, task, model=None, extra_dirs=(), mode="auto", label=None):
+def launch_worker(project, task, model=None, extra_dirs=(), mode="auto", label=None, effort=None, allow=(), deny=()):
     """Launch a `claude --bg` worker in the project folder and record it in state/workers.json."""
     with _LAUNCH_LOCK:
-        return _launch_worker_locked(project, task, model, extra_dirs, mode, label)
+        return _launch_worker_locked(project, task, model, extra_dirs, mode, label, effort, allow, deny)
 
 
-def _launch_worker_locked(project, task, model, extra_dirs, mode, label=None):
+def _launch_worker_locked(project, task, model, extra_dirs, mode, label=None, effort=None, allow=(), deny=()):
     p = find(project, load_projects())
     if not task.strip():
         raise ValueError("empty task")
-    name, cmd, _ = build_command(p, task, mode, model, extra_dirs, label)
+    name, cmd, _ = build_command(p, task, mode, model, extra_dirs, label, effort, allow, deny)
     r = subprocess.run(cmd, cwd=p["path"], capture_output=True, text=True, encoding="utf-8", timeout=120,
                        creationflags=NO_WINDOW)
     m = re.search(r"backgrounded\s*·\s*([0-9a-f]{6,})", r.stdout + r.stderr)
     if not m:
         raise RuntimeError("claude --bg did not start: " + (r.stdout + r.stderr)[-600:])
-    STATE.mkdir(exist_ok=True)
     w = {"name": name, "id": m[1], "project": p["name"], "cwd": p["path"], "task": task.strip()[:2000],
-         "started": datetime.now().isoformat(timespec="seconds"), "model": model or "default"}
-    tmp = STATE / "workers.json.tmp"
-    tmp.write_text(json.dumps(load_workers() + [w], ensure_ascii=False, indent=1), encoding="utf-8")
-    tmp.replace(STATE / "workers.json")
+         "started": datetime.now().isoformat(timespec="seconds"), "model": model or "default",
+         "session": work_sessions().current_id()}
+    if effort in EFFORTS:
+        w["effort"] = effort
+    if _tool_list(list(allow)):
+        w["allowed_tools"] = _tool_list(list(allow))       # what this worker was explicitly allowed to run, for the record
+    if label and label.startswith("extraction-"):
+        w["phase"] = "extraction"
+    record_worker(w)
     return w
+
+
+def _save_workers(workers: list) -> None:
+    STATE.mkdir(parents=True, exist_ok=True)
+    tmp = STATE / "workers.json.tmp"
+    tmp.write_text(json.dumps(workers, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(STATE / "workers.json")
+
+
+def record_worker(w: dict) -> None:
+    """Add a launched worker to state/workers.json."""
+    _save_workers(load_workers() + [w])
+
+
+def tag_worker(worker_id: str, **fields) -> bool:
+    """Attach what a worker is for (the request and the phase) so its cost can be attributed. False if it is not recorded."""
+    with _LAUNCH_LOCK:
+        workers = load_workers()
+        hit = next((w for w in workers if w.get("id") == worker_id), None)
+        if hit is None:
+            return False
+        hit.update({k: v for k, v in fields.items() if v})
+        _save_workers(workers)
+        return True
 
 
 def cmd_dispatch(a):
@@ -465,11 +796,16 @@ def open_session(project, session_id):
         raise RuntimeError(f"could not open the terminal: {e}") from e
 
 
+CURATION_PROJECT = "Vault curation"      # the "project" the curator's workers (and their cost) are filed under
+
+
 def launch_curator(prompt):
     """Launch the vault curator: a `claude --bg` with access to the vault.
 
     It starts from the Chief folder (already trusted): in the vault folder claude refuses background sessions until the
     user accepts the folder trust. The prompt tells it to read the vault's CLAUDE.md first."""
+    if not vault_enabled():
+        raise RuntimeError("no vault configured")
     cmd = ["claude", "--bg", "-n", "cos-curation", "--add-dir", str(VAULT), "--permission-mode", "auto", prompt]
     with _LAUNCH_LOCK:
         r = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, encoding="utf-8", timeout=120,
@@ -477,6 +813,10 @@ def launch_curator(prompt):
     m = re.search(r"backgrounded\s*·\s*([0-9a-f]{6,})", r.stdout + r.stderr)
     if not m:
         raise RuntimeError("claude --bg did not start: " + (r.stdout + r.stderr)[-400:])
+    with _LAUNCH_LOCK:                                   # recorded so that its cost is counted too
+        record_worker({"name": "cos-curation", "id": m[1], "project": CURATION_PROJECT, "cwd": str(ROOT), "task": "Vault curation",
+                       "started": datetime.now().isoformat(timespec="seconds"), "model": "default", "phase": "curation",
+                       "session": work_sessions().current_id()})
     return {"id": m[1], "name": "cos-curation"}
 
 
@@ -512,6 +852,8 @@ def archive_doc(kind, project, title, fid, created, text, lang="en"):
         result = f"copied to {where}"
     safe = re.sub(r'[<>:"/\\|?*]', "", p["name"]).strip() or DRAFT_TEXT["fallback"]
     draft = VAULT / "inbox" / f"{day} {safe} - {kind} {base[11:]}.md"
+    if not vault_enabled():
+        return result
     head = draft_header(safe, f"{datetime.now():%Y-%m-%d}") + DRAFT_TEXT["archived"].format(
         label=DRAFT_TEXT["labels"][kind], title=title, fid=fid, where=where)
     try:
@@ -570,6 +912,18 @@ def main():
     ap = argparse.ArgumentParser()
     sp = ap.add_subparsers(dest="cmd", required=True)
     sp.add_parser("home", help="where the application and the user's data live").set_defaults(f=cmd_home)
+    sp.add_parser("doctor", help="check the dependencies and the configuration").set_defaults(f=cmd_doctor)
+    c = sp.add_parser("costs", help="estimated AI cost per work session, project and model")
+    c.add_argument("--project")
+    c.add_argument("--json", action="store_true")
+    c.set_defaults(f=cmd_costs)
+    st = sp.add_parser("statusline", help="the Claude Code status line command that feeds the plan percentages to the Chief")
+    st.add_argument("--then", help="another status line command to run first (its output is shown before ours)")
+    st.set_defaults(f=cmd_statusline)
+    sp.add_parser("plan", help="plan usage (5-hour and 7-day) and how to connect it").set_defaults(f=cmd_plan)
+    se = sp.add_parser("session", help="show the open work session, or end it")
+    se.add_argument("action", nargs="?", choices=("show", "end"), default="show")
+    se.set_defaults(f=cmd_session)
     sp.add_parser("projects").set_defaults(f=cmd_projects)
     s = sp.add_parser("status")
     s.add_argument("project", nargs="?")
@@ -583,6 +937,8 @@ def main():
     d.set_defaults(f=cmd_dispatch)
     sp.add_parser("workers").set_defaults(f=cmd_workers)
     a = ap.parse_args()
+    if a.cmd == "statusline":            # runs on every status line refresh: no start-up work, and it must never fail
+        return cmd_statusline(a)
     try:
         home.ensure(HOME)
     except home.HomeError as e:

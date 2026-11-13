@@ -164,7 +164,9 @@ def test_rejects_bad_title(env, title):
 def test_rejects_unknown_model_and_bad_id(env):
     fs, _, _ = env
     with pytest.raises(FeatureError):
-        fs.create("Alfa", "t", "d", "gpt-9")
+        fs.create("Alfa", "t", "d", "--evil")
+    with pytest.raises(FeatureError):
+        fs.create("Alfa", "t", "d", "a model; rm -rf /")
     for bad in ("../x", "a/b", ""):
         with pytest.raises(FeatureError):
             fs.cancel(bad)
@@ -556,3 +558,17 @@ def test_request_fixes_selected_tells_the_builder_to_fix_only_the_chosen_finding
     fs.request_fixes(f["id"], "## Achados a corrigir (escolhidos pelo utilizador)\n- A1", selected=True)
     task = fake.calls[-1]["task"]
     assert "Fix ONLY the findings listed" in task and "- A1" in task and "CRITICAL and HIGH ones first" not in task
+
+
+@pytest.mark.parametrize("model", ["opus", "claude-sonnet-4-5", "us.anthropic.claude-sonnet-4-5-v1:0", "my-gateway/qwen3-coder", "opus[1m]"])
+def test_any_reasonable_model_name_is_accepted_and_passed_on(env, model):
+    fs, fake, _ = env
+    f = fs.create("Alfa", "t", "d", model)
+    assert f["model"] == model and fake.calls[-1]["model"] == model
+
+
+def test_the_models_in_the_dashboard_come_from_the_configuration(monkeypatch):
+    import chief
+    assert chief.models() == ["opus", "sonnet", "haiku"]
+    monkeypatch.setattr(chief, "CFG", {**chief.CFG, "models": ["qwen3-coder", "glm-4.6"]})
+    assert chief.models() == ["qwen3-coder", "glm-4.6"]

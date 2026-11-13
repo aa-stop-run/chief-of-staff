@@ -73,3 +73,38 @@ def test_an_empty_or_missing_state_is_fine(tmp_path):
     (tmp_path / "features.json").write_text("not json", encoding="utf-8")
     migrations.to_schema_1(tmp_path)                      # corrupt file: left alone, no crash
     assert (tmp_path / "features.json").read_text(encoding="utf-8") == "not json"
+
+
+# ---------------------------------------------------------------- schema 2: work sessions
+def test_old_requests_and_workers_move_into_a_placeholder_session(tmp_path):
+    write(tmp_path, "features.json", [
+        {"id": "a", "status": "done", "created": "2026-11-01T09:00:00", "history": [{"at": "2026-11-02T10:00:00", "event": "approved", "stage": "review"}]},
+        {"id": "b", "status": "cancelled", "created": "2026-11-03T09:00:00", "history": []},
+        {"id": "c", "status": "awaiting", "created": "2026-11-04T09:00:00", "history": []}])
+    write(tmp_path, "workers.json", [{"id": "w1", "started": "2026-10-30T08:00:00"}, {"id": "w2", "started": "2026-11-05T08:00:00", "session": "keep"}])
+    migrations.to_schema_2(tmp_path)
+    feats = {f["id"]: f for f in read(tmp_path, "features.json")}
+    assert feats["a"]["closed"] == {"at": "2026-11-02T10:00:00", "session": "ws-legacy"}
+    assert feats["b"]["closed"] == {"at": "2026-11-03T09:00:00", "session": "ws-legacy"}
+    assert "closed" not in feats["c"]                                         # still open: it carries over into the next session
+    assert [w["session"] for w in read(tmp_path, "workers.json")] == ["ws-legacy", "keep"]
+    sessions = read(tmp_path, "work_sessions.json")["sessions"]
+    assert [s["id"] for s in sessions] == ["ws-legacy"] and sessions[0]["started"] == "2026-10-30T08:00:00" and sessions[0]["ended"]
+
+
+def test_the_placeholder_session_is_never_the_current_one(tmp_path):
+    import worksession
+    write(tmp_path, "features.json", [])
+    migrations.to_schema_2(tmp_path)
+    assert worksession.WorkSessions(tmp_path / "work_sessions.json").current() is None
+
+
+def test_schema_2_is_idempotent_and_copes_with_an_empty_state(tmp_path):
+    migrations.to_schema_2(tmp_path)
+    migrations.to_schema_2(tmp_path)
+    assert [s["id"] for s in read(tmp_path, "work_sessions.json")["sessions"]] == ["ws-legacy"]
+    write(tmp_path, "features.json", [{"id": "a", "status": "done", "created": "2026-11-01T09:00:00", "history": []}])
+    migrations.to_schema_2(tmp_path)
+    first = read(tmp_path, "features.json")
+    migrations.to_schema_2(tmp_path)
+    assert read(tmp_path, "features.json") == first

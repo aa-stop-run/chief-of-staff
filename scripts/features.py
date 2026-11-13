@@ -6,25 +6,32 @@ State is kept in <root>/features.json. Nothing advances by itself: every step is
 import json
 import re
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import prompts
 import prompts_kinds
 import prompts_pt
+import prompts_qa
 
 STAGES = ("spec", "plan", "build", "review")
 ARTIFACT = {"spec": "spec.md", "plan": "plan.md", "build": "report.md", "review": "review.md"}
-MODELS = ("", "opus", "sonnet", "haiku")
-KINDS = prompts_kinds.KINDS   # feature | fix | analysis | maintenance (each one's phases: prompts_kinds.KIND_STAGES)
+# Any model name the user's Claude Code understands (an alias such as "opus", a full model id, a gateway's model name).
+# It is only ever passed as an argument to `claude --model`, never to a shell; this just keeps obvious junk out.
+MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,79}$")
+KINDS = prompts_kinds.KINDS   # feature | fix | analysis | maintenance | ship (each one's phases: prompts_kinds.KIND_STAGES)
 LANGS = ("en", "pt")   # language the workers write the artifacts in (the dashboard's when the request was created)
 MAX_TITLE, MAX_DESC, MAX_COMMENT, MAX_ARTIFACT = 120, 4000, 6000, 40_000
 MAX_AUTO_FIXES, MAX_REVIEW_RETRIES = 3, 2   # automatic fix rounds; retries of a review without a verdict
 QUESTIONS_FILE = "questions.json"
+QA_DIR = "qa"                 # «Ask the worker»: one answer file per question (qa/<n>.md); the exchange itself is in feature["qa"]
+MAX_QUESTION, MAX_QA_CONTEXT = 2000, 3000   # characters; how much of an earlier answer a new question sees
 ARCHIVE_EVENTS = {"spec": ("spec archived", "spec archiving failed"), "plan": ("plan archived", "plan archiving failed"),
                   "analysis": ("analysis archived", "analysis archiving failed")}
 PLAN_REVIEW = "plan-review.md"   # independent plan validation (a sub-step of the plan phase)
 MAX_PLAN_FIXES = 2               # automatic rounds plan -> validation -> plan fix
+MAX_LIMIT_RESUMES = 3            # how many times a request's phase is restarted after a usage limit
+LIMIT_GRACE_S = 180              # after a limit resets, wait this long for Claude Code to continue by itself before restarting
 MAX_QUESTIONS, MAX_OPTIONS, MAX_Q_TITLE, MAX_Q_TEXT, MAX_Q_OPTION = 20, 8, 120, 1500, 300
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
 WORKING, AWAITING, FAILED, DONE, CANCELLED = "working", "awaiting", "failed", "done", "cancelled"
@@ -106,6 +113,58 @@ def parse_tests(text: str):
     return state, nums
 
 
+SHIP_PUSH_OK = re.compile(r"^git push -u [A-Za-z0-9][A-Za-z0-9._-]* [A-Za-z0-9][A-Za-z0-9._/-]*$")
+SHIP_DEFAULT_BRANCHES = {"main", "master", "develop", "trunk", "production", "prod", "release"}
+
+
+def ship_gate(report: str) -> str:
+    """Is a prepared commit's report fit to be approved for publication? ok | missing (no «Ready to publish» section) |
+    notexecuted (the commit was not made) | badpush (a `git push` that is not `git push -u <remote name> <branch>` on a non-default branch)."""
+    m = re.search(r"^#{2,3}[ \t]+Ready to publish[ \t]*$(.*?)(?=^#{2,3}[ \t]|\Z)", report or "", re.M | re.S | re.I)
+    if not m:
+        return "missing"
+    if re.search(r"^#{1,3}[ \t]+Execution status[ \t]*\n+\W*(?:NOT EXECUTED|NÃO EXECUTADO)", report, re.M | re.I):
+        return "notexecuted"
+    for cmd in re.findall(r"git\s+push\b[^`\n]*", m.group(1)):
+        c = " ".join(cmd.split())
+        if not SHIP_PUSH_OK.match(c) or c.split()[-1].lower() in SHIP_DEFAULT_BRANCHES:
+            return "badpush"
+    return "ok"
+
+
+RELEASE_SECTIONS = ("Candidate", "Regression tests", "Promotion steps", "Post-checks", "Rollback")
+RELEASE_SHA = re.compile(r"Candidate commit:\s*`?([0-9a-f]{7,40})\b", re.I)
+
+
+def release_plan_gate(plan: str) -> str:
+    """Is a promotion plan complete enough to be approved? ok | missing (a required section) | nosha (no `Candidate commit: <sha>`)."""
+    for name in RELEASE_SECTIONS:
+        if not re.search(rf"^#{{2,3}}[ \t]+{re.escape(name)}\b", plan or "", re.M | re.I):
+            return "missing"
+    return "ok" if RELEASE_SHA.search(plan) else "nosha"
+
+
+def release_verdict(report: str) -> str:
+    """The independent regression's verdict: positive | negative | unknown (missing, unreadable or contradictory)."""
+    m = re.search(r"^#{2,3}[ \t]+Regression verdict[ \t]*$(.*?)(?=^#{2,3}[ \t]|\Z)", report or "", re.M | re.S | re.I)
+    line = next((x for x in (m.group(1).splitlines() if m else []) if x.strip()), "")
+    words = {w.upper() for w in re.findall(r"\b(POSITIVE|NEGATIVE|POSITIVO|NEGATIVO)\b", line, re.I)}
+    pos, neg = words & {"POSITIVE", "POSITIVO"}, words & {"NEGATIVE", "NEGATIVO"}
+    return "positive" if pos and not neg else "negative" if neg and not pos else "unknown"
+
+
+def release_gate(plan: str, report: str) -> str:
+    """May the promotion be approved? ok | negative | unknown (no readable verdict) | mismatch (the tested commit is not the planned one)."""
+    verdict = release_verdict(report)
+    if verdict != "positive":
+        return verdict
+    a, b = RELEASE_SHA.search(plan or ""), RELEASE_SHA.search(report or "")
+    if not a or not b:
+        return "mismatch"
+    x, y = a.group(1).lower(), b.group(1).lower()
+    return "ok" if x.startswith(y) or y.startswith(x) else "mismatch"
+
+
 def review_tests_gate(report: str, review: str) -> str:
     """Do the tests the reviewer ran confirm the report? ok | missing | diverged | notrun | regress."""
     state, got = parse_tests(review)
@@ -129,7 +188,8 @@ def _slug(s: str) -> str:
 
 class Features:
     def __init__(self, root, launcher, is_active, grace_s: int = 0, is_busy=None, on_release=None,
-                 auto_review: bool = False, committer=None, publisher=None, note_lang: str = "English"):
+                 auto_review: bool = False, committer=None, publisher=None, note_lang: str = "English", has_vault: bool = True,
+                 session=None, on_launch=None, limit=None, route=None, tools=None):
         """is_active: the worker session exists; is_busy: it is really working (defaults to is_active).
 
         A worker may finish the phase and keep the session open waiting for input: active, but not busy."""
@@ -143,6 +203,12 @@ class Features:
         self._committer = committer      # committer(worktree: Path, message: str) -> (ok: bool, info: str)
         self._publisher = publisher      # publisher(kind, project, title, fid, created, text, lang) -> sentence; raises on failure
         self._note_lang = note_lang      # language of the notes left in the vault (the vault's own)
+        self._has_vault = has_vault      # the vault is optional: without one the prompts say so
+        self._session_id = session or (lambda: "")    # id of the open work session (what "Done" and the history are scoped to)
+        self._tools = tools              # tools(kind, stage) -> (allow, deny): narrow permission rules for the phases that run git commands
+        self._route = route              # route(phase, request_model) -> (model, effort): which model and effort a phase runs with
+        self._on_launch = on_launch      # on_launch(worker_id, request=, phase=): lets the cost of a worker be attributed to a request
+        self._limit = limit              # limit(worker_id) -> the usage-limit notice stopping that worker, or None
         self._lock = threading.RLock()
 
     # ---- persistence ----
@@ -177,13 +243,16 @@ class Features:
     def list(self) -> list:
         with self._lock:
             fs = self._load()
-            if self._refresh(fs):
+            changed = self._refresh(fs)
+            if self._note_limits(fs) or changed:
                 self._save(fs)
             return fs
 
     def _refresh(self, fs: list) -> bool:
         changed = False
         for f in fs:
+            if self._settle_qa(f):
+                changed = True
             if f["status"] not in (WORKING, FAILED) or (f["status"] == WORKING and self._recent(f)):
                 continue
             new = self._settle(f)
@@ -195,8 +264,66 @@ class Features:
                     self._advance(fs, f)
         return changed
 
+    # ---- usage limits: a subscription's allowance can run out in the middle of a phase ----
+    def _note_limits(self, fs: list) -> bool:
+        """Remember which requests a usage limit has interrupted and until when; forget it once they carry on."""
+        if not self._limit:
+            return False
+        changed = False
+        for f in fs:
+            if f["status"] not in (WORKING, FAILED):
+                if f.pop("paused", None):
+                    changed = True
+                continue
+            n = self._limit(f.get("worker_id", ""))
+            if n and n.get("resume_at"):
+                new = {"until": n["resume_at"], "kind": n.get("kind", "session"), "auto": bool(n.get("auto"))}
+                if f.get("paused") != new:
+                    if not f.get("paused"):
+                        self._log(f, "paused by usage limit", f["stage"], new["kind"])
+                    f["paused"] = new
+                    changed = True
+            elif f.get("paused") and f["status"] == WORKING and not n:        # the worker carried on by itself
+                f.pop("paused")
+                changed = True
+        return changed
+
+    def auto_resume(self, now: datetime | None = None) -> list:
+        """Restart the phases a usage limit interrupted, once the limit has reset (and Claude Code had a moment to continue by
+        itself). Each request is restarted at most MAX_LIMIT_RESUMES times. Returns the ids restarted."""
+        now = now or datetime.now()
+        restarted, dirty = [], False
+        with self._lock:
+            fs = self._load()
+            for f in fs:
+                p = f.get("paused")
+                if not p or f["status"] not in (WORKING, FAILED) or f.get("limit_resumes", 0) >= MAX_LIMIT_RESUMES:
+                    continue
+                if now < datetime.fromisoformat(p["until"]) + timedelta(seconds=LIMIT_GRACE_S):
+                    continue
+                if f["status"] == WORKING and self._limit and self._limit(f.get("worker_id", "")) is None:
+                    continue                                                   # it is moving again: leave it alone
+                f["limit_resumes"] = f.get("limit_resumes", 0) + 1
+                f.pop("paused", None)
+                dirty = True
+                self._log(f, "resumed after usage limit", f["stage"], f"try {f['limit_resumes']} of {MAX_LIMIT_RESUMES}")
+                try:
+                    if f.get("pv", {}).get("checking"):
+                        self._start_plancheck(fs, f)
+                    else:
+                        self._start(fs, f, "")
+                    restarted.append(f["id"])
+                except FeatureError as e:
+                    f["status"] = FAILED
+                    self._log(f, "resume failed", f["stage"], str(e))
+            if dirty:
+                self._save(fs)
+        return restarted
+
     # ---- automatic review: implementation -> review -> (fixes -> review)* -> commit ----
     def _advance(self, fs: list, f: dict) -> None:
+        if f.get("kind") in ("ship", "release"):   # commit / push / PR and production promotions: no code review, no plan validation; the user approves each phase
+            return
         if f["stage"] == "build":
             f["stage"] = "review"
             self._log(f, "automatic review", "review")
@@ -242,12 +369,12 @@ class Features:
         task = base.format(title=f["title"], fid=f["id"], project=f["project"], desc=f["desc"],
                            spec=self._spec_ref(f, d), plan=d / ARTIFACT["plan"], out=old)
         try:
-            w = self._launch(f["project"], task, f["model"] or None, [str(d)],
-                             label=f"{_slug(f['title'])[:30].strip('-')}-validate-plan")
+            w = self._spawn(f, "plan-validation", task, [str(d)], f"{_slug(f['title'])[:30].strip('-')}-validate-plan")
         except Exception as e:
             if moved:
                 moved.replace(old)
             raise FeatureError(f"could not launch the validator: {e}") from e
+        self._tag(w, f, "plan-validation")
         previous = f["worker_id"]
         pv["checking"] = True
         f.update(status=WORKING, worker_id=w["id"], worker_name=w.get("name", ""))
@@ -377,6 +504,90 @@ class Features:
             out["planreview"] = t if len(t) <= MAX_ARTIFACT else t[:MAX_ARTIFACT] + "\n… (truncated)"
         return out
 
+    # ---- questions to the worker: a read-only worker answers about the request; the request itself never changes ----
+    def _answer_file(self, fid: str, n: int) -> Path:
+        return self._dir(fid) / QA_DIR / f"{n}.md"
+
+    def qa(self, fid: str) -> list:
+        """The questions asked about a request, oldest first, each with its answer text ('' until there is one)."""
+        return self.qa_of(next((f for f in self._load() if f["id"] == fid), {"id": fid}))
+
+    def qa_of(self, f: dict) -> list:
+        """Same, for a request already in hand (the state builder has them all loaded: no second read of features.json)."""
+        out = []
+        for e in f.get("qa", []):
+            p = self._answer_file(f["id"], e["n"])
+            text = p.read_text(encoding="utf-8", errors="replace") if e["status"] == "answered" and p.is_file() else ""
+            out.append({**e, "answer": text if len(text) <= MAX_ARTIFACT else text[:MAX_ARTIFACT] + "\n… (truncated)"})
+        return out
+
+    def _settle_qa(self, f: dict) -> bool:
+        """Moves a question whose worker has stopped to answered (the answer file exists) or failed (it does not)."""
+        changed = False
+        for e in f.get("qa", []):
+            if e["status"] != "working":
+                continue
+            wid = e["worker_id"]
+            if self._answer_file(f["id"], e["n"]).is_file() and not self._is_busy(wid):
+                e["status"] = "answered"
+                self._release(wid)
+            elif not self._is_busy(wid) and not self._grace_left(e["at"]):
+                e["status"] = "failed"          # stopped, idle or waiting for input, and no answer: it will not come
+                self._release(wid)
+            else:
+                continue
+            changed = True
+        return changed
+
+    def _grace_left(self, at: str) -> bool:
+        return bool(self._grace) and (datetime.now() - datetime.fromisoformat(at)).total_seconds() < self._grace
+
+    def _qa_task(self, f: dict, n: int, question: str) -> str:
+        d, lang, P = self._dir(f["id"]), self._lang(f), self._prompts(f)
+        names = list(ARTIFACT.values()) + [PLAN_REVIEW]
+        files = [f"- {d / name}" for name in names if (d / name).is_file()]
+        if (d / "work").is_dir():
+            files.append(f"- {d / 'work'} (the implementation's git worktree, uncommitted)")
+        history = ""
+        done = [e for e in f.get("qa", []) if e["status"] == "answered"][-5:]
+        if done:
+            parts = []
+            for e in done:
+                p = self._answer_file(f["id"], e["n"])
+                a = p.read_text(encoding="utf-8", errors="replace")[:MAX_QA_CONTEXT] if p.is_file() else ""
+                parts.append(f"Q{e['n']}: {e['q']}\nA{e['n']}: {a}\n")
+            history = prompts_qa.HISTORY_HEAD[lang] + "\n".join(parts)
+        text = P.language_rule(self._note_lang) + prompts_qa.TASK[lang].format(
+            title=f["title"], kind=f.get("kind", "feature"), fid=f["id"], project=f["project"], desc=f["desc"],
+            read_only=prompts_qa.READ_ONLY[lang], files="\n".join(files) or prompts_qa.NO_FILES[lang],
+            history=history, question=question, out=self._answer_file(f["id"], n))
+        return text + ("" if self._has_vault else P.NO_VAULT_NOTE)
+
+    def ask(self, fid: str, question: str) -> dict:
+        """Launches a read-only worker that answers a question about this request. Any kind, any phase, any status."""
+        question = (question or "").strip()
+        if not question or len(question) > MAX_QUESTION:
+            raise FeatureError(f"question required (max. {MAX_QUESTION} characters)")
+        with self._lock:
+            fs = self._load()
+            f = self._get(fs, fid)
+            self._settle_qa(f)
+            if any(e["status"] == "working" for e in f.get("qa", [])):
+                raise FeatureError("the previous question is still being answered")
+            n = max((e["n"] for e in f.get("qa", [])), default=0) + 1
+            d = self._dir(fid)
+            (d / QA_DIR).mkdir(parents=True, exist_ok=True)
+            try:
+                w = self._spawn(f, "qa", self._qa_task(f, n, question), [str(d)], f"{_slug(f['title'])[:24].strip('-')}-q{n}")
+            except Exception as e:
+                raise FeatureError(f"could not launch the worker: {e}") from e
+            self._tag(w, f, "qa")
+            entry = {"n": n, "q": question, "at": _now(), "worker_id": w["id"], "worker_name": w.get("name", ""),
+                     "status": "working"}
+            f.setdefault("qa", []).append(entry)
+            self._save(fs)
+            return entry
+
     # ---- actions ----
     def create(self, project: str, title: str, desc: str, model, lang: str = "en", kind: str = "feature") -> dict:
         title, desc = (title or "").strip(), (desc or "").strip()
@@ -386,8 +597,8 @@ class Features:
             raise FeatureError(f"title required (max. {MAX_TITLE} characters)")
         if not desc or len(desc) > MAX_DESC:
             raise FeatureError(f"description required (max. {MAX_DESC} characters)")
-        if (model or "") not in MODELS:
-            raise FeatureError("unknown model")
+        if model and not MODEL_RE.match(str(model)):
+            raise FeatureError("invalid model name")
         if (lang or "en") not in LANGS:
             raise FeatureError("unknown language")
         if (kind or "feature") not in KINDS:
@@ -410,12 +621,38 @@ class Features:
             fs = self._load()
             f = self._get(fs, fid)
             self._need(f, AWAITING)
+            if f.get("kind") == "ship" and f["stage"] == "build":         # the click authorises the reported commands: they must be sane
+                path = self._dir(fid) / ARTIFACT["build"]
+                gate = ship_gate(path.read_text(encoding="utf-8", errors="replace") if path.is_file() else "")
+                if gate == "missing":
+                    raise FeatureError("the report has no “Ready to publish” section: ask for changes so the worker writes it")
+                if gate == "notexecuted":
+                    raise FeatureError("the report says the commit was not made: ask for changes or cancel")
+                if gate == "badpush":
+                    raise FeatureError("the report's push command is not allowed: only “git push -u <remote name> <branch>” on a branch that is not main or master")
+            if f.get("kind") == "release":
+                read = lambda a: (self._dir(fid) / ARTIFACT[a]).read_text(encoding="utf-8", errors="replace") if (self._dir(fid) / ARTIFACT[a]).is_file() else ""  # noqa: E731
+                if f["stage"] == "plan":
+                    gate = release_plan_gate(read("plan"))
+                    if gate == "missing":
+                        raise FeatureError("the promotion plan lacks a required section (Candidate, Regression tests, Promotion steps, Post-checks, Rollback): ask for changes")
+                    if gate == "nosha":
+                        raise FeatureError("the promotion plan has no “Candidate commit: <sha>” line: ask for changes")
+                elif f["stage"] == "build":
+                    gate = release_gate(read("plan"), read("build"))
+                    if gate == "negative":
+                        raise FeatureError("the regression verdict is NEGATIVE: the promotion cannot be approved; run the tests again or cancel")
+                    if gate == "unknown":
+                        raise FeatureError("the regression report has no readable POSITIVE or NEGATIVE verdict: run the tests again")
+                    if gate == "mismatch":
+                        raise FeatureError("the commit that was tested is not the planned candidate: run the tests again")
             self._log(f, "approved", f["stage"])
             self._publish(f, f["stage"])
             stages = prompts_kinds.KIND_STAGES[f.get("kind", "feature")]
             nxt = stages.index(f["stage"]) + 1
             if nxt >= len(stages):
                 f["status"] = DONE
+                f["closed"] = self._closed()
                 self._release(f["worker_id"])
             else:
                 f["stage"] = stages[nxt]
@@ -485,7 +722,12 @@ class Features:
             if f["status"] in (DONE, CANCELLED):
                 raise FeatureError("already finished")
             f["status"] = CANCELLED
+            f["closed"] = self._closed()
             self._log(f, "cancelled", f["stage"])
+            for e in f.get("qa", []):             # a question still being answered stops with its request
+                if e["status"] == "working":
+                    e["status"] = "failed"
+                    self._release(e["worker_id"])
             self._save(fs)
             self._release(f["worker_id"])
             return f
@@ -494,6 +736,8 @@ class Features:
     @staticmethod
     def _archive_target(f: dict, stage: str):
         """(document kind, artifact phase) to archive when `stage` is approved; None if nothing is archived."""
+        if f.get("kind", "feature") in ("ship", "release"):        # nothing is archived in the user's repo for these
+            return None
         if f.get("kind", "feature") == "analysis":
             return ("analysis", "build") if stage == "review" else None
         return (stage, stage) if stage in ("spec", "plan") else None
@@ -554,17 +798,21 @@ class Features:
             old.replace(moved)
         old_q = d / QUESTIONS_FILE
         moved_q = None
-        if old_q.is_file():  # the previous round's questions are archived; the new worker writes its own
+        # An analysis goes straight from its report to the verification, so the report's questions stay in place for the
+        # user to answer next to the verdict (archiving them would leave the verification panel with no answer boxes).
+        keep_q = f.get("kind") == "analysis" and stage == "review" and not feedback
+        if old_q.is_file() and not keep_q:  # the previous round's questions are archived; the new worker writes its own
             moved_q = d / f"questions.{stage}.v{f['rev'].get(stage, 0) + (0 if moved else 1)}.json"
             old_q.replace(moved_q)
         try:
-            w = self._launch(f["project"], self._task(f, feedback), f["model"] or None, [str(d)], label=f"{_slug(f['title'])[:30].strip('-')}-{stage}")
+            w = self._spawn(f, stage, self._task(f, feedback), [str(d)], f"{_slug(f['title'])[:30].strip('-')}-{stage}")
         except Exception as e:
             if moved_q:
                 moved_q.replace(old_q)
             if moved:
                 moved.replace(old)
             raise FeatureError(f"could not launch the worker: {e}") from e
+        self._tag(w, f, stage)
         previous = f["worker_id"]
         f.update(status=WORKING, worker_id=w["id"], worker_name=w.get("name", ""))
         if "pv" in f:
@@ -572,6 +820,31 @@ class Features:
         if previous and previous != w["id"]:
             self._release(previous)  # the previous worker is obsolete: its session is closed (the conversation is kept)
         self._log(f, "worker launched", stage, w.get("name", ""))
+
+    def _closed(self) -> dict:
+        """When and in which work session a request was closed (finished or cancelled)."""
+        return {"at": _now(), "session": self._session_id()}
+
+    def _spawn(self, f: dict, phase: str, task: str, extra_dirs: list, label: str) -> dict:
+        """Launch the worker for one phase of a request with the model and effort the routing gives that phase (by default the
+        request's own model and Claude Code's default effort, which is what every phase used before)."""
+        model, effort = self._route(phase, f["model"] or "") if self._route else (f["model"] or None, None)
+        extra = {"effort": effort} if effort else {}
+        allow, deny = self._tools(f.get("kind", "feature"), phase) if self._tools else ((), ())
+        if allow:
+            extra["allow"] = list(allow)
+        if deny:
+            extra["deny"] = list(deny)
+        return self._launch(f["project"], task, model or None, extra_dirs, label=label, **extra)
+
+    def _tag(self, w: dict, f: dict, phase: str) -> None:
+        """Tell the host which request and phase a freshly launched worker is for. Never fails the feature."""
+        if not self._on_launch or not w.get("id"):
+            return
+        try:
+            self._on_launch(w["id"], request=f["id"], phase=phase)
+        except Exception:  # noqa: BLE001 - bookkeeping is an extra
+            pass
 
     def _release(self, worker_id: str) -> None:
         """Never lets a failure while cleaning up sessions break the feature flow."""
@@ -611,6 +884,8 @@ class Features:
             template += "\n" + extra
         text += template.format(fid=f["id"], spec=self._spec_ref(f, d), plan=d / ARTIFACT["plan"],
                                 report=d / ARTIFACT["build"], work=d / "work")
+        if not self._has_vault:
+            text += P.NO_VAULT_NOTE
         if feedback:
             prev = d / f"{Path(ARTIFACT[stage]).stem}.v{f['rev'].get(stage, 0)}.md"
             text += P.CHANGES_BLOCK.format(feedback=feedback, prev=prev, path=d / ARTIFACT[stage])

@@ -14,6 +14,9 @@ def language_rule(note_lang: str = "English") -> str:
 
 OUT_MARKER = "Write the result to {out}"
 
+NO_VAULT_NOTE = ("\n\nNo knowledge vault is configured: ignore any mention above of a vault note or of the vault inbox, "
+                 "and do not create notes or files outside what this phase asks for.")
+
 COMMON = """Feature «{title}» (id {fid}) in project {project}.
 
 ## User request

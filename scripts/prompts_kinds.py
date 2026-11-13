@@ -3,20 +3,24 @@
 OVERRIDE[(language, kind, phase)] replaces the phase text; EXTRA[(language, kind, phase)] is appended to the normal text. The
 "plancheck" phase is the plan validation. Features use the texts of prompts.py / prompts_pt.py unchanged."""
 
-KINDS = ("feature", "fix", "analysis", "maintenance")
+KINDS = ("feature", "fix", "analysis", "maintenance", "ship", "release")
 # phases of each kind (the files are the usual ones: spec.md, plan.md, report.md and review.md)
 KIND_STAGES = {"feature": ("spec", "plan", "build", "review"), "fix": ("spec", "plan", "build", "review"),
-               "maintenance": ("plan", "build", "review"), "analysis": ("build", "review")}
+               "maintenance": ("plan", "build", "review"), "analysis": ("build", "review"),
+               "release": ("plan", "build", "review"),   # release: plan = what goes to production and how; build = independent regression; review = the promotion
+               "ship": ("build", "review")}   # ship: build = prepare the commit locally; review = publish (push / PR) after the user approves
 
 NO_SPEC = {"pt": "o pedido do utilizador acima (neste tipo de pedido não há spec)",
            "en": "the user's request above (this kind of request has no spec)"}
 
 _READ_ONLY_PT = ("SÓ LEITURA: NÃO alteres nada no repo nem fora dele, NÃO faças commits, NÃO instales nada, NÃO cries worktrees e NÃO\n"
                  "escrevas código de produto; só lês e corres comandos de verificação (ls, git log, grep, os testes que já existem sem os\n"
-                 "modificar). Não leias nem imprimas .env*, chaves, tokens ou ficheiros de segredos.")
+                 "modificar). Não leias nem imprimas .env*, chaves, tokens ou ficheiros de segredos. A única coisa que podes correr que escreve\n"
+                 "algo é o comando de sugestão da regra 6 (cria um cartão no dashboard; não altera nada no projeto).")
 _READ_ONLY_EN = ("READ-ONLY: do NOT change anything in the repo or outside it, do NOT commit, do NOT install anything, do NOT create\n"
                  "worktrees and do NOT write product code; you only read and run verification commands (ls, git log, grep, the tests\n"
-                 "that already exist without modifying them). Do not read or print .env*, keys, tokens or secret files.")
+                 "that already exist without modifying them). Do not read or print .env*, keys, tokens or secret files. The only thing you may run\n"
+                 "that writes anything is the suggestion command of rule 6 (it creates a dashboard card; it changes nothing in the project).")
 
 OVERRIDE = {
     # ---------------------------------------------------------------- Portuguese (translation)
@@ -48,6 +52,8 @@ fonte: ficheiro:linha, ou o comando e o resultado) · O que não consegui confir
 custo e risco) · Perguntas em aberto. Nada de afirmações sem evidência: o que não verificaste vai em «O que não consegui confirmar».""",
     ("pt", "analysis", "review"): """## Fase 2: verificação independente da análise
 És o verificador independente: NÃO fizeste a análise e não deves confiar nela. """ + _READ_ONLY_PT + """
+A ÚNICA exceção à regra de só leitura é o ficheiro do artefacto indicado acima: TENS de o criar lá (não no chat; sem esse ficheiro a
+verificação conta como falhada).
 Relatório a verificar: {report}. O pedido do utilizador está acima. Faz, por esta ordem:
 1. Lista as afirmações factuais do relatório (pelo menos as que sustentam a resposta resumida) e volta a verificá-las TU, com comandos
    e leitura do código; não aceites a evidência citada sem a confirmares.
@@ -93,6 +99,8 @@ file:line, or the command and its result) · What I could not confirm · Options
 Open questions. No claim without evidence: what you did not verify goes under "What I could not confirm".""",
     ("en", "analysis", "review"): """## Phase 2: independent verification of the analysis
 You are the independent verifier: you did NOT do the analysis and must not trust it. """ + _READ_ONLY_EN + """
+The ONLY exception to the read-only rule is the artifact file indicated above: you MUST create it there (not in chat; without that
+file the verification counts as failed).
 Report to verify: {report}. The user's request is above. Do, in this order:
 1. List the report's factual claims (at least those that support the short answer) and verify them again YOURSELF, with commands and
    by reading the code; do not accept the cited evidence without confirming it.
@@ -152,3 +160,169 @@ FEEDBACK_ANALYSIS = {
     "en": ("The independent verification (file {review}) found wrong claims, claims without evidence or gaps in the analysis. Read it and "
            "fix the report: the CRITICAL and HIGH ones first, then the rest where it makes sense. Stay read-only."),
 }
+
+
+# ---------------------------------------------------------------- «ship»: commit, push, pull request (two phases, the second one only after the user approves)
+SHIP_PT_BUILD = """## Fase 1: preparar o commit (SÓ local)
+Trabalhas no repo da pasta atual (NÃO há worktree: é o repo real do utilizador, por isso cuidado). O pedido do utilizador está acima e diz
+o que deve ser comitado e, se disser, se o resultado deve ir para um PR ou para o remoto.
+1. Vê o estado: `git status`, `git diff --stat`, `git branch -a`, `git remote -v`, `git log --oneline -10`. Se o que o pedido quer comitar
+   estiver FORA do git (pastas ignoradas ou fora do repo), diz isso no relatório em vez de forçar.
+2. Se estiveres no ramo principal (main/master) ou num ramo que não é o do pedido, cria um ramo novo com um nome claro (ou o que o pedido indicar).
+3. Junta SÓ os ficheiros que pertencem ao pedido, um a um (`git add <caminho>`; nunca `git add -A` nem `git add .`). Nunca juntes .env*, chaves,
+   tokens, ficheiros de segredos, binários grandes nem nada que o pedido não mencione; deixa o resto como está e lista-o no relatório.
+4. Comita com uma mensagem clara (tipo: assunto, e corpo curto). Podes fazer mais do que um commit se o pedido o justificar.
+5. NÃO faças push, NÃO abras PR, NÃO mudes remotos nem a configuração do git (`git remote add/set-url`, `git config`), NÃO uses --force, --amend,
+   reset --hard, rebase, stash nem apagues ramos, e NÃO mudes para outro ramo que não seja o do pedido. Esta fase só cria o commit no repo local.
+   Se os commits do pedido já existem no ramo (a fase repete-se), não os dupliques: descreve-os no relatório.
+6. Corre os testes/linter que o projeto já tem, se existirem, e regista o resultado.
+O relatório (ficheiro indicado acima) abre com «## Execution status» (EXECUTED AND VERIFIED / PARTIALLY EXECUTED / NOT EXECUTED — motivo) e
+tem uma secção «## Ready to publish» com: caminho do repo, ramo atual e ramo base, remoto (nome e URL SEM credenciais), os commits
+(`git log --oneline <base>..HEAD`), os ficheiros alterados (`git diff --stat`), o que ficou de fora e porquê, o resultado dos testes, o título e o
+corpo propostos para o PR e os comandos EXATOS que a publicação vai correr: `git push -u <nome do remoto> <ramo>` (o NOME de um remoto que já
+existe em `git remote`, nunca um URL, e um ramo novo que NÃO seja main/master/develop) e, se o pedido quiser PR, `gh pr create ...`. Escreve o
+comando do push sozinho numa linha. O servidor recusa a aprovação se o comando for outro.
+Se o pedido é só de commit, diz «Publicação: não pedida» nessa secção. Termina com [DONE] só se o commit existe; senão [BLOCKED]."""
+
+SHIP_PT_REVIEW = """## Fase 2: publicar (aprovada pelo utilizador)
+O utilizador viu o relatório {report} e carregou em aprovar: isto autoriza EXATAMENTE os comandos da secção «Ready to publish» desse relatório
+e nada mais (a regra do preâmbulo «não fazer push» não se aplica a esses comandos, e só a eles).
+1. Confirma que o repo ainda está como o relatório diz: mesmo ramo, `git rev-parse HEAD` igual ao último commit listado e sem commits novos.
+   Se algo mudou, NÃO publiques: escreve o que mudou no ficheiro de resultado e termina com [BLOCKED].
+2. Se o relatório diz «Publicação: não pedida», não faças nada e escreve isso.
+3. Corre `git push -u <remoto> <ramo>` tal como está no relatório, só se o remoto for o NOME de um remoto já configurado e o ramo não for
+   main/master/develop. Nunca --force nem --force-with-lease, nem refspecs (`+x`, `HEAD:outro`), nem --delete, --mirror, --all, --tags ou
+   --no-verify, nunca outro ramo, nunca outro remoto, nunca mudes remotos. Se o comando do relatório não cumpre isto, NÃO o corras e termina com [BLOCKED].
+4. Se o relatório pede PR e a `gh` estiver autenticada, corre o `gh pr create` do relatório (título e corpo dele). Se a `gh` não estiver
+   autenticada, NÃO faças login: escreve que falta e termina. Não faças merge do PR nem peças revisões.
+O ficheiro de resultado (indicado acima) abre com «## Publication»: o que correste (comandos), o resultado de cada um, o URL do PR se existir e o
+que NÃO fizeste. Termina com [DONE] só se tudo o que o relatório previa foi feito; senão [BLOCKED]."""
+
+SHIP_EN_BUILD = """## Phase 1: prepare the commit (local ONLY)
+You work in the repo of the current folder (there is NO worktree: this is the user's real repo, so be careful). The user's request is above and says
+what to commit and, if it says so, whether the result should go to a PR or to the remote.
+1. Look at the state: `git status`, `git diff --stat`, `git branch -a`, `git remote -v`, `git log --oneline -10`. If what the request wants committed is
+   OUTSIDE git (ignored folders or outside the repo), say so in the report instead of forcing it.
+2. If you are on the main branch (main/master) or on a branch that is not the request's, create a new branch with a clear name (or the one the request gives).
+3. Stage ONLY the files that belong to the request, one by one (`git add <path>`; never `git add -A` or `git add .`). Never stage .env*, keys, tokens,
+   secret files, large binaries or anything the request does not mention; leave the rest as it is and list it in the report.
+4. Commit with a clear message (type: subject, and a short body). You may make more than one commit if the request justifies it.
+5. Do NOT push, do NOT open a PR, do NOT change remotes or git configuration (`git remote add/set-url`, `git config`), do NOT use --force, --amend,
+   reset --hard, rebase, stash or delete branches, and do NOT switch to a branch other than the request's. This phase only creates the commit in the local repo.
+   If the request's commits already exist on the branch (the phase is being repeated), do not duplicate them: describe them in the report.
+6. Run the tests/linter the project already has, if any, and record the result.
+The report (the file indicated above) opens with «## Execution status» (EXECUTED AND VERIFIED / PARTIALLY EXECUTED / NOT EXECUTED — reason) and has a
+«## Ready to publish» section with: the repo path, the current and base branch, the remote (name and URL WITHOUT credentials), the commits
+(`git log --oneline <base>..HEAD`), the changed files (`git diff --stat`), what was left out and why, the test result, the proposed PR title and
+body, and the EXACT commands that publishing will run: `git push -u <remote name> <branch>` (the NAME of a remote that already exists in
+`git remote`, never a URL, and a new branch that is NOT main/master/develop) and, if the request wants a PR, `gh pr create ...`. Write the push
+command alone on a line. The server refuses the approval if the command is anything else.
+If the request is commit-only, write «Publication: not requested» in that section. End with [DONE] only if the commit exists; otherwise [BLOCKED]."""
+
+SHIP_EN_REVIEW = """## Phase 2: publish (approved by the user)
+The user saw the report {report} and clicked approve: this authorises EXACTLY the commands in that report's «Ready to publish» section and nothing
+else (the preamble's «do not push» rule does not apply to those commands, and only to them).
+1. Confirm the repo is still as the report says: same branch, `git rev-parse HEAD` equal to the last listed commit and no new commits.
+   If anything changed, do NOT publish: write what changed in the result file and end with [BLOCKED].
+2. If the report says «Publication: not requested», do nothing and write that.
+3. Run `git push -u <remote> <branch>` exactly as in the report, only if the remote is the NAME of an already configured remote and the branch is
+   not main/master/develop. Never --force or --force-with-lease, no refspecs (`+x`, `HEAD:other`), no --delete, --mirror, --all, --tags or
+   --no-verify, never another branch, never another remote, never change remotes. If the report's command does not meet this, do NOT run it and end with [BLOCKED].
+4. If the report asks for a PR and `gh` is authenticated, run the report's `gh pr create` (its title and body). If `gh` is not authenticated, do NOT
+   log in: write that it is missing and stop. Do not merge the PR or request reviewers.
+The result file (indicated above) opens with «## Publication»: the commands you ran, the result of each, the PR URL if any and what you did NOT do.
+End with [DONE] only if everything the report foresaw was done; otherwise [BLOCKED]."""
+
+OVERRIDE.update({("pt", "ship", "build"): SHIP_PT_BUILD, ("pt", "ship", "review"): SHIP_PT_REVIEW,
+                 ("en", "ship", "build"): SHIP_EN_BUILD, ("en", "ship", "review"): SHIP_EN_REVIEW})
+
+
+# ---------------------------------------------------------------- «release»: passagem a produção (plano -> regressão independente -> passagem)
+# The regression verdict is a gate the server enforces (features.release_gate): only a POSITIVE verdict for the planned candidate lets
+# the user approve the promotion, and the promotion only runs the plan's steps.
+REL_PT_PLAN = """## Fase 1: plano da passagem a produção (SÓ LEITURA)
+""" + _READ_ONLY_PT + """
+A ÚNICA exceção à regra de só leitura é o ficheiro do plano indicado acima: TENS de o criar lá. NÃO executes nenhum passo da passagem agora.
+O pedido do utilizador está acima e diz o que sobe a produção. Inspeciona o repo (git log, ramos, PRs que o pedido cite, CI/CD, README/CLAUDE.md,
+scripts de deploy) para escrever um plano que outro worker, sem o teu contexto, consegue verificar e executar. Secções OBRIGATÓRIAS (títulos em inglês):
+## Candidate — a linha `Candidate commit: <sha completo>` (o commit exato que vai subir; `git rev-parse`), o ramo, o ramo/ambiente de destino, os PRs e
+   commits incluídos e o que muda para os utilizadores.
+## Regression tests — os comandos EXATOS que o verificador independente vai correr no código candidato, em local (suite completa, E2E, linter, build) e,
+   para cada um, o resultado esperado; diz também o que o repo tem e NÃO dá para correr em local.
+## Promotion steps — os comandos EXATOS da passagem, por ordem, um por linha em blocos de código, com o resultado esperado de cada um. Sem --force, sem
+   outros ramos ou remotos além dos do plano, sem ler ou imprimir segredos; se a passagem depende de CI/CD, diz qual é o passo que o dispara.
+## Post-checks — como confirmar depois da passagem que está tudo bem (comandos ou URLs a verificar, só leitura).
+## Rollback — os passos EXATOS para voltar atrás (são para o utilizador: o worker da passagem NUNCA os executa sozinho).
+## Risks — o que pode correr mal e o que NÃO foi possível confirmar.
+Sem estas secções e a linha do commit o servidor recusa a aprovação. Termina com [DONE]."""
+
+REL_PT_BUILD = """## Fase 2: regressão independente (SÓ LEITURA em produção)
+És o verificador independente: NÃO escreveste o plano e não deves confiar nele. """ + _READ_ONLY_PT + """
+Exceções à regra de só leitura: (a) o relatório indicado acima, que TENS de criar lá; (b) um worktree descartável do commit candidato em {work}
+(`git worktree add --detach {work} <sha>`), onde corres os testes. Não toques em produção, em ambientes partilhados nem em dados reais.
+Plano a verificar: {plan}. Faz, por esta ordem:
+1. Confirma que o commit `Candidate commit` do plano existe e cria o worktree nesse commit; confirma com `git -C {work} rev-parse HEAD`.
+2. Corre os comandos da secção «Regression tests» do plano e o que mais o CI do repo corre e seja relevante, EM LOCAL. Corre também a suite no ramo
+   base/destino quando for barato, para separar falhas que já existiam das novas.
+3. Regista, para cada comando: o comando, o resultado (passou/falhou, contagens) e a evidência (saída relevante). Nada de afirmações sem evidência.
+4. Veredicto: POSITIVE só se TODOS os testes necessários correram e não há falhas novas em relação à base. NEGATIVE se algum falhou (nova), se algum
+   teste necessário NÃO correu, se o commit não existe ou se não conseguiste confirmar algo essencial. Na dúvida, NEGATIVE.
+O relatório abre com `## Regression verdict` e, na linha seguinte, só a palavra POSITIVE ou NEGATIVE; depois `Candidate commit: <sha testado>`, a
+tabela de comandos e resultados, as falhas já existentes na base, o que não correu e porquê, e as razões do veredicto. Termina com [DONE]."""
+
+REL_PT_REVIEW = """## Fase 3: passagem a produção (aprovada pelo utilizador)
+O utilizador viu o plano {plan} e o relatório de regressão {report} (veredicto POSITIVE) e carregou em aprovar: isto autoriza EXATAMENTE os comandos da
+secção «Promotion steps» do plano e os «Post-checks», e nada mais (a regra do preâmbulo «não fazer push» não se aplica a esses comandos, e só a eles).
+1. Confirma antes de tudo: o `Candidate commit` do plano e o do relatório são o mesmo e o repo/ramo está como o plano diz (`git rev-parse HEAD`, sem
+   commits novos). Se algo diverge, NÃO executes nada: escreve o que diverge e termina com [BLOCKED].
+2. Executa os passos por ordem, um a um, e verifica o resultado esperado de cada um antes do seguinte. Para ao primeiro que falhe ou divirja.
+3. Nunca --force nem --force-with-lease, nem refspecs, nem outros ramos ou remotos, nem passos que não estejam no plano, nem leitura ou impressão de
+   segredos. Não executes o rollback por tua conta: se algo falhar, pára, descreve o estado e deixa os passos de «Rollback» para o utilizador.
+4. Se tudo correu, corre os «Post-checks» (só leitura) e regista o resultado.
+O ficheiro de resultado (indicado acima) abre com `## Promotion`: cada comando que correste e o seu resultado, os post-checks, e o que NÃO fizeste.
+Termina com [DONE] só se todos os passos e post-checks passaram; senão [BLOCKED]."""
+
+REL_EN_PLAN = """## Phase 1: production promotion plan (READ-ONLY)
+""" + _READ_ONLY_EN + """
+The ONLY exception to the read-only rule is the plan file indicated above: you MUST create it there. Do NOT run any promotion step now.
+The user's request is above and says what goes to production. Inspect the repo (git log, branches, the PRs the request cites, CI/CD, README/CLAUDE.md,
+deploy scripts) to write a plan that another worker, without your context, can verify and carry out. REQUIRED sections (headings in English):
+## Candidate — the line `Candidate commit: <full sha>` (the exact commit that goes up; `git rev-parse`), the branch, the target branch/environment, the PRs
+   and commits included and what changes for users.
+## Regression tests — the EXACT commands the independent verifier will run on the candidate code, locally (full suite, E2E, linter, build) and, for
+   each, the expected result; also say what the repo has that can NOT be run locally.
+## Promotion steps — the EXACT promotion commands, in order, one per line in code blocks, with the expected result of each. No --force, no branches or
+   remotes other than the plan's, no reading or printing secrets; if the promotion depends on CI/CD, say which step triggers it.
+## Post-checks — how to confirm after the promotion that all is well (commands or URLs to check, read-only).
+## Rollback — the EXACT steps to go back (they are for the user: the promotion worker NEVER runs them by itself).
+## Risks — what can go wrong and what could NOT be confirmed.
+Without these sections and the commit line the server refuses the approval. End with [DONE]."""
+
+REL_EN_BUILD = """## Phase 2: independent regression (READ-ONLY on production)
+You are the independent verifier: you did NOT write the plan and must not trust it. """ + _READ_ONLY_EN + """
+Exceptions to the read-only rule: (a) the report indicated above, which you MUST create there; (b) a throw-away worktree of the candidate commit at {work}
+(`git worktree add --detach {work} <sha>`), where you run the tests. Do not touch production, shared environments or real data.
+Plan to verify: {plan}. Do, in this order:
+1. Confirm the plan's `Candidate commit` exists and create the worktree at it; confirm with `git -C {work} rev-parse HEAD`.
+2. Run the commands in the plan's «Regression tests» section and whatever else the repo's CI runs that is relevant, LOCALLY. Also run the suite on the
+   base/target branch when it is cheap, to tell failures that already existed from new ones.
+3. Record, for each command: the command, the result (pass/fail, counts) and the evidence (relevant output). No claims without evidence.
+4. Verdict: POSITIVE only if ALL the necessary tests ran and there are no new failures against the base. NEGATIVE if any failed (new), if any necessary
+   test did NOT run, if the commit does not exist or if you could not confirm something essential. When in doubt, NEGATIVE.
+The report opens with `## Regression verdict` and, on the next line, only the word POSITIVE or NEGATIVE; then `Candidate commit: <tested sha>`, the table
+of commands and results, the failures that already existed on the base, what did not run and why, and the reasons for the verdict. End with [DONE]."""
+
+REL_EN_REVIEW = """## Phase 3: production promotion (approved by the user)
+The user saw the plan {plan} and the regression report {report} (verdict POSITIVE) and clicked approve: this authorises EXACTLY the commands in the plan's
+«Promotion steps» section and its «Post-checks», and nothing else (the preamble's «do not push» rule does not apply to those commands, and only to them).
+1. First confirm: the plan's `Candidate commit` and the report's are the same and the repo/branch is as the plan says (`git rev-parse HEAD`, no new
+   commits). If anything diverges, run NOTHING: write what diverges and end with [BLOCKED].
+2. Run the steps in order, one at a time, and check each one's expected result before the next. Stop at the first that fails or diverges.
+3. Never --force or --force-with-lease, no refspecs, no other branches or remotes, no steps that are not in the plan, no reading or printing secrets. Do
+   not run the rollback by yourself: if something fails, stop, describe the state and leave the «Rollback» steps to the user.
+4. If everything ran, run the «Post-checks» (read-only) and record the result.
+The result file (indicated above) opens with `## Promotion`: each command you ran and its result, the post-checks, and what you did NOT do.
+End with [DONE] only if all steps and post-checks passed; otherwise [BLOCKED]."""
+
+OVERRIDE.update({("pt", "release", "plan"): REL_PT_PLAN, ("pt", "release", "build"): REL_PT_BUILD, ("pt", "release", "review"): REL_PT_REVIEW,
+                 ("en", "release", "plan"): REL_EN_PLAN, ("en", "release", "build"): REL_EN_BUILD, ("en", "release", "review"): REL_EN_REVIEW})

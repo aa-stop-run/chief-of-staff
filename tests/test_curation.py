@@ -2,6 +2,7 @@
 import json
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 import pytest
@@ -24,8 +25,20 @@ class Env:
         self.launched, self.commits, self.released = [], [], []
         self.worker_state = {}            # id -> claude state
         self.launch_error = None
+        self.limits = {}                  # worker id -> limit notice (what the worker's log shows)
         self.curator = Curator(self.vault, self.state, self.launch, lambda wid: self.worker_state.get(wid), self.commit,
-                               self.released.append, now=lambda: self.clock)
+                               self.released.append, now=lambda: self.clock, limit=lambda wid: self.limits.get(wid))
+
+    def notice(self, resets_in=None, kind="session"):
+        """A usage-limit notice as planusage.tail_notice returns it; resets_in = seconds from the fake clock, None = no time given."""
+        at = datetime.fromtimestamp(self.clock)
+        return {"kind": kind, "auto": False, "text": "You've hit your limit", "at": at.isoformat(),
+                "resume_at": None if resets_in is None else datetime.fromtimestamp(self.clock + resets_in).isoformat()}
+
+    def hit_limit(self, resets_in=3600, kind="session"):
+        """The last launched worker stops at a limit: nothing handled, its log shows the notice."""
+        self.limits[self.launched[-1]["id"]] = self.notice(resets_in, kind)
+        self.finish_worker(remove_drafts=False)
 
     def draft(self, name="2026-11-06 Proj - note.md", age_s=3600):
         p = self.vault / "inbox" / name
@@ -228,3 +241,171 @@ def test_a_worker_missing_from_the_list_right_after_launch_is_not_taken_as_finis
     env.clock += 120                              # after the grace period, "finished" counts
     env.curator.tick()
     assert not env.curator.status()["running"] and env.released == ["c1"]
+
+
+# ---- usage limits are pauses, never failures ----
+GRACE = 180
+
+
+def _run_into_limit(env, resets_in=3600):
+    env.draft()
+    env.curator.tick()
+    env.hit_limit(resets_in)
+    env.clock += 120
+    env.curator.tick()
+
+
+def test_a_limit_notice_at_the_end_of_a_run_pauses_instead_of_failing(env):
+    _run_into_limit(env)
+    st = env.curator.status()
+    assert not st["running"] and st["attempts"] == 0
+    assert st["paused"]["kind"] == "session" and 0 < st["paused"]["until_s"] <= 3600 - 120 + GRACE
+    assert st["last"]["handled"] == 0 and not st["last"]["ok"] and "limit" in st["last"]["info"].lower()
+
+
+def test_no_new_curation_before_reset_plus_grace_and_one_after(env):
+    _run_into_limit(env, resets_in=3600)
+    env.clock += 3600 - 120 + GRACE - 5            # just before reset + grace (the minimum gap is long over)
+    env.curator.tick()
+    assert len(env.launched) == 1
+    env.clock += 10
+    env.curator.tick()
+    assert len(env.launched) == 2 and env.curator.status()["paused"] is None
+
+
+def test_a_pause_that_spans_many_ticks_counts_nothing(env):
+    _run_into_limit(env, resets_in=4 * 3600)
+    for _ in range(20):
+        env.clock += 600
+        env.curator.tick()
+    assert env.curator.status()["attempts"] == 0 and len(env.launched) == 1
+
+
+def test_three_limit_paused_runs_never_stop_the_automation(env):
+    env.draft()
+    for _ in range(5):
+        env.curator.tick()
+        env.hit_limit(600)
+        env.clock += 120
+        env.curator.tick()
+        env.clock += 1900                              # past the pause and the minimum gap
+    env.curator.tick()
+    st = env.curator.status()
+    assert st["attempts"] == 0 and len(env.launched) == 6 and "stopped" not in st["info"].lower()
+
+
+def test_three_real_failures_still_stop_the_automation(env):
+    env.draft()
+    for _ in range(3):
+        env.curator.tick()
+        env.finish_worker(remove_drafts=False)       # no notice in the log
+        env.clock += 120
+        env.curator.tick()
+        env.clock += 4000
+    assert env.curator.status()["attempts"] == 3 and env.curator.status()["paused"] is None
+    env.curator.tick()
+    assert len(env.launched) == 3
+
+
+def test_a_timeout_without_a_notice_is_a_failure_but_with_one_it_is_a_pause(env):
+    env.draft()
+    env.curator.tick()
+    env.clock += 3 * 3600
+    env.curator.tick()
+    assert env.curator.status()["attempts"] == 1
+    env.clock += 4000
+    env.curator.tick()                               # c2 launched
+    env.clock += 3 * 3600
+    env.limits["c2"] = env.notice(1800)              # the worker was blocked by a limit the whole time
+    env.curator.tick()
+    st = env.curator.status()
+    assert st["attempts"] == 1 and "limit" in st["last"]["info"].lower()
+
+
+def test_a_notice_without_a_time_pauses_for_a_conservative_default(env):
+    env.draft()
+    env.curator.tick()
+    env.limits["c1"] = env.notice(None)
+    env.finish_worker(remove_drafts=False)
+    env.clock += 120
+    env.curator.tick()
+    st = env.curator.status()
+    assert st["attempts"] == 0 and 1500 <= st["paused"]["until_s"] <= 1800 + GRACE
+    env.clock += 1800 + GRACE + 10
+    env.curator.tick()
+    assert len(env.launched) == 2
+
+
+def test_a_live_worker_with_a_notice_is_reported_paused(env):
+    env.draft()
+    env.curator.tick()
+    env.clock += 200
+    env.limits["c1"] = env.notice(1000)
+    st = env.curator.status()
+    assert st["running"] and st["paused"]["kind"] == "session" and 0 < st["paused"]["until_s"] <= 1000 + GRACE
+    env.curator.tick()                                # the run is closed as a pause, not left to time out as a failure
+    st = env.curator.status()
+    assert not st["running"] and st["attempts"] == 0 and st["paused"] and env.released == ["c1"]
+
+
+def test_paused_has_durations_only(env):
+    _run_into_limit(env)
+    p = env.curator.status()["paused"]
+    assert set(p) == {"until_s", "kind"} and isinstance(p["until_s"], int)
+
+
+def test_not_paused_is_none(env):
+    env.draft()
+    assert env.curator.status()["paused"] is None
+
+
+def test_a_notice_the_session_moved_on_from_is_a_normal_finish(env):
+    env.draft()
+    env.curator.tick()
+    env.finish_worker()                               # tail_notice -> None: the lookup finds nothing
+    env.clock += 120
+    env.curator.tick()
+    st = env.curator.status()
+    assert st["paused"] is None and st["last"]["handled"] == 1 and st["attempts"] == 0
+
+
+def test_curate_now_works_while_paused(env):
+    _run_into_limit(env)
+    env.curator.start(force=True)
+    assert len(env.launched) == 2 and env.curator.status()["paused"] is None
+    env.limits["c2"] = env.notice(3000)               # limit still on: it reports it again at once
+    env.finish_worker(remove_drafts=False)
+    env.clock += 120
+    env.curator.tick()
+    assert env.curator.status()["paused"] and env.curator.status()["attempts"] == 0
+
+
+def _stuck_state(env):
+    env.draft()
+    env.state.parent.mkdir(parents=True)
+    env.state.write_text(json.dumps({"running": False, "worker_id": "old", "attempts": 3, "finished_at": env.clock - 7200,
+                                     "last": {"at": env.clock - 7200, "handled": 0, "remaining": 1, "ok": False, "info": "x"}}),
+                         encoding="utf-8")
+
+
+def test_attempts_from_past_limit_failures_recover_instead_of_stopping(env):
+    """State left by the old behaviour: 3 failures, but the last worker's log shows a limit notice that has since reset."""
+    _stuck_state(env)
+    env.limits["old"] = env.notice(-3600)
+    assert "stopped" not in env.curator.status()["info"].lower() and env.curator.status()["attempts"] == 0
+    env.curator.tick()
+    assert len(env.launched) == 1
+
+
+def test_recovery_waits_if_that_limit_has_not_reset_yet(env):
+    _stuck_state(env)
+    env.limits["old"] = env.notice(1800)
+    env.curator.tick()
+    st = env.curator.status()
+    assert st["attempts"] == 0 and st["paused"] and env.launched == []
+
+
+def test_real_failures_without_a_notice_stay_stopped(env):
+    _stuck_state(env)
+    env.curator.tick()
+    assert env.launched == [] and env.curator.status()["attempts"] == 3

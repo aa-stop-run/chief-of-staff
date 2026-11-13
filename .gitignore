@@ -9,3 +9,7 @@ projects.json.tmp
 .claude/settings.local.json
 CLAUDE.local.md
 *.migrated
+
+.superpowers/
+
+docs/superpowers/

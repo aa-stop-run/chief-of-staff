@@ -3,8 +3,11 @@
 Everything is saved to projects.json (the file format, LF, written atomically). It never stores secrets: for GitHub it only
 shows, via status commands, whether there is a login (account and host) and which credential manager git uses. Logging in is
 always up to the user."""
+import json
+import os
 import re
 import shutil
+import sys
 import subprocess
 import threading
 import time
@@ -71,6 +74,9 @@ def _dir(raw) -> Path:
 
 
 def set_vault(raw) -> dict:
+    if raw is None or (isinstance(raw, str) and not raw.strip()):     # the vault is optional: empty turns it off
+        _save({"vault": ""})
+        return {"vault": "", "restart": True}
     path = _dir(raw)
     _guard(path)
     if not ((path / "wiki").is_dir() or (path / "00-Index.md").is_file()):
@@ -159,6 +165,90 @@ def set_clone_hosts(raw) -> dict:
     return {"hosts": hosts}
 
 
+# ---------------------------------------------------------------- plan usage and usage limits
+def set_resume_after_limit(raw) -> dict:
+    on = raw is True
+    _save({"resume_after_limit": on})
+    return {"resume_after_limit": on}
+
+
+def claude_settings_path() -> Path:
+    return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude") / "settings.json"
+
+
+def _quote(cmd: str) -> str:
+    return '"' + re.sub(r'([\\"$`])', r"\\\1", cmd) + '"'
+
+
+def _ours(cmd) -> bool:
+    return isinstance(cmd, str) and "chief.py" in cmd and " statusline" in cmd
+
+
+def statusline_command(previous: str = "") -> str:
+    base = f'"{Path(sys.executable).as_posix()}" "{(Path(chief.ROOT) / "scripts" / "chief.py").as_posix()}" statusline'
+    return f"{base} --then {_quote(previous)}" if previous else base
+
+
+def _read_claude_settings(path: Path) -> dict:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+    except (OSError, ValueError) as e:
+        raise ValueError(f"cannot read Claude Code settings: {e}") from e
+    if not isinstance(data, dict):
+        raise ValueError("Claude Code settings are not a JSON object")
+    return data
+
+
+def _write_claude_settings(path: Path, data: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        shutil.copy2(path, path.with_name(path.name + ".chief-backup"))
+    tmp = path.with_name(path.name + ".chief-tmp")
+    tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    tmp.replace(path)
+
+
+def plan_connection() -> str:
+    """'connected' (our status line is set), 'other' (the user has their own), 'none' or 'unreadable'."""
+    try:
+        sl = _read_claude_settings(claude_settings_path()).get("statusLine")
+    except ValueError:
+        return "unreadable"
+    cmd = sl.get("command") if isinstance(sl, dict) else None
+    return "connected" if _ours(cmd) else "other" if cmd else "none"
+
+
+def connect_plan() -> dict:
+    """Set the Chief as Claude Code's status line (an existing one keeps running first). The user's click is the consent; a
+    backup of the file is left next to it."""
+    path = claude_settings_path()
+    data = _read_claude_settings(path)
+    sl = data.get("statusLine") if isinstance(data.get("statusLine"), dict) else {}
+    old = sl.get("command") if isinstance(sl.get("command"), str) else ""
+    if _ours(old):
+        return {"connection": "connected"}
+    if sl and sl.get("type", "command") != "command":
+        raise ValueError("your status line is not a command; connect it by hand (see `chief.py plan`)")
+    _save({"statusline_previous": old})
+    data["statusLine"] = {**sl, "type": "command", "command": statusline_command(old)}
+    _write_claude_settings(path, data)
+    return {"connection": "connected"}
+
+
+def disconnect_plan() -> dict:
+    path = claude_settings_path()
+    data = _read_claude_settings(path)
+    sl = data.get("statusLine")
+    if isinstance(sl, dict) and _ours(sl.get("command")):
+        old = chief.CFG.get("statusline_previous") or ""
+        if old:
+            data["statusLine"] = {**sl, "command": old}
+        else:
+            data.pop("statusLine")
+        _write_claude_settings(path, data)
+    return {"connection": plan_connection()}
+
+
 # ---------------------------------------------------------------- git and GitHub (read-only, no secrets)
 def _run(cmd: list, cwd=None, timeout: int = 8) -> str:
     try:
@@ -217,5 +307,6 @@ def snapshot() -> dict:
         rows.append({"name": p["name"], "path": p["path"], "domain": over or p["domain"], "from_vault": p["domain"],
                      "custom": bool(over), "kind": "extra" if chief.norm(p["path"]) in extras else "root", "hub": bool(p["hub"]), **g})
     known = sorted({r["domain"] for r in rows if r["domain"]} | {h["domain"] for h in chief.hubs() if h["domain"]})
-    return {"vault": str(chief.VAULT), "roots": list(chief.CFG["roots"]), "ignore": list(chief.CFG["ignore"]),
-            "hosts": hosts(), "domains": known, "projects": rows, "github": github_status()}
+    return {"vault": chief.CFG.get("vault") or "", "roots": list(chief.CFG["roots"]), "ignore": list(chief.CFG["ignore"]),
+            "hosts": hosts(), "plan": {"resume_after_limit": chief.CFG.get("resume_after_limit", True), "connection": plan_connection()},
+            "domains": known, "projects": rows, "github": github_status()}

@@ -16,6 +16,9 @@ def language_rule(note_lang: str = "English") -> str:
 
 OUT_MARKER = "Escreve o resultado em {out}"
 
+NO_VAULT_NOTE = ("\n\nNão há vault configurado: ignora qualquer menção acima a uma nota do vault ou à inbox do vault, "
+                 "e não cries notas nem ficheiros para além do que esta fase pede.")
+
 COMMON = """Feature «{title}» (id {fid}) no projeto {project}.
 
 ## Pedido do utilizador

@@ -91,6 +91,20 @@ def test_analysis_is_read_only_and_verified_independently(env):
     assert rec.calls == [("analysis", "# Analysis\nanswer")]                              # archived on the final approval
 
 
+def test_analysis_questions_stay_available_next_to_the_verification(env):
+    fs, fake, root, _ = env
+    f = fs.create("Alfa", "Why is start-up slow?", "Investigate", None, kind="analysis")
+    qdir = root / "features" / f["id"]
+    qdir.mkdir(parents=True, exist_ok=True)
+    (qdir / "questions.json").write_text(
+        '[{"id":"P1","title":"T","text":"What now?","options":[{"label":"A","recommended":true},{"label":"B"}]}]', encoding="utf-8")
+    finish_stage(fs, fake, root, f["id"], "report.md", "# Analysis\nanswer")     # the verification starts by itself
+    finish_stage(fs, fake, root, f["id"], "review.md", REVIEW_OK)
+    qs = fs.questions(f["id"])
+    assert qs and qs[0]["id"] == "P1"                                               # the form is not lost
+    assert not list(qdir.glob("questions.review.v*.json"))
+
+
 def test_blocked_verification_sends_the_analysis_back_to_be_fixed(env):
     fs, fake, root, _ = env
     f = fs.create("Alfa", "Why is it slow?", "x", None, kind="analysis")

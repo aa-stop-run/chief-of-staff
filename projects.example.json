@@ -7,5 +7,11 @@
   "hide_domains": [],
   "dashboard_port": 8780,
   "domains": {},
-  "sensitive_paths": []
+  "sensitive_paths": [],
+  "models": ["opus", "sonnet", "haiku"],
+  "phase_models": {},
+  "phase_efforts": {},
+  "phase_tools": {},
+  "prices": {},
+  "resume_after_limit": true
 }

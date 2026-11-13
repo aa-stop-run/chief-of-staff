@@ -62,6 +62,33 @@ def to_schema_1(state: Path) -> None:
             _write(feats, data)
 
 
+def _iso_now() -> str:
+    from datetime import datetime
+    return datetime.now().isoformat(timespec="seconds")
+
+
+def to_schema_2(state: Path) -> None:
+    """Work sessions: everything recorded before they existed belongs to one placeholder session (`ws-legacy`), so the
+    dashboard's history and "Done" start clean while the old requests and workers stay reachable under past sessions."""
+    import worksession
+
+    feats = _read(state / "features.json", [])
+    workers = _read(state / "workers.json", [])
+    stamps = [f.get("created") for f in feats if isinstance(f, dict)] + [w.get("started") for w in workers if isinstance(w, dict)]
+    first = min([x for x in stamps if x], default=_iso_now())
+    worksession.WorkSessions(state / "work_sessions.json").add_legacy(first, _iso_now())
+    if isinstance(feats, list) and feats:
+        for f in feats:
+            if f.get("status") in ("done", "cancelled") and not f.get("closed"):
+                last = (f.get("history") or [{}])[-1].get("at") or f.get("created") or first
+                f["closed"] = {"at": last, "session": worksession.LEGACY_ID}
+        _write(state / "features.json", feats)
+    if isinstance(workers, list) and workers:
+        for w in workers:
+            w.setdefault("session", worksession.LEGACY_ID)
+        _write(state / "workers.json", workers)
+
+
 @dataclass(frozen=True)
 class Step:
     version: int
@@ -69,7 +96,7 @@ class Step:
     run: Callable[[Path], None]
 
 
-STEPS = (Step(1, "English keys and events", to_schema_1),)
+STEPS = (Step(1, "English keys and events", to_schema_1), Step(2, "Work sessions", to_schema_2))
 CURRENT = STEPS[-1].version
 
 

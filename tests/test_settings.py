@@ -81,7 +81,7 @@ def test_vault_must_look_like_a_vault_and_asks_for_a_restart(env):
     (new / "wiki").mkdir()
     out = settings.set_vault(str(new))
     assert out["restart"] is True and saved(root)["vault"].endswith("OtherVault")
-    for bad in ("", "relative", str(tmp / "does_not_exist")):
+    for bad in ("relative", str(tmp / "does_not_exist")):
         with pytest.raises(ValueError):
             settings.set_vault(bad)
 
@@ -200,3 +200,63 @@ def test_snapshot_lists_projects_with_category_origin_and_remote(env, monkeypatc
     assert rows["Alfa"]["domain"] == "home" and rows["Alfa"]["custom"] is False and rows["Alfa"]["hub"] is True
     assert rows["beta"]["domain"] == "product" and rows["beta"]["custom"] is True and rows["beta"]["kind"] == "root"
     assert snap["ignore"] == ["hidden"] and snap["hosts"][0] == "github.com" and "home" in snap["domains"]
+
+
+# ---------------------------------------------------------------- plan usage: connecting the status line, the auto-resume switch
+@pytest.fixture
+def claude_dir(env, monkeypatch):
+    d = env[0] / "claude"
+    d.mkdir()
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(d))
+    return d
+
+
+def claude_file(d):
+    return json.loads((d / "settings.json").read_text(encoding="utf-8"))
+
+
+def test_connecting_sets_the_status_line_keeps_everything_else_and_leaves_a_backup(env, claude_dir):
+    (claude_dir / "settings.json").write_text(json.dumps({"model": "opus", "permissions": {"allow": ["Bash(ls)"]}}), encoding="utf-8")
+    assert settings.snapshot()["plan"]["connection"] == "none"
+    settings.connect_plan()
+    d = claude_file(claude_dir)
+    assert d["model"] == "opus" and d["permissions"] == {"allow": ["Bash(ls)"]}
+    assert d["statusLine"]["type"] == "command" and d["statusLine"]["command"].endswith(" statusline")
+    assert json.loads((claude_dir / "settings.json.chief-backup").read_text(encoding="utf-8"))["model"] == "opus"
+    assert settings.snapshot()["plan"]["connection"] == "connected"
+    settings.connect_plan()                                                                  # twice does not stack
+    assert claude_file(claude_dir) == d
+
+
+def test_connecting_keeps_the_users_own_status_line_and_disconnecting_restores_it(env, claude_dir):
+    (claude_dir / "settings.json").write_text(json.dumps({"statusLine": {"type": "command", "command": 'echo "hi $USER"'}}), encoding="utf-8")
+    assert settings.snapshot()["plan"]["connection"] == "other"
+    settings.connect_plan()
+    cmd = claude_file(claude_dir)["statusLine"]["command"]
+    assert "--then" in cmd and r'echo \"hi \$USER\"' in cmd
+    settings.disconnect_plan()
+    assert claude_file(claude_dir)["statusLine"]["command"] == 'echo "hi $USER"'
+
+
+def test_disconnecting_without_a_previous_status_line_removes_ours(env, claude_dir):
+    settings.connect_plan()                                                                  # no settings.json yet: it is created
+    assert "statusLine" in claude_file(claude_dir)
+    settings.disconnect_plan()
+    assert "statusLine" not in claude_file(claude_dir)
+
+
+def test_a_broken_claude_settings_file_is_reported_not_overwritten(env, claude_dir):
+    (claude_dir / "settings.json").write_text("{not json", encoding="utf-8")
+    assert settings.snapshot()["plan"]["connection"] == "unreadable"
+    with pytest.raises(ValueError):
+        settings.connect_plan()
+    assert (claude_dir / "settings.json").read_text(encoding="utf-8") == "{not json"
+
+
+def test_the_auto_resume_switch_is_saved_and_defaults_to_on(env):
+    _, root, *_ = env
+    assert settings.snapshot()["plan"]["resume_after_limit"] is True
+    settings.set_resume_after_limit(False)
+    assert saved(root)["resume_after_limit"] is False and settings.snapshot()["plan"]["resume_after_limit"] is False
+    settings.set_resume_after_limit(True)
+    assert saved(root)["resume_after_limit"] is True

@@ -77,7 +77,8 @@ class _Run:
         self.stdout, self.stderr, self.returncode = out, "", 0
 
 
-def test_launch_curator_runs_from_the_chief_folder_and_returns_the_session_id(monkeypatch):
+def test_launch_curator_runs_from_the_chief_folder_and_returns_the_session_id(monkeypatch, tmp_path):
+    monkeypatch.setattr(chief, "VAULT", tmp_path)          # a vault that exists
     seen = {}
 
     def fake_run(cmd, **kw):
@@ -92,18 +93,27 @@ def test_launch_curator_runs_from_the_chief_folder_and_returns_the_session_id(mo
     assert seen["cmd"][seen["cmd"].index("--add-dir") + 1] == str(chief.VAULT)
 
 
-def test_launch_curator_reports_a_failed_start(monkeypatch):
+def test_launch_curator_reports_a_failed_start(monkeypatch, tmp_path):
+    monkeypatch.setattr(chief, "VAULT", tmp_path)
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: _Run("some error"))
     with pytest.raises(RuntimeError):
         chief.launch_curator("x")
 
 
-def test_a_worker_command_has_no_add_dir_when_no_vault_is_configured(monkeypatch):
-    p = {"name": "Alfa", "slug": "alfa", "path": "x", "hub": None}
-    monkeypatch.setattr(chief, "load_workers", lambda: [])
-    monkeypatch.setattr(chief, "CFG", {**chief.CFG, "vault": ""})
-    _, cmd, _ = chief.build_command(p, "do it")
-    assert "--add-dir" not in cmd
-    monkeypatch.setattr(chief, "CFG", {**chief.CFG, "vault": "D:/Vault"})
-    _, cmd, _ = chief.build_command(p, "do it")
-    assert "--add-dir" in cmd
+def test_git_info_status_never_takes_the_index_lock(monkeypatch):
+    calls = []
+
+    class R:
+        returncode = 0
+
+        def __init__(self, out):
+            self.stdout = out
+
+    def fake_run(cmd, *a, **k):
+        calls.append(list(cmd))
+        return R("2024-01-01|msg" if "log" in cmd else "true")
+
+    monkeypatch.setattr(chief.subprocess, "run", fake_run)
+    chief.git_info("X")
+    status = [c for c in calls if "status" in c]
+    assert status and all("--no-optional-locks" in c and c.index("--no-optional-locks") < c.index("status") for c in status)

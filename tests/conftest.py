@@ -3,7 +3,9 @@
 The user's data folder is pinned to a throw-away directory *before* `chief` is imported, so no test can read or write the real
 data, and the vault conventions are pinned to English so the tests never depend on the local configuration.
 """
+import atexit
 import os
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -12,6 +14,7 @@ import pytest
 
 TEST_HOME = Path(tempfile.mkdtemp(prefix="chief-test-home-"))
 os.environ["CHIEF_HOME"] = str(TEST_HOME)
+atexit.register(shutil.rmtree, TEST_HOME, True)          # nothing is left behind after the run
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import chief  # noqa: E402
 

@@ -6,6 +6,7 @@ load its rules) -> commit of the result. State is kept in <state>/curation.json.
 import json
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 
 QUIET_S = 600            # the inbox must be "calm" (no new draft) for 10 min: a worker may still be writing
@@ -13,6 +14,8 @@ GAP_S = 1800             # minimum interval between curations
 TIMEOUT_S = 2 * 3600     # a stuck curator is abandoned
 START_GRACE_S = 90       # right after launch the worker is not yet in claude's list: do not treat it as finished
 MAX_ATTEMPTS = 3         # consecutive failures before the automation stops (the "Curate now" button keeps working)
+LIMIT_GRACE_S = 180      # after a usage limit resets, wait this long before curating again (same size as features.LIMIT_GRACE_S)
+LIMIT_DEFAULT_PAUSE_S = 1800   # a limit notice with no readable reset time: pause this long rather than hammering
 BUSY = ("working", "running")
 
 # Vault conventions the prompt refers to; the Chief passes its own (chief.SCHEMA) so that `vault_language` decides them.
@@ -56,8 +59,10 @@ Your last message starts with [DONE] and summarises in 5 lines what you promoted
 class Curator:
     def __init__(self, vault, state_path, launch, worker_state, commit, release, now=time.time,
                  quiet_s=QUIET_S, gap_s=GAP_S, timeout_s=TIMEOUT_S, max_attempts=MAX_ATTEMPTS, grace_s=START_GRACE_S,
-                 schema=None):
-        """launch(prompt)->{id,name}; worker_state(id)->claude state or None; commit(path, msg)->(ok, info); release(id)."""
+                 schema=None, limit=None):
+        """launch(prompt)->{id,name}; worker_state(id)->claude state or None; commit(path, msg)->(ok, info); release(id).
+        limit(id)->usage-limit notice (planusage.tail_notice shape) or None: a limit is a pause, never a failure; None = not checked."""
+        self._limit = limit
         self._schema = {**DEFAULT_SCHEMA, **(schema or {})}
         self.vault, self.state_path = Path(vault), Path(state_path)
         self._launch, self._worker_state, self._commit, self._release = launch, worker_state, commit, release
@@ -72,7 +77,7 @@ class Curator:
         except Exception:
             s = {}
         return {"running": False, "worker_id": "", "started": 0.0, "drafts_before": 0, "attempts": 0,
-                "finished_at": 0.0, "last": None, **s}
+                "finished_at": 0.0, "last": None, "paused_until": 0.0, "paused_kind": "session", **s}
 
     def _save(self, s: dict) -> None:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
@@ -88,6 +93,8 @@ class Curator:
         ds = self.drafts()
         if not ds:
             return False, "inbox up to date"
+        if s["paused_until"] > self._now():
+            return False, "paused by a usage limit: continues by itself after it resets"
         if s["attempts"] >= self._max:
             return False, f"automation stopped after {self._max} consecutive failures: use “Curate now”"
         if self._now() - s["finished_at"] < self._gap:
@@ -99,16 +106,61 @@ class Curator:
 
     def status(self) -> dict:
         with self._lock:
-            s = self._load()
+            s = self._recover(self._load())
             n = len(self.drafts())
+            live = self._live_notice(s) if s["running"] else None
             info = f"curating {s['drafts_before']} draft(s)…" if s["running"] else self._due(s)[1]
-            return {"drafts": n, "running": s["running"], "attempts": s["attempts"], "last": s["last"], "info": info}
+            if live:
+                info = "paused by a usage limit"
+            return {"drafts": n, "running": s["running"], "attempts": s["attempts"], "last": s["last"], "info": info,
+                    "paused": self._paused(s, live)}
+
+    # ---- usage limits ----
+    def _notice(self, worker_id: str):
+        if not self._limit or not worker_id:
+            return None
+        try:
+            return self._limit(worker_id)
+        except Exception:  # noqa: BLE001 - an unreadable log is "no notice"
+            return None
+
+    def _live_notice(self, s: dict):
+        return self._notice(s["worker_id"])
+
+    def _pause_until(self, notice: dict) -> float:
+        """Epoch second when curating may resume: the notice's reset + grace, or a conservative default without a readable time."""
+        try:
+            return datetime.fromisoformat(notice["resume_at"]).timestamp() + LIMIT_GRACE_S
+        except (KeyError, TypeError, ValueError):
+            return self._now() + LIMIT_DEFAULT_PAUSE_S
+
+    def _paused(self, s: dict, live=None):
+        """None, or {"until_s": seconds until curating resumes (None if unknown), "kind"}. Durations only, never clock times."""
+        if live:
+            return {"until_s": max(0, int(self._pause_until(live) - self._now())), "kind": live.get("kind", "session")}
+        if s["paused_until"] > self._now():
+            return {"until_s": int(s["paused_until"] - self._now()), "kind": s["paused_kind"]}
+        return None
+
+    def _recover(self, s: dict) -> dict:
+        """State left by the old behaviour: usage-limit runs were counted as failures and the automation stopped. If the failures
+        were really a limit (the last worker's log still shows the notice, and the last run was not a launch/checkpoint failure),
+        clear them and pause until that limit resets (no pause if it already has)."""
+        if s["running"] or s["attempts"] < self._max or s["paused_until"] > 0 and s["paused_until"] > s["finished_at"]:
+            return s
+        last = s["last"] or {}
+        notice = self._notice(s["worker_id"]) if not str(last.get("info", "")).startswith("could not") else None
+        if not notice:
+            return s
+        s.update(attempts=0, paused_until=self._pause_until(notice), paused_kind=notice.get("kind", "session"))
+        self._save(s)
+        return s
 
     # ---- actions ----
     def tick(self) -> None:
         """Called periodically by the server: follows the running curator or starts a new one when it makes sense."""
         with self._lock:
-            s = self._load()
+            s = self._recover(self._load())
             if s["running"]:
                 return self._poll(s)
             if self._due(s)[0]:
@@ -119,13 +171,13 @@ class Curator:
 
     def start(self, force: bool = False) -> None:
         with self._lock:
-            s = self._load()
+            s = self._recover(self._load())
             if s["running"]:
                 raise CurationError("a curation is already running")
             if not self.drafts():
                 raise CurationError("the inbox is empty: no drafts to process")
             if force:
-                s["attempts"] = 0
+                s.update(attempts=0, paused_until=0.0)
             elif not self._due(s)[0]:
                 raise CurationError(self._due(s)[1])
             self._start(s)
@@ -139,7 +191,7 @@ class Curator:
             w = self._launch(curator_prompt(self.vault, ds, self._schema))
         except Exception as e:  # noqa: BLE001
             return self._fail(s, f"could not launch the curator: {e}")
-        s.update(running=True, worker_id=w["id"], started=self._now(), drafts_before=len(ds))
+        s.update(running=True, worker_id=w["id"], started=self._now(), drafts_before=len(ds), paused_until=0.0)
         self._save(s)
 
     def _fail(self, s: dict, why: str) -> None:
@@ -155,6 +207,8 @@ class Curator:
             return self._finish(s, "time limit reached: curator abandoned")
         if elapsed < self._grace:
             return None  # just started: it may not be in the session list yet
+        if self._live_notice(s):
+            return self._finish(s, "")               # stopped by a usage limit: close the run as a pause
         state = self._worker_state(s["worker_id"])
         if state is None or state in BUSY:
             return None  # still working (or unknown): wait
@@ -169,8 +223,17 @@ class Curator:
             self._release(s["worker_id"])
         except Exception:  # noqa: BLE001 - stopping the session is an extra
             pass
-        s["attempts"] = s["attempts"] + 1 if handled == 0 else 0
+        notice = self._notice(s["worker_id"])
+        if notice:                                  # a usage limit is a pause: nothing counts as a failure
+            if handled:
+                s["attempts"] = 0
+            s.update(paused_until=self._pause_until(notice), paused_kind=notice.get("kind", "session"))
+            note = note or "paused by a usage limit"
+        else:
+            s["attempts"] = s["attempts"] + 1 if handled == 0 else 0
         s.update(running=False, finished_at=self._now())
         s["last"] = {"at": self._now(), "handled": handled, "remaining": after, "ok": bool(ok) and not note,
                      "commit": info, "info": note or f"{handled} {noun}; commit {info}"}
+        if notice:
+            s["last"]["info"] = "paused by a usage limit" + (f" ({note})" if note != "paused by a usage limit" else "")
         self._save(s)

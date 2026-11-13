@@ -58,6 +58,15 @@ a{color:inherit;text-decoration:none}a:hover{color:var(--acc)}
 .seg button:hover,.tog:hover{color:var(--ink);background:var(--panel-2)}
 .seg button[aria-pressed=true]{background:var(--panel-2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--line-2)}
 .seg button i{font:normal 12px var(--font-ui);opacity:.55;margin-left:6px;font-variant-numeric:tabular-nums}
+.tabs{display:flex;gap:26px;margin-top:12px;border-bottom:1px solid var(--line)}
+.tabs a{position:relative;padding:8px 2px 10px;font:600 13.5px/1 var(--font-display);letter-spacing:-.005em;color:var(--mute);text-decoration:none;border-radius:var(--rs) var(--rs) 0 0;transition:color .15s var(--ease)}
+.tabs a::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;border-radius:2px;background:var(--acc);transform:scaleX(0);transform-origin:left;transition:transform .25s var(--ease)}
+.tabs a:hover{color:var(--ink)}.tabs a:hover::after{transform:scaleX(.35)}
+.tabs a:active{color:var(--acc)}
+.tabs a[aria-current=page]{color:var(--ink)}.tabs a[aria-current=page]::after{transform:scaleX(1)}
+.tabs a:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.viewstub{margin:28px 0;color:var(--mute);font:600 15px var(--font-display)}
+@media (prefers-reduced-motion:reduce){.tabs a,.tabs a::after{transition:none}}
 .tog{border:1px solid var(--line);height:34px;border-radius:var(--rs)}
 .tog[aria-pressed=true]{background:color-mix(in srgb,var(--warn) 14%,transparent);color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,transparent)}
 .sep{display:none}
@@ -198,6 +207,21 @@ dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line-2);b
 dialog::backdrop{background:rgba(0,0,0,.6);backdrop-filter:blur(3px)}
 dialog form{display:grid;gap:12px;padding:20px}
 dialog.wide{width:min(1040px,calc(100vw - 28px));max-height:calc(100vh - 40px);overflow:auto}
+.fcost{font:600 11.5px var(--font-ui);color:var(--acc);background:color-mix(in srgb,var(--acc) 10%,transparent);padding:2px 8px;border-radius:99px;white-space:nowrap;cursor:help}
+.meter{position:relative;display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:99px;background:var(--panel);border:1px solid var(--line);font-size:12px;color:var(--mute);cursor:pointer;font-family:inherit}
+.meter i{display:block;width:46px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}.meter i b{display:block;height:100%;background:var(--ok,var(--acc));border-radius:3px}
+.meter strong{font:600 13px/1 var(--font-ui);font-variant-numeric:tabular-nums;color:var(--ink)}
+.meter.warn i b{background:var(--warn)}.meter.high i b,.meter.limit i b{background:var(--bad,#c0392b)}.meter.high strong,.meter.limit strong{color:var(--bad,#c0392b)}
+.plan-row{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:6px 0}.plan-row .meter{cursor:default}
+.pfilt{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:0 0 12px}.pfilt:empty{display:none}
+.pproj{font-size:12.5px;color:var(--mute);display:inline-flex;gap:8px;align-items:center}
+.pproj select{height:30px;border:1px solid var(--line);border-radius:var(--rs);background:var(--panel);color:var(--ink);padding:0 8px;font:inherit}
+.stat.sess{font:inherit;color:inherit;cursor:pointer}.stat.sess:hover{border-color:var(--acc)}.stat.sess em{font-style:normal;color:var(--acc);font-size:12px}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}.cgrid>div{background:var(--panel);border:1px solid var(--line);border-radius:var(--rs);padding:12px 14px}
+.cgrid strong{display:block;font:650 20px var(--font-display);letter-spacing:-.02em}.cgrid span{font-size:12px;color:var(--mute)}
+.csec{display:grid;gap:10px}.csec h4{margin:0;font:600 14px var(--font-display)}.csec table{width:100%}.csec td.n,.csec th.n{text-align:right;font-variant-numeric:tabular-nums}
+#costBody{display:grid;gap:26px}.csec h5{margin:6px 0 0;font:600 11px var(--font-ui);letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.cnote{color:var(--mute);font-size:12px;line-height:1.55}.cnote a{color:var(--acc);text-decoration:underline}.lnk{background:none;border:0;color:var(--acc);font:inherit;cursor:pointer;padding:0;text-decoration:underline}
 .sbody{padding:20px;display:grid;gap:18px}.shead{display:flex;justify-content:space-between;align-items:center}
 .sset{display:grid;gap:10px}.sset h4{margin:0;font:600 14px var(--font-display);letter-spacing:.01em}
 .sset .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.sset .row input{flex:1;min-width:220px}
@@ -217,6 +241,7 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px}
 .toast{position:fixed;font-weight:500;left:50%;bottom:22px;translate:-50% 0;z-index:20;max-width:min(520px,calc(100vw - 28px));padding:10px 16px;
   border-radius:var(--rs);background:var(--ink);color:var(--bg);font-size:13px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
 .toast.err{background:var(--bad);color:#fff}
+.banner.demo{border-color:color-mix(in srgb,var(--acc) 50%,transparent);background:color-mix(in srgb,var(--acc) 9%,transparent);color:var(--ink)}
 .banner{margin:12px 0 0;padding:9px 14px;border:1px solid color-mix(in srgb,var(--bad) 50%,transparent);background:color-mix(in srgb,var(--bad) 8%,transparent);border-radius:var(--rs);color:var(--bad);font-size:13px}
 
 /* session to-dos */
@@ -224,9 +249,6 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px}
 .pend{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:15px 16px 13px;display:flex;flex-direction:column;gap:8px}
 .pend:hover{border-color:var(--line-2)}
 .ptop{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.pfilt{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;margin:0 0 12px}.pfilt:empty{display:none}
-.pproj{font-size:12.5px;color:var(--mute);display:inline-flex;gap:8px;align-items:center}
-.pproj select{height:30px;border:1px solid var(--line);border-radius:var(--rs);background:var(--panel);color:var(--ink);padding:0 8px;font:inherit}
 .pst{margin-left:auto;font:600 12px var(--font-ui);padding:2px 9px;border-radius:99px;color:var(--mute);background:var(--panel-2)}
 .pst.awaiting{color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,transparent)}
 .pst.blocked{color:var(--bad);background:color-mix(in srgb,var(--bad) 13%,transparent)}
@@ -246,6 +268,23 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px}
 .msg .md h1,.msg .md h2,.msg .md h3{font:600 12px var(--font-ui);margin:.7em 0 .3em;padding:0;border:0;color:var(--mute)}.msg .md>h2:first-child{margin-top:0}
 .msg.you{justify-self:end;background:color-mix(in srgb,var(--acc) 12%,var(--panel));border:1px solid color-mix(in srgb,var(--acc) 35%,transparent);border-bottom-right-radius:4px}
 .msg.bot{justify-self:start;background:var(--panel-2);border:1px solid var(--line);border-bottom-left-radius:4px}
+.msg.bad{border-color:color-mix(in srgb,var(--bad) 45%,transparent)}.msg.bad p{color:var(--bad)}
+/* «Ask the worker»: a quiet block under the card's actions, opened on demand */
+.qa{margin-top:12px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel-2);transition:border-color .15s}
+.qa[open]{border-color:var(--line-2)}.qa:focus-within{border-color:var(--acc)}
+.qa>summary{cursor:pointer;padding:9px 14px;font:600 12px var(--font-ui);letter-spacing:.03em;color:var(--mute);list-style:none}
+.qa>summary::-webkit-details-marker{display:none}
+.qa>summary::before{content:"?";display:inline-grid;place-items:center;width:16px;height:16px;margin-right:8px;border-radius:50%;
+  border:1px solid currentColor;font-size:10px;line-height:1}
+.qa>summary:hover,.qa[open]>summary{color:var(--acc)}.qa>summary:focus-visible{outline:2px solid var(--acc);outline-offset:-2px;border-radius:var(--r)}
+.qa>summary em{font-style:normal;margin-left:6px;padding:0 6px;border-radius:9px;background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc)}
+.qa .qahint{margin:0;padding:0 14px 6px;font-size:12px;color:var(--mute)}
+.qa .thread{padding:0 14px 6px;margin-top:4px}
+.qa textarea{display:block;width:calc(100% - 28px);margin:6px 14px 0;min-height:56px;resize:vertical;background:var(--bg);color:var(--ink);
+  border:1px solid var(--line-2);border-radius:var(--rs);padding:8px 10px;font:14px/1.5 var(--font-ui)}
+.qa textarea:focus{outline:none;border-color:var(--acc)}.qa textarea::placeholder{color:var(--mute);opacity:.8}
+.qa .dfoot{border-top:0;justify-content:flex-end}.qa .dfoot .dhint{margin-right:auto}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .dbt{margin-top:8px}.dbt summary{cursor:pointer;color:var(--acc);font-weight:500}
 /* artifact markdown */
 .md{padding:16px 20px;max-height:560px;overflow:auto;font:14px/1.65 var(--font-ui);word-break:break-word}
@@ -262,6 +301,163 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px}
 .md .tw{overflow-x:auto;margin:.8em 0}.md table{width:100%;border:1px solid var(--line);border-radius:var(--rs)}
 .md th{background:var(--panel-2);color:var(--ink);font-weight:600;font-size:12.5px}.md td,.md th{padding:7px 12px;border-bottom:1px solid var(--line);vertical-align:top}
 .md .chk{color:var(--acc)}.md del{opacity:.6}
+
+/* Projects list */
+.search[hidden]{display:none}
+.ptools{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:22px 0 14px}
+.ptools h2{margin:0;font:650 20px/1.1 var(--font-display);letter-spacing:-.01em}
+.pmsg{color:var(--mute);margin:28px 0}
+.phead,.prow{display:grid;grid-template-columns:minmax(0,2.4fr) minmax(0,1.7fr) minmax(0,1.5fr) 7.5em 7em;gap:6px 18px;align-items:center;padding:0 16px}
+.phead{padding-bottom:7px;font:600 11px var(--font-ui);letter-spacing:.07em;text-transform:uppercase;color:var(--mute)}
+.phead span:nth-child(n+4){text-align:right}.phead span[title]{cursor:help}
+.plist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.prow{position:relative;min-height:58px;padding-top:11px;padding-bottom:11px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  transition:border-color .15s var(--ease),background .15s var(--ease),transform .2s var(--ease)}
+.prow::before{content:"";position:absolute;left:-1px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:transparent}
+.prow.a0::before{background:var(--acc)}.prow.a1::before{background:var(--bad)}
+.prow.a0{background:color-mix(in srgb,var(--panel) 92%,var(--acc))}
+.prow.a1{background:color-mix(in srgb,var(--panel) 94%,var(--bad))}
+.prow:hover{border-color:var(--line-2);transform:translateX(2px)}
+.pc{min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:4px 9px}
+.pname a{font:500 15px/1.25 var(--font-display);color:var(--mute);text-decoration:none;overflow-wrap:anywhere;border-radius:4px}
+.prow.hot .pname a{font-weight:700;font-size:16.5px;color:var(--ink)}
+.prow.a2 .pname a,.prow.a3 .pname a{color:var(--ink)}
+.pname a::after{content:"";position:absolute;inset:0;border-radius:var(--r)}
+.pname a:hover{text-decoration:underline;text-underline-offset:3px}
+.pname a:focus-visible{outline:none}.prow:has(a:focus-visible){outline:2px solid var(--acc);outline-offset:2px}
+.pgit{font-size:12.5px}.pbr{font:500 12.5px var(--font-mono);color:var(--ink);overflow-wrap:anywhere}
+.pdirty{color:var(--warn);font-weight:600;font-variant-numeric:tabular-nums}
+.pmute{color:var(--mute);font-size:12px}
+.pn{font:600 14px var(--font-ui);font-variant-numeric:tabular-nums;color:var(--mute)}
+.prow.hot .preq .pn{color:var(--ink)}.pn.has{color:var(--warn)}
+.pstt{font:600 11.5px var(--font-ui);padding:2px 9px;border-radius:99px;background:var(--panel-2);color:var(--mute);white-space:nowrap}
+.pstt.acc{color:var(--acc);background:color-mix(in srgb,var(--acc) 14%,transparent)}
+.pstt.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 14%,transparent)}
+.pstt.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 13%,transparent)}
+.pfix,.pcost{justify-content:flex-end}.pcost .pn{color:var(--ink);font-weight:500;position:relative}
+.pl{display:none}
+@media (max-width:760px){
+  .phead{display:none}
+  .prow{grid-template-columns:1fr 1fr;grid-template-areas:"n n" "g g" "r r" "f c";padding:12px 14px}
+  .pname{grid-area:n}.pgit{grid-area:g}.preq{grid-area:r}.pfix{grid-area:f}.pcost{grid-area:c}
+  .pfix{justify-content:flex-start}.pcost{justify-content:flex-end}
+  .pl{display:inline;font-size:11.5px;color:var(--mute)}
+}
+@media (prefers-reduced-motion:reduce){.prow{transition:none}.prow:hover{transform:none}}
+
+/* project names on Today: a link that keeps the pill look */
+a.plink{text-decoration:none;transition:color .15s var(--ease),background .15s var(--ease)}
+a.plink:hover{color:var(--acc);text-decoration:underline;text-underline-offset:3px}
+a.fp.plink:hover{background:color-mix(in srgb,var(--acc) 12%,transparent)}
+a.plink:active{color:var(--acc);filter:brightness(1.15)}
+
+/* project page: a header band, what needs you, then reference material in quieter blocks */
+.pj{padding-top:16px}
+.pjhead{position:relative;isolation:isolate;margin:0 0 30px;padding:20px 26px 18px;border:1px solid var(--line);border-radius:16px;overflow:hidden;
+  background:linear-gradient(135deg,color-mix(in srgb,var(--acc) 11%,var(--panel)) 0%,var(--panel) 58%)}
+.pjhead::after{content:"";position:absolute;z-index:-1;right:-90px;top:-140px;width:340px;height:340px;border-radius:50%;pointer-events:none;
+  background:radial-gradient(closest-side,color-mix(in srgb,var(--acc) 16%,transparent),transparent)}
+.pjback{display:inline-flex;align-items:center;gap:6px;margin-left:-6px;padding:3px 9px 3px 6px;border-radius:6px;font:500 12.5px var(--font-ui);color:var(--mute);
+  transition:color .15s var(--ease),background .15s var(--ease)}
+.pjback:hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 7%,transparent)}.pjback:active{color:var(--acc)}
+.pjtitle{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;margin-top:10px}
+.pjtitle h1{margin:0;font:700 clamp(26px,1.6vw + 18px,38px)/1.05 var(--font-display);letter-spacing:-.03em;overflow-wrap:anywhere}
+.pjtitle .dom{margin-left:0}
+.pjdesc{margin:10px 0 0;max-width:70ch;font-size:15px;line-height:1.55;color:color-mix(in srgb,var(--ink) 80%,var(--mute))}
+.pjfacts{display:flex;flex-wrap:wrap;gap:12px 30px;margin:18px 0 0;padding-top:14px;border-top:1px solid var(--line)}
+.pjfacts>div{min-width:0}.pjfacts .wide{flex:1 1 260px}
+.pjfacts dt{margin-bottom:3px;font:600 10.5px var(--font-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.pjfacts dd{margin:0;font-size:13.5px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.mono{font-family:var(--font-mono);font-size:12.5px}
+.pjpath{margin:12px 0 0;font:11.5px var(--font-mono);color:var(--mute);overflow-wrap:anywhere}
+.pjsrc{font:500 11px var(--font-ui);color:var(--mute);opacity:.85;letter-spacing:.01em}
+.pjhead>.pjsrc{display:block;margin-top:6px}
+.pjgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(250px,330px);gap:30px 40px;align-items:start}
+.pjgrid.one{grid-template-columns:minmax(0,1fr)}
+.pjmain,.pjside{display:flex;flex-direction:column;gap:32px;min-width:0}
+.pjb{min-width:0}
+.pjbh{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:4px 12px;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+.pjbh h2{margin:0;font:650 16.5px/1.2 var(--font-display);letter-spacing:-.01em}
+.pjbh h2 em{font:500 12px var(--font-ui);font-style:normal;color:var(--mute);margin-left:6px;font-variant-numeric:tabular-nums}
+.pjside .pjbh h2{font:650 11.5px/1.2 var(--font-ui);letter-spacing:.13em;text-transform:uppercase;color:var(--mute)}
+.pjatt{padding:16px 18px 18px;border:1px solid color-mix(in srgb,var(--bad) 32%,var(--line));border-left:3px solid var(--bad);border-radius:12px;
+  background:color-mix(in srgb,var(--bad) 5%,var(--panel));box-shadow:0 10px 30px -18px color-mix(in srgb,var(--bad) 60%,transparent)}
+.pjatt.calm{border-color:color-mix(in srgb,var(--acc) 35%,var(--line));border-left-color:var(--acc);background:color-mix(in srgb,var(--acc) 5%,var(--panel));
+  box-shadow:0 10px 30px -18px color-mix(in srgb,var(--acc) 60%,transparent)}
+.pjatt .pjbh{border-bottom-color:color-mix(in srgb,var(--line) 60%,transparent)}
+.pjfixes,.pjaws{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.pjfix{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:4px 12px;align-items:start;padding:12px 14px;border:1px solid var(--line);border-radius:var(--rs);background:var(--panel)}
+.pjfix .sev{margin-top:2px}.pjfix>div{min-width:0}
+.pjfh{font-weight:600;font-size:13.5px;line-height:1.4;overflow-wrap:anywhere}
+.pjfb{margin:3px 0 0;font-size:13px;line-height:1.5;color:var(--mute);overflow-wrap:anywhere}
+.pjfb code,.pjfh code{font:12px var(--font-mono);padding:0 5px;border-radius:4px;background:var(--panel-2);color:var(--ink)}
+.pjfs{margin-top:6px;font:500 11.5px var(--font-ui);color:var(--mute)}
+.pjfix .btn{align-self:center}
+.pjsub{margin:16px 0 8px;font:600 11px var(--font-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.pjaw{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:10px 14px;border:1px solid var(--line);border-radius:var(--rs);background:var(--panel)}
+.pjrt{flex:1 1 200px;min-width:0;font-weight:600;font-size:13.5px;overflow-wrap:anywhere}
+.pjgo{padding:4px 11px;border-radius:99px;font:600 12.5px var(--font-ui);color:var(--acc);background:color-mix(in srgb,var(--acc) 11%,transparent);
+  transition:background .15s var(--ease)}
+.pjgo:hover{color:var(--acc);background:color-mix(in srgb,var(--acc) 20%,transparent)}.pjgo:active{background:color-mix(in srgb,var(--acc) 28%,transparent)}
+.pjreqs{list-style:none;margin:0;padding:0}
+.pjreq{display:grid;grid-template-columns:minmax(0,1fr) auto 6.5em;gap:4px 14px;align-items:center;padding:10px 6px;border-bottom:1px solid var(--line);
+  border-radius:6px;transition:background .15s var(--ease)}
+.pjreq:hover{background:color-mix(in srgb,var(--panel-2) 70%,transparent)}
+.pjreq:last-child{border-bottom:0}
+.pjreq .pjrt{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px}
+.pjmeta{display:flex;align-items:center;gap:10px}.pjstage{font-size:12.5px;color:var(--mute);white-space:nowrap}
+.pjcost{text-align:right;font:500 13px var(--font-ui);font-variant-numeric:tabular-nums;color:var(--ink);cursor:help;white-space:nowrap}
+.pjcost.none{color:var(--mute);cursor:default}
+.pjclosed{margin-top:8px}
+.pjclosed>summary{cursor:pointer;padding:6px;border-radius:6px;font:600 12.5px var(--font-ui);color:var(--mute);transition:color .15s}
+.pjclosed>summary:hover{color:var(--ink)}.pjclosed>summary em{font-style:normal;opacity:.7;margin-left:4px}
+.pjclosed .pjreq{opacity:.78}
+.pjov{padding:18px 22px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.pjov .md{padding:0;max-height:480px}
+.pjdocs{display:grid;gap:18px}
+.pjdg h3{margin:0 0 4px;font:600 11px var(--font-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.pjdg h3 em{font-style:normal;opacity:.7;margin-left:4px}
+.pjdg ul{list-style:none;margin:0;padding:0}
+.pjdoc{all:unset;box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:1px 14px;width:100%;padding:8px 10px;border-radius:var(--rs);cursor:pointer;
+  transition:background .15s var(--ease)}
+.pjdoc:hover{background:var(--panel-2)}.pjdoc:hover .pjdt{color:var(--acc)}
+.pjdoc:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}.pjdoc:active{background:color-mix(in srgb,var(--acc) 10%,var(--panel-2))}
+.pjdt{font-weight:500;font-size:13.5px;overflow-wrap:anywhere;transition:color .15s}
+.pjdp{grid-column:1;font:11.5px var(--font-mono);color:var(--mute);overflow-wrap:anywhere}
+.pjda{grid-column:2;grid-row:1/span 2;align-self:center;font-size:12px;color:var(--mute);white-space:nowrap;font-variant-numeric:tabular-nums}
+.pjtg+.pjtg{margin-top:16px}
+.pjtg h3{margin:0 0 8px;font:500 12px var(--font-ui);color:var(--mute)}
+.pjchips{display:flex;flex-wrap:wrap;gap:6px}
+.pjchip{padding:2px 9px;border:1px solid var(--line);border-radius:6px;background:var(--panel-2);font:500 12px var(--font-mono);color:var(--ink)}
+.pjdl{margin:0;display:grid;gap:10px}.pjdl dt{margin-bottom:5px;font-size:12px;color:var(--mute)}.pjdl dd{margin:0}
+.pjtotal{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px}
+.pjtotal strong{font:700 30px/1 var(--font-display);letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.pjtotal span{font-size:12px;color:var(--mute)}
+.pjkvh{margin:16px 0 2px;font:500 12px var(--font-ui);color:var(--mute)}
+.pjkv{list-style:none;margin:0;padding:0}
+.pjkv li{display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:12.5px;border-bottom:1px solid var(--line);
+  background:linear-gradient(to right,color-mix(in srgb,var(--acc) 55%,transparent) var(--w,0%),transparent var(--w,0%)) no-repeat left bottom/100% 2px}
+.pjkv li span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pjkv li span:last-child{flex:none;font-variant-numeric:tabular-nums}
+.pjnote{margin:10px 0 0;font-size:11.5px;line-height:1.5;color:var(--mute)}
+.pjws{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.pjw{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;font-size:12.5px}
+.pjw b{font:500 12.5px var(--font-mono);overflow-wrap:anywhere}.pjw .pmute{grid-column:1/-1}
+.pjtodo{display:grid;gap:3px}.pjtodo .ptop{gap:8px}.pjtodo strong{font:600 13px/1.35 var(--font-display);flex:1;min-width:0}
+.pjtodo p{margin:0;font-size:12.5px;color:var(--mute);line-height:1.45}
+.pjsep{margin:18px 0 10px;font:600 11px var(--font-ui);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.pjhist{margin-top:10px}.pjhist>summary{cursor:pointer;font-size:12px;color:var(--mute)}.pjhist>summary:hover{color:var(--ink)}.pjhist .pjws{margin-top:10px}
+.pjmiss{margin:40px 0;max-width:60ch}.pjmiss h1{margin:8px 0 6px;font:700 26px var(--font-display);letter-spacing:-.02em;overflow-wrap:anywhere}.pjmiss p{color:var(--mute)}
+.pjquiet{color:var(--mute);font-size:13px}
+#docBody.md{padding:0 20px 20px;max-height:none}
+@media (max-width:920px){.pjgrid{grid-template-columns:minmax(0,1fr)}.pjside .pjbh h2{font:650 16.5px/1.2 var(--font-display);letter-spacing:-.01em;text-transform:none;color:var(--ink)}}
+@media (max-width:600px){
+  .pjhead{padding:16px 16px 14px;border-radius:12px}.pjfacts{gap:10px 20px}
+  .pjfix{grid-template-columns:auto minmax(0,1fr)}.pjfix .btn{grid-column:1/-1;justify-self:start}
+  .pjreq{grid-template-columns:minmax(0,1fr) auto}.pjreq .pjrt{grid-column:1/-1}
+  .pjov{padding:14px 16px}
+}
+@media (prefers-reduced-motion:reduce){.pjdoc,.pjreq,.pjback,.pjgo,a.plink{transition:none}}
 </style>
 </head>
 <body>
@@ -270,6 +466,10 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px}
     <h1><img src="/logo.svg" alt="" width="34" height="34"><span><strong>Chief</strong><em>of Staff</em></span></h1>
     <div class="stats" id="stats" aria-live="polite"></div>
   </div>
+  <nav class="tabs" id="tabs" aria-label="Views">
+    <a href="#" id="tabToday" data-view="today">Today</a>
+    <a href="#/projects" id="tabProjects" data-view="projects">Projects</a>
+  </nav>
   <div class="bar">
     <label class="search" id="searchBox">
       <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4" stroke-linecap="round"/></svg>
@@ -277,7 +477,6 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px}
       <datalist id="repos"></datalist>
       <button class="x" id="clear" type="button" aria-label="Clear filter">×</button>
     </label>
-    <div class="seg" id="doms" role="group" aria-label="Filter by domain"></div>
     <button class="btn" id="addProjBtn" type="button" title="Add a folder or repo that is already on disk">+ Add project</button>
     <button class="btn" id="setBtn" type="button" title="Vault, project folders, categories and git connection">⚙ Settings</button>
     <div class="seg" id="langSw" role="group" aria-label="Language"><button type="button" data-l="pt">PT</button><button type="button" data-l="en">EN</button></div>
@@ -286,21 +485,26 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px}
 </div></div>
 <main>
   <div id="banner"></div>
+  <div id="todayView">
   <div class="fhead"><h2>Requests <em id="nFeat"></em></h2><button class="btn pri" id="newBtn" type="button">+ New request</button></div>
   <div class="feats" id="feats"></div>
+  <div id="propsWrap" hidden><h2>Suggested by workers <em id="nProp"></em></h2><div class="pends" id="props"></div></div>
   <h2>Session to-dos <em id="nPend"></em></h2>
   <div class="pfilt" id="pfilt"></div>
   <div class="pends" id="pends"></div>
   <div id="featsDone"></div>
   <h2>Workers <em id="nWork"></em></h2><div id="workers"></div>
+  </div>
+  <div id="projectsView" hidden></div>
+  <div id="projectView" hidden></div>
 </main>
 <dialog id="newF"><form method="dialog" id="newForm">
   <h3>New request</h3>
   <label>Project<select id="nfProject" required></select></label>
-  <label>Type<select id="nfKind"><option value="feature">Feature</option><option value="fix">Bug fix</option><option value="analysis">Analysis</option><option value="maintenance">Maintenance</option></select></label>
+  <label>Type<select id="nfKind"><option value="feature">Feature</option><option value="fix">Bug fix</option><option value="analysis">Analysis</option><option value="maintenance">Maintenance</option><option value="ship">Publish (commit / PR)</option><option value="release">Production release</option></select></label>
   <label>Title<input id="nfTitle" maxlength="120" required placeholder="e.g. login with 2FA"></label>
   <label>What you want<textarea id="nfDesc" maxlength="4000" required placeholder="Describe what the feature should do and why."></textarea></label>
-  <label>Model<select id="nfModel"><option value="">Default</option><option value="opus">Opus</option><option value="sonnet">Sonnet</option><option value="haiku">Haiku</option></select></label>
+  <label>Model<select id="nfModel"><option value="">Default</option></select></label>
   <p class="note" id="nfNote"></p>
   <div class="end"><button class="btn" type="button" id="nfCancel">Cancel</button><button class="btn pri" id="nfGo" type="submit">Launch spec</button></div>
 </form></dialog>
@@ -309,7 +513,7 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px}
   <label>Category (optional)<input id="apDom" list="domList" maxlength="30" autocomplete="off" placeholder="e.g. banking, home, product"></label>
   <label>Folder path<input id="apPath" maxlength="400" required autocomplete="off" spellcheck="false" placeholder="D:/Projects/my-repo"></label>
   <p class="note" data-i18n>A folder that already exists on disk (git repo or plain folder). Anything inside <b>your projects folder</b> shows up by itself.</p>
-  <p class="note">The project is registered and a read-only worker studies the repo and creates its note in the vault right after.</p>
+  <p class="note" id="apNote">The project is registered and a read-only worker studies the repo and creates its note in the vault right after.</p>
   <div class="end"><button class="btn" type="button" id="apCancel">Cancel</button><button class="btn pri" id="apGo" type="submit">Add</button></div>
   <hr>
   <label>Or clone a public repo<input id="apUrl" maxlength="200" autocomplete="off" spellcheck="false" placeholder="https://github.com/owner/repo"></label>
@@ -321,11 +525,47 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px}
   <datalist id="domList"></datalist>
   <div id="setBody"></div>
 </div></dialog>
+<dialog id="costD" class="wide"><div class="sbody">
+  <div class="shead"><h3>Sessions and costs</h3><button class="btn" id="costClose" type="button">Close</button></div>
+  <div id="costBody"></div>
+</div></dialog>
+<dialog id="docD" class="wide" aria-labelledby="docTitle"><div class="sbody">
+  <div class="shead"><h3 id="docTitle"></h3><button class="btn" id="docClose" type="button">Close</button></div>
+  <p class="note" id="docNote" hidden>This document is long: only its beginning is shown.</p>
+</div><div class="md" id="docBody"></div></dialog>
 <div id="toast" class="toast" hidden role="status"></div>
 <script>
 const T="__TOKEN__";
 // ---------- languages: English is the key; Portuguese is an optional translation; switching reloads the page ----------
 const PT = {
+  "Today":"Hoje","Projects":"Projetos","Views":"Vistas",
+  "Needs attention":"Pede atenção","Open":"Aberto","No open requests":"Sem pedidos abertos","Not a git repo":"Sem git",
+  "{n} uncommitted":"{n} por comitar","Git info as of {t}":"Informação do git de há {t}",
+  "Open requests":"Pedidos abertos","Identified fixes":"Correções identificadas","Sort projects":"Ordenar projetos","Name":"Nome",
+  "Could not load the projects.":"Não foi possível carregar os projetos.","name is not unique":"o nome não é único","This finding is no longer listed.":"Este achado já não consta da lista.","Loading projects…":"A carregar projetos…","Branch":"Ramo",
+  "Estimated AI cost: tokens at list prices, not your bill.":"Custo estimado de IA: tokens ao preço de tabela, não é a tua fatura.",
+  "No projects for this filter.":"Nenhum projeto para este filtro.","No projects.":"Nenhum projeto.",
+  "Back to projects":"Voltar aos projetos","Overview and architecture":"Visão geral e arquitetura","Documents":"Documentos","Tools":"Ferramentas",
+  "Costs":"Custos","Workers and to-dos":"Workers e pendentes","Create fix request":"Criar pedido de correção","Awaiting your decision":"À espera da tua decisão",
+  "Decide on Today":"Decidir em Hoje","Closed":"Fechados","By request":"Por pedido","Changes":"Alterações","None uncommitted":"Nada por comitar",
+  "Not pushed":"Por enviar","{n} commits ahead":"{n} commits à frente","Last commit":"Último commit","today":"hoje","yesterday":"ontem",
+  "Fix: {t}":"Corrigir: {t}","From request {id}.":"Do pedido {id}.",
+  "From the independent review of “{r}”":"Da revisão independente de «{r}»","From the plan validation of “{r}”":"Da validação do plano de «{r}»",
+  "Blocked session to-do: create its request from Today.":"Pendente bloqueado: cria o pedido dele em Hoje.",
+  "Project files":"Ficheiros do projeto","Specs":"Specs","Plans":"Planos","Analyses":"Análises","updated {t}":"atualizado {t}",
+  "Project commands":"Comandos do projeto","Claude Code in this project":"Claude Code neste projeto","found in {f}":"encontrado em {f}",
+  "Skills":"Skills","Commands":"Comandos","Agents":"Agentes","MCP servers":"Servidores MCP","Hooks":"Hooks",
+  "Loading project…":"A carregar o projeto…","Loading…":"A carregar…","Could not load the project.":"Não foi possível carregar o projeto.",
+  "There is no project with this name, or it is hidden.":"Não há nenhum projeto com este nome, ou está escondido.",
+  "Could not open the document: {e}":"Não foi possível abrir o documento: {e}",
+  "This document is long: only its beginning is shown.":"Este documento é longo: só se mostra o início.",
+  "No requests, documents or tools for this project yet.":"Ainda não há pedidos, documentos nem ferramentas para este projeto.",
+  "from git":"do git","from the vault note":"da nota do vault","from README.md":"do README.md",
+  "description from the vault note":"descrição da nota do vault","description from README.md":"descrição do README.md",
+  "from the independent reviews":"das revisões independentes","from your session to-dos":"dos pendentes das tuas sessões","from your requests":"dos teus pedidos",
+  "from the Chief's requests · costs are estimates":"dos pedidos do Chief · os custos são estimativas","from the project folder":"da pasta do projeto",
+  "from the project folder, names only":"da pasta do projeto, só nomes","from your Claude Code logs":"dos registos do Claude Code",
+  "from the Chief's workers and your Claude Code sessions":"dos workers do Chief e das tuas sessões do Claude Code",
   "Filter by repo   ( / )":"Filtrar por repo   ( / )",
   "Filter by repo":"Filtrar por repo",
   "Clear filter":"Limpar filtro",
@@ -349,6 +589,7 @@ const PT = {
   "Add project":"Adicionar projeto",
   "Folder path":"Caminho da pasta",
   "D:/Projects/my-repo":"D:/Projetos/meu-repo",
+  "D:/Projects":"D:/Projetos",
   "A folder that already exists on disk (git repo or plain folder). Anything inside <b>your projects folder</b> shows up by itself.":"Pasta que já existe no disco (repo git ou pasta normal). Tudo o que estiver dentro de <b>your projects folder</b> aparece sozinho.",
   "The project is registered and a read-only worker studies the repo and creates its note in the vault right after.":"O projeto fica registado e um worker de leitura estuda o repo e cria a nota dele no vault, logo a seguir.",
   "Add":"Adicionar",
@@ -384,6 +625,8 @@ const PT = {
   "Git has no credential manager configured.":"O git não tem gestor de credenciais configurado.",
   "The category is a Chief setting: the vault is not changed. Projects without a category of yours use the one from the vault. Removing takes the project off the list and never deletes the folder.":"A categoria é uma definição do Chief: o vault não é alterado. Os projetos sem categoria tua usam a que vem do vault. Remover tira o projeto da lista e nunca apaga a pasta.",
   "Vault path":"Caminho do vault",
+  "The vault is optional: leave it empty to work without one. Changing it only takes effect after you restart the server.":"O vault é opcional: deixa-o vazio para trabalhar sem um. Só passa a valer depois de reiniciares o servidor.",
+  "Analysis done. The report was archived in the project.":"Análise concluída. O relatório ficou arquivado no projeto.",
   "Changing the vault only takes effect after you restart the server.":"Mudar o vault só tem efeito depois de reiniciares o servidor.",
   "Project folders":"Pastas de projetos",
   "Every subfolder of these folders shows up as a project.":"Cada subpasta destas pastas aparece como um projeto.",
@@ -393,6 +636,18 @@ const PT = {
   "Git and GitHub":"Git e GitHub",
   "Private repos: the Chief uses the login your git already has and never asks for or stores passwords or tokens.":"Repos privados: o Chief usa o login que o teu git já tem e nunca pede nem guarda passwords ou tokens.",
   "Hosts allowed for cloning":"Anfitriões permitidos para clonar",
+  "Plan usage and limits":"Uso do plano e limites",
+  "Connected: the 5-hour and 7-day percentages show in the header.":"Ligado: as percentagens de 5 horas e 7 dias aparecem no cabeçalho.",
+  "Claude Code's settings.json could not be read.":"Não foi possível ler o settings.json do Claude Code.",
+  "You have your own status line; connecting keeps it and adds the percentages after it.":"Já tens um status line teu; ligar mantém-no e acrescenta as percentagens a seguir.",
+  "Not connected: the header cannot show the 5-hour and 7-day percentages.":"Não ligado: o cabeçalho não pode mostrar as percentagens de 5 horas e 7 dias.",
+  "Disconnect":"Desligar",
+  "Connect to Claude Code":"Ligar ao Claude Code",
+  "Connecting adds a status line command to ~/.claude/settings.json (a backup is kept next to it). The Chief reads only the two percentages and when they reset; never credentials.":"Ligar acrescenta um comando de status line a ~/.claude/settings.json (fica uma cópia de segurança ao lado). O Chief lê só as duas percentagens e quando recomeçam; nunca credenciais.",
+  "Restart a phase automatically once a usage limit has reset":"Reiniciar uma fase automaticamente quando o limite de utilização recomeçar",
+  "A worker stopped by a limit is restarted after the limit resets (at most 3 times per request), unless Claude Code continues by itself.":"Um worker parado por um limite é reiniciado depois de o limite recomeçar (no máximo 3 vezes por pedido), a não ser que o Claude Code continue sozinho.",
+  "Connected.":"Ligado.",
+  "Disconnected.":"Desligado.",
   "Hosts the Chief accepts cloning from (comma-separated).":"Anfitriões de onde o Chief aceita clonar (separados por vírgula).",
   "Saved.":"Guardado.",
   "Category saved.":"Categoria guardada.",
@@ -412,6 +667,8 @@ const PT = {
   "Updated":"Atualizado",
   "Workers that finished what they had to do and left the session open waiting for input (you can close them with claude stop <id>)":"Workers que acabaram o que tinham a fazer e deixaram a sessão aberta à espera de input (podes fechá-las com claude stop <id>)",
   "Automatic curation stopped after failures":"Curadoria automática parada após falhas",
+  "Automatic curation paused by a usage limit":"Curadoria automática em pausa por um limite de utilização",
+  "Automatic curation paused by a usage limit, continues in {t}":"Curadoria automática em pausa por um limite de utilização, continua daqui a {t}",
   "Status":"Estado",
   "Task":"Tarefa",
   "Started":"Início",
@@ -422,8 +679,87 @@ const PT = {
   "Plan":"Plano",
   "Implementation":"Implementação",
   "Review":"Revisão",
+  "Question":"Pergunta",
   "Failed":"Falhou",
   "Done":"Concluídas",
+  "Sessions and costs":"Sessões e custos",
+  "Session":"Sessão",
+  "Work session: active time and estimated AI cost. Click for the details.":"Sessão de trabalho: tempo ativo e custo estimado de IA. Clica para ver o detalhe.",
+  "just now":"agora mesmo",
+  "{n} min ago":"há {n} min",
+  "{n} h ago":"há {n} h",
+  "{n} day ago":"há {n} dia",
+  "{n} days ago":"há {n} dias",
+  "History of this session ({n} finished or stopped)":"Histórico desta sessão ({n} terminados ou parados)",
+  "Done in this session":"Concluídos nesta sessão",
+  "{n} earlier requests are in past sessions.":"{n} pedidos anteriores estão em sessões passadas.",
+  "See past sessions":"Ver sessões passadas",
+  "No price is known for this model, so only its tokens are counted. Add it under prices in projects.json.":"Não se conhece o preço deste modelo, por isso só se contam os tokens. Acrescenta-o em prices no projects.json.",
+  "no price":"sem preço",
+  "No AI usage recorded yet.":"Ainda não há uso de IA registado.",
+  "Model":"Modelo",
+  "Estimated cost":"Custo estimado",
+  "Share of your 5-hour allowance used":"Parte do plafond de 5 horas já usada",
+  "Share of your 7-day allowance used":"Parte do plafond de 7 dias já usada",
+  "window has reset":"a janela já recomeçou",
+  "resets in {t}":"recomeça dentro de {t}",
+  "{n} worker(s) paused by a usage limit.":"{n} worker(s) parado(s) por um limite de utilização.",
+  "Continues by itself in {t}.":"Continua sozinho dentro de {t}.",
+  "The Chief restarts the phase in {t}.":"O Chief reinicia a fase dentro de {t}.",
+  "Paused by a usage limit":"Parado por um limite de utilização",
+  "Claude Code continues by itself.":"O Claude Code continua sozinho.",
+  "restarts once the limit has reset.":"reinicia quando o limite recomeçar.",
+  "Restarted {n} time(s).":"Reiniciado {n} vez(es).",
+  "paused by usage limit":"parado por limite de utilização",
+  "resumed after usage limit":"retomado após limite de utilização",
+  "resume failed":"falhou a retoma",
+  "Plan usage":"Uso do plano",
+  "as of {t} ago":"há {t}",
+  "Not connected. Claude Code only hands these percentages to a status line command. Add this to ~/.claude/settings.json (the Chief never edits it):":"Não ligado. O Claude Code só entrega estas percentagens a um comando de status line. Acrescenta isto a ~/.claude/settings.json (o Chief nunca o edita):",
+  "Chief workers, estimated: last 5 hours {a} · last 7 days {b}. The percentages cover everything you do with Claude; the amounts only the workers the Chief launched.":"Workers do Chief, estimado: últimas 5 horas {a} · últimos 7 dias {b}. As percentagens cobrem tudo o que fazes com o Claude; os valores só os workers lançados pelo Chief.",
+  "Input":"Entrada",
+  "Output":"Saída",
+  "Cache read":"Leitura de cache",
+  "Cache write":"Escrita de cache",
+  "Workers":"Workers",
+  "ended by you":"terminada por ti",
+  "closed after a long break":"fechada após uma longa pausa",
+  "before sessions were recorded":"antes de as sessões serem registadas",
+  "This session":"Esta sessão",
+  "active time":"tempo ativo",
+  "estimated AI cost":"custo estimado de IA",
+  "workers launched":"workers lançados",
+  "requests closed":"pedidos fechados",
+  "{n} request closed":"{n} pedido fechado",
+  "{n} requests closed":"{n} pedidos fechados",
+  "Click again to end the session":"Clica outra vez para terminar a sessão",
+  "End session":"Terminar sessão",
+  "By project, all sessions":"Por projeto, todas as sessões",
+  "Models":"Modelos",
+  "Sessions":"Sessões",
+  "Past sessions":"Sessões passadas",
+  "No past sessions yet.":"Ainda não há sessões passadas.",
+  "Costs are estimates: the tokens in Claude Code's session logs priced at list prices (as of {date}), the same way Claude Code itself estimates. A subscription, discounts or special rates are not reflected, so your bill may differ. Models without a known price are counted in tokens only: add them under prices in projects.json.":"Os custos são estimativas: os tokens dos registos de sessão do Claude Code ao preço de tabela (a {date}), tal como o próprio Claude Code estima. Uma subscrição, descontos ou tarifas especiais não são refletidos, por isso a fatura pode ser diferente. Os modelos sem preço conhecido contam só em tokens: acrescenta-os em prices no projects.json.",
+  "Price list":"Tabela de preços",
+  "Your own prices: {models}":"Os teus preços: {models}",
+  "By request, all sessions":"Por pedido, todas as sessões","By phase, all sessions":"Por fase, todas as sessões","Phase":"Fase","What each kind of work cost and on which models: use it to judge the model routing.":"O que cada tipo de trabalho custou e em que modelos: serve para avaliar o encaminhamento de modelos.",
+  "Cards worked on":"Cartões trabalhados",
+  "In all":"No total",
+  "Closed in this session":"Fechado nesta sessão",
+  "Request":"Pedido",
+  "Plan validation":"Validação do plano",
+  "Extraction":"Extração",
+  "Curation":"Curadoria",
+  "Other":"Outro",
+  "worker":"worker",
+  "workers":"workers",
+  "work session":"sessão de trabalho",
+  "work sessions":"sessões de trabalho",
+  "By model":"Por modelo",
+  "By project":"Por projeto",
+  "A + means some models have no known price and are counted in tokens only.":"Um + quer dizer que alguns modelos não têm preço conhecido e contam só em tokens.",
+  "Session ended: {d} active, about {c}.":"Sessão terminada: {d} ativos, cerca de {c}.",
+  "Demo mode: sample data and simulated workers. Nothing here runs a real worker or touches your projects.":"Modo de demonstração: dados de exemplo e workers simulados. Nada aqui lança workers a sério nem toca nos teus projetos.",
   "Done@status":"Concluída",
   "Cancelled":"Cancelada",
   "Blocked":"Bloqueado",
@@ -540,6 +876,16 @@ const PT = {
   "Send answers":"Enviar respostas",
   "Ask for changes":"Pedir alterações",
   "Try again":"Tentar de novo",
+  "Ask the worker":"Perguntar ao worker",
+  "Ask a question about this request, its conclusions or the work done…":"Faz uma pergunta sobre este pedido, as conclusões ou o trabalho feito…",
+  "Ask":"Perguntar",
+  "Asking…":"A perguntar…",
+  "Ctrl+Enter sends the question":"Ctrl+Enter envia a pergunta",
+  "The worker reads the request and the work (read-only) and answers here. It does not change the request.":"O worker lê o pedido e o trabalho (só leitura) e responde aqui. Não altera o pedido.",
+  "Reading the work and preparing the answer…":"A ler o trabalho e a preparar a resposta…",
+  "The worker stopped without answering. Ask again.":"O worker parou sem responder. Pergunta outra vez.",
+  "Question sent: the answer appears here.":"Pergunta enviada: a resposta aparece aqui.",
+  "Write a question first.":"Escreve primeiro uma pergunta.",
   "You":"Tu",
   "Round {n}":"Ronda {n}",
   "Reading your answers and rewriting {what}…":"A ler as tuas respostas e a reescrever {what}…",
@@ -585,6 +931,43 @@ const PT = {
   "Verification":"Verificação",
   "Independent verification":"Verificação independente",
   "Accept analysis":"Aceitar análise",
+  "Publish":"Publicar","Publish (commit / PR)":"Publicar (commit / PR)","Prepare commit":"Preparar commit","Publication":"Publicação",
+  "Approve and publish":"Aprovar e publicar",
+  "Release":"Passagem","Production release":"Passagem a produção","Release plan":"Plano da passagem","Regression":"Regressão","Promotion":"Passagem a prd",
+  "Approve and run the regression":"Aprovar e correr a regressão","Approve and promote to production":"Aprovar e passar a produção",
+  "Run the tests again":"Repetir os testes","Independent regression":"Regressão independente","Regression: {v}":"Regressão: {v}",
+  "Written by a worker that did not write the plan":"Escrito por um worker que não escreveu o plano",
+  "Read the regression report above before deciding":"Lê o relatório de regressão acima antes de decidir",
+  "POSITIVE":"POSITIVO","NEGATIVE":"NEGATIVO","verdict not identified":"veredicto não identificado",
+  "The plan has no promotion steps.":"O plano não tem passos de passagem.",
+  "The regression found problems. Read the report, fix them and run the tests again, or cancel. The promotion cannot be approved.":"A regressão encontrou problemas. Lê o relatório, corrige-os e repete os testes, ou cancela. A passagem não pode ser aprovada.",
+  "The report has no readable verdict, so the promotion cannot be approved. Run the tests again.":"O relatório não tem um veredicto legível, por isso a passagem não pode ser aprovada. Repete os testes.",
+  "Run the regression tests again from scratch and report a new verdict.":"Corre de novo os testes de regressão desde o início e dá um novo veredicto.",
+  "Regression launched again.":"Regressão lançada de novo.",
+  "This launches a read-only worker that writes the <b>release plan</b>. Then an independent worker runs the regression tests, and only a POSITIVE verdict plus your approval lets a worker carry out the promotion.":"Isto lança um worker só de leitura que escreve o <b>plano da passagem</b>. Depois um worker independente corre os testes de regressão, e só um veredicto POSITIVO mais a tua aprovação deixa um worker executar a passagem.",
+  "Launch release plan":"Lançar plano da passagem",
+  "{l}: a worker is writing the release plan (nothing is executed){w}":"{l}: um worker está a escrever o plano da passagem (nada é executado){w}",
+  "{l}: an independent worker is running the regression tests on the candidate{w}":"{l}: um worker independente está a correr os testes de regressão no candidato{w}",
+  "{l}: carrying out the promotion you approved{w}":"{l}: a executar a passagem que aprovaste{w}",
+  "{l} ready. Read the candidate, the tests, the promotion steps and the rollback, then approve to run the regression, or ask for changes.":"{l} pronto. Lê o candidato, os testes, os passos da passagem e o rollback, e aprova para correr a regressão, ou pede alterações.",
+  "{l} finished: {v}. Only a POSITIVE verdict lets you approve the promotion.":"{l} terminado: {v}. Só um veredicto POSITIVO deixa aprovar a passagem.",
+  "Done. See the regression report and the promotion result above.":"Concluído. Vê o relatório de regressão e o resultado da passagem acima.",
+  "Read the result above. If it says BLOCKED, or something was not done, cancel the request instead of closing it.":"Lê o resultado acima. Se disser BLOCKED, ou se algo não foi feito, cancela o pedido em vez de o fechar.",
+  "Closing does not undo anything that was pushed":"Fechar não desfaz nada do que foi enviado",
+  "Approving authorises exactly this":"Aprovar autoriza exatamente isto",
+  "The report has no “Ready to publish” section":"O relatório não tem a secção «Ready to publish»",
+  "Ask for changes: the server will not accept an approval without it.":"Pede alterações: o servidor não aceita uma aprovação sem ela.",
+  "Request created, but the suggestion could not be dismissed: dismiss it yourself so it is not created twice.":"Pedido criado, mas não consegui dispensar a sugestão: dispensa-a tu para não ser criada duas vezes.","Close request":"Fechar pedido",
+  "This launches a worker that prepares the <b>commit</b> locally and writes what would be published (branch, remote, commits, PR text). Nothing is pushed until you approve here.":"Isto lança um worker que prepara o <b>commit</b> localmente e escreve o que seria publicado (ramo, remoto, commits, texto do PR). Nada é enviado até aprovares aqui.",
+  "{l}: a worker is preparing the commit locally (nothing is pushed){w}":"{l}: um worker está a preparar o commit localmente (nada é enviado){w}",
+  "{l}: publishing what you approved (push / pull request){w}":"{l}: a publicar o que aprovaste (push / pull request){w}",
+  "{l} ready. Read the report (branch, remote, commits, PR text) and approve to publish, or cancel. Nothing has been pushed.":"{l} pronto. Lê o relatório (ramo, remoto, commits, texto do PR) e aprova para publicar, ou cancela. Nada foi enviado.",
+  "{l} finished. Read the result and close the request.":"{l} terminado. Lê o resultado e fecha o pedido.",
+  "Done. See the report and the publication result above.":"Concluído. Vê o relatório e o resultado da publicação acima.",
+  "Read the result above, then close the request.":"Lê o resultado acima e fecha o pedido.",
+  "Suggested by workers":"Sugeridos por workers","Suggested by {w}":"Sugerido por {w}","Suggested by a worker":"Sugerido por um worker",
+  "Review and create":"Rever e criar","Suggestion dismissed.":"Sugestão dispensada.",
+  "Opens the new-request dialog already filled in: nothing starts until you confirm":"Abre o diálogo de novo pedido já preenchido: nada arranca até confirmares",
   "Request created: worker launched.":"Pedido criado: worker lançado.",
   "{l} ready ({v}). Read the findings and accept the analysis, or ask for fixes.":"{l} pronta ({v}). Lê os achados e aceita a análise, ou pede correções.",
   "Analysis done. The report was archived in the project and in the vault.":"Análise concluída. O relatório ficou arquivado no projeto e no vault.",
@@ -645,13 +1028,30 @@ let LANG="en";
 try{const q=new URLSearchParams(location.search).get("lang"),sv=localStorage.getItem("lang");
   LANG=["pt","en"].includes(q)?q:["pt","en"].includes(sv)?sv:(navigator.language||"").toLowerCase().startsWith("pt")?"pt":"en";}catch(_){}
 const up1=t=>t.charAt(0).toUpperCase()+t.slice(1);
+// <format>
+const _fmt=(k,v)=>k.replace(/\{(\w+)\}/g,(m,x)=>x in v?v[x]:m);
+function fmtDuration(s){s=Math.max(0,Math.round(+s||0));const h=Math.floor(s/3600),m=Math.floor(s%3600/60);return h?`${h}h ${String(m).padStart(2,"0")}m`:(m?`${m}m`:"<1m");}
+function fmtMoney(x){x=+x||0;return x===0?"$0.00":x>=0.01?"$"+x.toFixed(2):"$"+x.toFixed(4);}
+function fmtTokens(n){n=+n||0;return n>=1e6?(n/1e6).toFixed(1)+"M":n>=1e3?Math.round(n/1e3)+"k":String(n);}
+// how long ago, never a time of day: `t` translates "{n} min ago" and friends (it defaults to English)
+function ago(iso,now,t){t=t||_fmt;const ms=(now==null?Date.now():now)-Date.parse(iso);if(!(ms>=0))return "";const m=Math.floor(ms/60000);
+  if(m<1)return t("just now",{});if(m<60)return t("{n} min ago",{n:m});const h=Math.floor(m/60);if(h<24)return t("{n} h ago",{n:h});
+  const d=Math.floor(h/24);return t(d===1?"{n} day ago":"{n} days ago",{n:d});}
+const _PHASES=["spec","plan","plan-validation","build","review","qa","extraction","curation","other"];
+// the tooltip of a request's cost: each phase's share (×N when it ran N workers) and how far the request reached
+function costTip(c,t){t=t||_fmt;
+  const names={spec:"Spec",plan:"Plan","plan-validation":"Plan validation",build:"Implementation",review:"Review",qa:"Question",extraction:"Extraction",curation:"Curation",other:"Other"};
+  const parts=_PHASES.filter(p=>c.by_phase&&c.by_phase[p]).map(p=>`${t(names[p],{})} ${fmtMoney(c.by_phase[p].cost_usd)}${c.by_phase[p].workers>1?` (×${c.by_phase[p].workers})`:""}`);
+  const w=c.workers,s=c.sessions;
+  return parts.join(" · ")+" — "+w+" "+t(w===1?"worker":"workers",{})+", "+s+" "+t(s===1?"work session":"work sessions",{});}
+// </format>
 // A key may end in "@context" (e.g. "ready@plan") to let Portuguese choose gender/number; English ignores the suffix.
 const tt=(en,v)=>{const s0=LANG==="pt"&&PT[en]!==undefined?PT[en]:en.replace(/@\w+$/,"");return v?s0.replace(/\{(\w+)\}/g,(m,k)=>k in v?v[k]:m):s0;};
 function applyStatic(){
   document.documentElement.lang=LANG==="pt"?"pt-PT":"en";
   document.querySelectorAll("#langSw button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.l===LANG)));
   if(LANG!=="pt")return;
-  const skip=["feats","pends","featsDone","workers","stats","pfilt","banner","doms","toast","repos","curInfo"].map(i=>"#"+i).join(",");
+  const skip=["feats","pends","featsDone","workers","stats","pfilt","banner","toast","repos","curInfo"].map(i=>"#"+i).join(",");
   const w=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{acceptNode:n=>{const p=n.parentElement;
     return !p||["SCRIPT","STYLE"].includes(p.tagName)||p.closest("[data-i18n],"+skip)?NodeFilter.FILTER_REJECT:NodeFilter.FILTER_ACCEPT;}});
   const ns=[];while(w.nextNode())ns.push(w.currentNode);
@@ -662,21 +1062,382 @@ function applyStatic(){
 }
 let S=null;
 // the filters live in the URL hash: #q=repo&d=domain
-const F={q:"",d:"all"};
+const F={q:""};
 const $=id=>document.getElementById(id);
 const dom=p=>p.domain||"other";
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const cp=t=>`<button type="button" class="cp" data-cp="${esc(t)}" title="Copiar">${esc(t)}</button>`;
 
+// <routes>
+// the URL hash picks the view: "" / #q=<text> = Today, #/projects = the list, #/project/<name> = one project
+function parseRoute(hash){
+  const h=String(hash||""),today=()=>({view:"today",q:h.startsWith("#/")?"":(new URLSearchParams(h.replace(/^#/,"")).get("q")||"")});
+  if(h==="#/projects"||h==="#/projects/")return {view:"projects"};
+  if(h.startsWith("#/project/")){
+    try{const name=decodeURIComponent(h.slice(10));if(name)return {view:"project",name};}catch(_){}
+  }
+  return today();
+}
+function routeHash(r){
+  if(r.view==="projects")return "#/projects";
+  if(r.view==="project")return "#/project/"+encodeURIComponent(r.name);
+  return r.q?"#"+new URLSearchParams({q:r.q}):"";
+}
+// the Projects list order: "attention" = most urgent first, then more identified fixes, then name; "name" = A-Z (a new array)
+function sortProjects(rows,key){
+  const byName=(a,b)=>String(a.name||"").toLowerCase().localeCompare(String(b.name||"").toLowerCase());
+  const cmp=key==="name"?byName:(a,b)=>((a.attention??4)-(b.attention??4))||((b.fixes||0)-(a.fixes||0))||byName(a,b);
+  return rows.slice().sort(cmp);
+}
+const _rt=(k,v)=>k.replace(/\{(\w+)\}/g,(m,x)=>v&&x in v?v[x]:m);   // English fallback for `t` (the page passes tt)
+// cut at a word boundary, ending with "…"
+function clip(s,n){s=String(s??"");if(s.length<=n)return s;let c=s.slice(0,n-1);const sp=c.lastIndexOf(" ");if(sp>n*0.6)c=c.slice(0,sp);return c.trimEnd()+"…";}
+const stripFrontmatter=s=>String(s??"").replace(/\r\n/g,"\n").replace(/^---\n[\s\S]*?\n---(\n|$)/,"");
+const mdText=s=>String(s).replace(/!\[[^\[\]\n]{0,300}\]\([^)\s]{0,500}\)/g,"").replace(/\[([^\[\]\n]{0,300})\]\([^)\s]{0,500}\)/g,"$1").replace(/\*\*|__|~~|[`*]/g,"").replace(/\s+/g," ").trim();
+// ---- Obsidian syntax in vault text: [[Target|Alias]] wikilinks, ![[embeds]], > [!callout] markers ----
+const _escH=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const _unescH=s=>String(s).replace(/&(amp|lt|gt|quot|#39);/g,(m,k)=>({amp:"&",lt:"<",gt:">",quot:'"',"#39":"'"}[k]));
+const WIKI=/\[\[([^\[\]\n]{1,300}?)\]\]/g;   // bounded: hostile input stays linear
+const dropEmbeds=s=>String(s??"").replace(/!\[\[[^\[\]\n]{0,300}\]\]/g,"");
+// [[folder/Target#Section|Alias]] -> {target:"Target", label:"Alias"} (the alias wins, then the note name, then the section)
+function wikiLabel(inner){
+  const bar=inner.indexOf("|"),t=bar<0?inner:inner.slice(0,bar),alias=bar<0?"":inner.slice(bar+1).trim();
+  const hash=t.indexOf("#"),target=(hash<0?t:t.slice(0,hash)).trim().split("/").pop().trim();
+  return {target,label:alias||target||(hash<0?"":t.slice(hash+1).replace(/^\^/,"").trim())};
+}
+// on text that is ALREADY HTML-escaped: wikilinks to a project of the list become project links, the rest plain text
+function wikiHtml(h,names,hold){
+  const byLow=new Map((names||[]).map(n=>[String(n).toLowerCase(),String(n)])),keep=hold||(x=>x);
+  return dropEmbeds(h).replace(/^([ \t]*(?:&gt;[ \t]*)*)\[!\w+\][+-]?[ \t]*/gm,"$1").replace(WIKI,(m,inner)=>{
+    const {target,label}=wikiLabel(_unescH(inner)),name=byLow.get(target.toLowerCase());
+    return name?keep(`<a class="plink" href="${_escH(routeHash({view:"project",name}))}">${_escH(label)}</a>`):_escH(label);
+  });
+}
+// raw vault text in, safe HTML out
+const cleanWikilinks=(text,names)=>wikiHtml(_escH(text),names);
+// the same as plain text (for the header sentence)
+const wikiPlain=s=>dropEmbeds(s).replace(/^([ \t]*(?:>[ \t]*)*)\[!\w+\][+-]?[ \t]*/gm,"$1").replace(WIKI,(m,inner)=>wikiLabel(inner).label);
+// the first paragraph of prose of a Markdown text (headings, lists, code, quotes, tables and badges skipped), plain, about 220 chars
+function firstParagraph(src){
+  const L=wikiPlain(stripFrontmatter(src)).split("\n").concat("");
+  let buf=[],fence=false;
+  const take=()=>{const s=mdText(buf.join(" "));buf=[];return s;};
+  for(const l of L){
+    if(/^\s*(```|~~~)/.test(l)){fence=!fence;const s=take();if(s)return clip(s,220);continue;}
+    if(fence)continue;
+    if(!l.trim()||/^\s*(#|[-*+]\s|\d+[.)]\s|>|\||<|([-*_]\s*){3,}$)/.test(l)){const s=take();if(s)return clip(s,220);continue;}
+    buf.push(l.trim());
+  }
+  return "";
+}
+// a review finding as the server sends it, "[HIGH] head:** body": its severity, its head and its body
+function fixParts(text){
+  let t=String(text??"").trim(),sev="";
+  const m=t.match(/^\[\s*(CRITICAL|HIGH|MEDIUM|LOW)\s*\]\s*/);
+  if(m){sev=m[1];t=t.slice(m[0].length);}
+  const i=t.indexOf("**");
+  if(i<0)return {sev,head:"",body:t};
+  return {sev,head:t.slice(0,i).replace(/[:\s]+$/,""),body:t.slice(i+2).replace(/^[:\s]+/,"")};
+}
+// what «Create fix request» puts in the new-request dialog (title within the dialog's 120 characters)
+function fixPrefill(project,fix,t){
+  t=t||_rt;const f=fix||{},plain=s=>String(s??"").replace(/\*\*/g,"").trim();
+  const p="head" in f||"body" in f?{sev:f.severity||"",head:plain(f.head),body:plain(f.body)}:fixParts(f.text);   // fixParts: older payloads
+  const what=plain(p.head||p.body).replace(/`/g,"");
+  const from=f.request?"\n\n"+t("From request {id}.",{id:f.request}):"";
+  const text=plain((p.sev?`[${p.sev}] `:"")+(p.head?p.head+(p.body?": ":""):"")+p.body);
+  return {project,kind:"fix",title:what?clip(t("Fix: {t}",{t:clip(what,60)}),120):"",desc:text?clip(text,4000-from.length)+from:""};
+}
+// a stable key of a fix (request, source and head), URL-safe: the button finds its fix by this at click time, never by position
+function fixKey(f){
+  const x=f||{},base=[x.severity,x.head,x.body,x.head||x.body?"":x.text||x.title].map(v=>String(v??"")).join("|");
+  let h=5381;for(let i=0;i<base.length;i++)h=((h*33)^base.charCodeAt(i))>>>0;
+  return encodeURIComponent(`${x.request??""}~${x.source??""}~${h.toString(36)}`);
+}
+// the keys of a list of fixes, unique even for identical findings (later copies get their occurrence number)
+function fixKeys(list){
+  const seen={};
+  return (list||[]).map(f=>{const k=fixKey(f),n=seen[k]=(seen[k]||0)+1;return n>1?k+encodeURIComponent("~"+n):k;});
+}
+// the project page link of a name, or "" when the name is not in the current project list (e.g. "Vault curation")
+function projectHref(name,names){
+  const n=String(name??"");
+  return n&&Array.isArray(names)&&names.includes(n)?routeHash({view:"project",name:n}):"";
+}
+// how many days ago a commit date (YYYY-MM-DD) was: a date distance, never a time of day
+function daysAgo(date,now,t){
+  t=t||_rt;const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(date||""));if(!m)return "";
+  const n=new Date(now==null?Date.now():now),d=Math.round((Date.UTC(n.getFullYear(),n.getMonth(),n.getDate())-Date.UTC(+m[1],+m[2]-1,+m[3]))/864e5);
+  return d<=0?t("today",{}):d===1?t("yesterday",{}):t("{n} days ago",{n:d});
+}
+// </routes>
+let ROUTE={view:"today",q:""};
 function readHash(){
-  const h=new URLSearchParams(location.hash.slice(1));
-  F.q=h.get("q")||"";F.d=h.get("d")||"all";
+  ROUTE=parseRoute(location.hash);
+  F.q=ROUTE.view==="today"?ROUTE.q:F.q;
 }
 function writeHash(){
-  const h=new URLSearchParams();
-  if(F.q)h.set("q",F.q);if(F.d!=="all")h.set("d",F.d);
-  history.replaceState(null,"",h.toString()?"#"+h:location.pathname);
+  if(ROUTE.view!=="today")return;
+  const h=routeHash({view:"today",q:F.q});
+  history.replaceState(null,"",h||location.pathname);
 }
+// ---------- Projects list ----------
+const PROJ={rows:null,failed:false,sort:"attention",html:"",busy:false};
+try{const sv=localStorage.getItem("projSort");if(sv==="name"||sv==="attention")PROJ.sort=sv;}catch(_){}
+const ATT_CHIP=[["acc",()=>ST_LABEL.awaiting],["bad",()=>tt("Needs attention")],["ok",()=>ST_LABEL.working],["",()=>tt("Open")],["",()=>tt("No open requests")]];
+function projRow(r){
+  const a=Math.min(4,Math.max(0,r.attention??4)),[cls,lab]=ATT_CHIP[a],hot=a<=1;
+  const git=r.branch==null?`<span class="pmute">${esc(tt("Not a git repo"))}</span>`
+    :`<span class="pbr">${esc(r.branch)}</span>${r.dirty?`<span class="pdirty">${esc(tt("{n} uncommitted",{n:r.dirty}))}</span>`:""}`
+      +(r.git_age_s==null?"":`<span class="pmute">${esc(tt("as of {t} ago",{t:fmtDuration(r.git_age_s)}))}</span>`);
+  return `<li class="prow a${a}${hot?" hot":""}" role="row" title="${esc(r.git_age_s==null?"":tt("Git info as of {t}",{t:fmtDuration(r.git_age_s)}))}">
+    <div class="pc pname" role="cell">${r.ambiguous?`<span>${esc(r.name)}</span><span class="pmute">${esc(tt("name is not unique"))}</span>`:`<a href="${esc(routeHash({view:"project",name:r.name}))}">${esc(r.name)}</a>`}${r.domain?`<span class="chip">${esc(cap(r.domain))}</span>`:""}</div>
+    <div class="pc pgit" role="cell">${git}</div>
+    <div class="pc preq" role="cell"><span class="pl">${esc(tt("Open requests"))}</span><span class="pn">${+r.open||0}</span><span class="pstt ${cls}">${esc(lab())}</span></div>
+    <div class="pc pfix" role="cell"><span class="pl">${esc(tt("Identified fixes"))}</span><span class="pn${r.fixes?" has":""}">${+r.fixes||0}</span></div>
+    <div class="pc pcost" role="cell"><span class="pl">${esc(tt("Estimated cost"))}</span><span class="pn" title="${esc(tt("Estimated AI cost: tokens at list prices, not your bill."))}">≈ ${esc(fmtMoney(r.cost_usd))}</span></div></li>`;
+}
+function renderProjects(){
+  const el=$("projectsView");
+  const seg=`<div class="seg" role="group" aria-label="${esc(tt("Sort projects"))}">${[["attention",tt("Needs attention")],["name",tt("Name")]].map(([k,l])=>`<button type="button" data-sort="${k}" aria-pressed="${PROJ.sort===k}">${esc(l)}</button>`).join("")}</div>`;
+  let body;
+  if(PROJ.rows===null)body=`<p class="pmsg">${esc(PROJ.failed?tt("Could not load the projects."):tt("Loading projects…"))}</p>`;
+  else{
+    const rows=sortProjects(PROJ.rows.filter(r=>!F.q||matchName(r.name,F.q)),PROJ.sort);
+    body=rows.length?`<div class="phead" role="presentation"><span>${esc(tt("Project"))}</span><span>${esc(tt("Branch"))}</span><span>${esc(tt("Open requests"))}</span><span>${esc(tt("Identified fixes"))}</span><span title="${esc(tt("Estimated AI cost: tokens at list prices, not your bill."))}">${esc(tt("Estimated cost"))}</span></div><ul class="plist" role="table" aria-label="${esc(tt("Projects"))}">${rows.map(projRow).join("")}</ul>`
+      :`<div class="empty">${esc(F.q?tt("No projects for this filter."):tt("No projects."))}</div>`;
+  }
+  const html=`<div class="ptools"><h2>${esc(tt("Projects"))}</h2>${seg}</div>${body}`;
+  if(html===PROJ.html)return;                 // the 8 s poll: nothing changed, keep focus and hover state
+  PROJ.html=html;
+  swapHtml(el,html);
+}
+// replace a view's markup and give focus back to the same control (sort button, link, document, fix button)
+function swapHtml(el,html){
+  const ae=document.activeElement,ds=ae&&el.contains(ae)?ae.dataset:null;
+  const keep=!ds?"":ds.sort?`[data-sort="${CSS.escape(ds.sort)}"]`:ds.doc?`[data-doc="${CSS.escape(ds.doc)}"]`:ds.fixreq?`[data-fixreq="${CSS.escape(ds.fixreq)}"]`
+    :ae.getAttribute("href")?`a[href="${CSS.escape(ae.getAttribute("href"))}"]`:"";
+  el.innerHTML=html;
+  if(keep){const n=el.querySelector(keep);if(n)n.focus();}
+}
+// GET with the token and the language; null when the token is stale (the page reloads itself)
+async function getJson(path){
+  const r=await fetch(path+(path.includes("?")?"&":"?")+"t="+T,{headers:{"X-Lang":LANG}});
+  if(r.status===403){reloadForNewToken();return null;}
+  const data=await r.json().catch(()=>({error:tt("Invalid response")}));
+  return {ok:r.ok,status:r.status,data};
+}
+async function refreshProjects(){
+  if(PROJ.busy)return;                        // one request at a time: a slow one cannot stack or be overtaken
+  PROJ.busy=true;
+  try{const r=await getJson("/api/projects");
+    if(!r)return;
+    if(!r.ok)throw new Error(String(r.status));
+    PROJ.rows=r.data.projects||[];PROJ.failed=false;
+  }catch(e){if(!PROJ.failed)toast(tt("Could not load the projects."),true);PROJ.failed=true;}
+  finally{PROJ.busy=false;}
+  if(ROUTE.view==="projects")renderProjects();
+}
+$("projectsView").addEventListener("click",e=>{
+  const b=e.target.closest("[data-sort]");if(!b)return;
+  PROJ.sort=b.dataset.sort;try{localStorage.setItem("projSort",PROJ.sort);}catch(_){}
+  renderProjects();const nb=document.querySelector(`#projectsView [data-sort="${PROJ.sort}"]`);if(nb)nb.focus();
+});
+function syncChrome(){
+  $("searchBox").hidden=ROUTE.view==="project";
+  $("tabToday").setAttribute("href",routeHash({view:"today",q:F.q})||"#");
+}
+// ---------- project page ----------
+// every block says where its data came from and is left out when it has nothing to show
+const PJ={name:"",data:null,state:"loading",failed:false,html:"",busy:false,open:{}};
+function projLink(name,cls){
+  const href=projectHref(name,S?S.projects.map(p=>p.name):[]);
+  if(!href)return cls?esc(cap(name)||"-"):`<span class="fp">${esc(cap(name))}</span>`;   // not a project (any more): plain text
+  return `<a class="${[...new Set([cls||"fp","plink"])].join(" ")}" href="${esc(href)}">${esc(cap(name))}</a>`;
+}
+const projCell=n=>projLink(n,"plink");
+const agoS=s=>ago(new Date(Date.now()-Math.max(0,+s||0)*1000).toISOString(),Date.now(),tt);
+const ESTIMATE=()=>tt("Estimated AI cost: tokens at list prices, not your bill.");
+function pjBlock(id,title,body,source,cls,count){
+  return `<section class="pjb${cls?" "+cls:""}" aria-labelledby="pj-${id}"><header class="pjbh"><h2 id="pj-${id}">${esc(title)}${count?`<em>${count}</em>`:""}</h2>${source?`<span class="pjsrc">${esc(source)}</span>`:""}</header>${body}</section>`;
+}
+function stageName(r){const s=stg(r).find(x=>x[0]===r.stage);return s?s[1]:cap(r.stage||"");}
+const STATUS_CHIP={awaiting:"acc",failed:"bad",working:"ok"};
+function pjHeader(h,ov){
+  const desc=firstParagraph(ov&&ov.text),d=h.domain||"";
+  const facts=h.git?[
+    `<div><dt>${esc(tt("Branch"))}</dt><dd class="mono">${esc(h.branch)}</dd></div>`,
+    `<div><dt>${esc(tt("Changes"))}</dt><dd>${h.dirty?`<span class="pdirty">${esc(tt("{n} uncommitted",{n:h.dirty}))}</span>`:esc(tt("None uncommitted"))}</dd></div>`,
+    h.ahead?`<div><dt>${esc(tt("Not pushed"))}</dt><dd>${esc(tt("{n} commits ahead",{n:h.ahead}))}</dd></div>`:"",
+    h.last_date||h.last_msg?`<div class="wide"><dt>${esc(tt("Last commit"))}</dt><dd>${esc(h.last_msg||"")}${h.last_date?` <span class="pmute">· ${esc(h.last_date)}, ${esc(daysAgo(h.last_date,Date.now(),tt))}</span>`:""}</dd></div>`:""
+  ].join(""):`<div><dt>Git</dt><dd class="pmute">${esc(tt("Not a git repo"))}</dd></div>`;
+  const srcs=[h.git?tt("Git info as of {t}",{t:fmtDuration(h.git_age_s)}):"",
+    desc?(ov.source==="vault"?tt("description from the vault note"):tt("description from README.md")):""].filter(Boolean).join(" · ");
+  return `<header class="pjhead"><a class="pjback" href="#/projects"><span aria-hidden="true">←</span> ${esc(tt("Back to projects"))}</a>
+    <div class="pjtitle"><h1>${esc(h.name)}</h1>${d?`<span class="dom d-${esc(d)}">${esc(cap(d))}</span>`:""}</div>
+    ${desc?`<p class="pjdesc">${esc(desc)}</p>`:""}
+    <dl class="pjfacts">${facts}</dl>
+    ${h.path?`<p class="pjpath">${cp(h.path)}</p>`:""}
+    ${srcs?`<span class="pjsrc">${esc(srcs)}</span>`:""}</header>`;
+}
+function pjFix(f,i,todos,key){
+  const sev=String(f.severity||"HIGH").toUpperCase(),todo=f.source==="todo";
+  let head,body,from,act="";
+  if(todo){
+    const td=todos.find(x=>x.id===f.request)||{};
+    head=esc(td.title||f.title||f.text);body=td.summary?esc(td.summary):"";from=tt("Blocked session to-do: create its request from Today.");
+  }else{
+    const p="head" in f||"body" in f?{head:f.head||"",body:f.body||""}:fixParts(f.text);   // fixParts: older payloads
+    head=mdInline(p.head||p.body);body=p.head?mdInline(p.body):"";
+    from=f.source==="plan-review"?tt("From the plan validation of “{r}”",{r:f.title||f.request}):tt("From the independent review of “{r}”",{r:f.title||f.request});
+    act=`<button class="btn sm pri" type="button" data-fixreq="${esc(key)}">${esc(tt("Create fix request"))}</button>`;
+  }
+  return `<li class="pjfix sev-${esc(sev.toLowerCase())}"><span class="sev">${esc(sev)}</span><div><div class="pjfh">${head}</div>${body?`<p class="pjfb">${body}</p>`:""}<div class="pjfs">${esc(from)}</div></div>${act}</li>`;
+}
+function pjAttention(d){
+  const fx=d.fixes||[],aw=(d.requests.open||[]).filter(r=>r.status==="awaiting");
+  if(!fx.length&&!aw.length)return "";
+  const today=esc(routeHash({view:"today",q:d.header.name})||"#");
+  const fixes=fx.length?`<ul class="pjfixes">${(ks=>fx.map((f,i)=>pjFix(f,i,d.todos||[],ks[i])))(fixKeys(fx)).join("")}</ul>`:"";
+  const aws=aw.length?`${fx.length?`<h3 class="pjsub">${esc(tt("Awaiting your decision"))}</h3>`:""}<ul class="pjaws">${aw.map(r=>
+    `<li class="pjaw"><span class="pstt acc">${esc(ST_LABEL.awaiting)}</span><span class="pjrt">${esc(r.title)}</span><span class="pjstage">${esc(stageName(r))}</span><a class="pjgo" href="${today}">${esc(tt("Decide on Today"))} →</a></li>`).join("")}</ul>`:"";
+  const src=[fx.some(f=>f.source!=="todo")?tt("from the independent reviews"):"",fx.some(f=>f.source==="todo")?tt("from your session to-dos"):"",aw.length?tt("from your requests"):""].filter(Boolean).join(" · ");
+  return pjBlock("att",tt("Needs attention"),fixes+aws,src,"pjatt"+(fx.length?"":" calm"),fx.length+aw.length);
+}
+function pjReqRow(r){
+  const cost=r.cost_usd!=null&&r.cost_usd>0;
+  return `<li class="pjreq"><span class="pjrt">${esc(r.title)}<span class="kind">${esc(KIND_LABEL[r.kind]||KIND_LABEL.feature)}</span></span>
+    <span class="pjmeta"><span class="pjstage">${esc(stageName(r))}</span><span class="pstt ${STATUS_CHIP[r.status]||""}">${esc(ST_LABEL[r.status]||cap(r.status||""))}</span></span>
+    <span class="pjcost${cost?"":" none"}"${cost?` title="${esc(ESTIMATE())}"`:""}>${cost?"≈ "+esc(fmtMoney(r.cost_usd)):"—"}</span></li>`;
+}
+function pjRequests(rq){
+  const open=rq.open||[],closed=rq.closed||[];
+  if(!open.length&&!closed.length)return "";
+  const body=(open.length?`<ul class="pjreqs">${open.map(pjReqRow).join("")}</ul>`:`<p class="pjquiet">${esc(tt("No open requests"))}</p>`)
+    +(closed.length?`<details class="pjclosed" data-pjopen="closed"${PJ.open.closed?" open":""}><summary>${esc(tt("Closed"))}<em>${closed.length}</em></summary><ul class="pjreqs">${closed.map(pjReqRow).join("")}</ul></details>`:"");
+  return pjBlock("req",tt("Requests"),body,tt("from the Chief's requests · costs are estimates"),"",open.length||"");
+}
+function pjOverview(ov,desc){
+  if(!ov||!ov.source)return "";
+  const t=dropEmbeds(stripFrontmatter(ov.text)).replace(/^\s*#\s[^\n]*\n?/,"");       // the title is already the page heading
+  const blocks=t.split(/\n\s*\n/).filter(b=>b.trim()&&!/^\s*#/.test(b));
+  if(!blocks.length||(blocks.length===1&&firstParagraph(t)===desc))return "";  // nothing beyond the header's sentence
+  return pjBlock("ov",tt("Overview and architecture"),`<div class="pjov"><div class="md">${md(t)}</div></div>`,
+    ov.source==="vault"?tt("from the vault note"):tt("from README.md"));
+}
+const DOC_GROUPS=[["files",["readme","claude","other"]],["spec",["spec"]],["plan",["plan"]],["analysis",["analysis"]]];
+function pjDocs(docs){
+  if(!(docs||[]).length)return "";
+  const label={files:tt("Project files"),spec:tt("Specs"),plan:tt("Plans"),analysis:tt("Analyses")};
+  const groups=DOC_GROUPS.map(([k,kinds])=>[k,docs.filter(x=>kinds.includes(x.kind))]).filter(g=>g[1].length);
+  const body=`<div class="pjdocs">${groups.map(([k,list])=>`<div class="pjdg"><h3>${esc(label[k])}<em>${list.length}</em></h3><ul>${list.map(x=>
+    `<li><button type="button" class="pjdoc" data-doc="${esc(x.path)}"><span class="pjdt">${esc(x.title||x.path)}</span><span class="pjdp">${esc(x.path)}</span><span class="pjda">${esc(tt("updated {t}",{t:agoS(x.age_s)}))}</span></button></li>`).join("")}</ul></div>`).join("")}</div>`;
+  return pjBlock("docs",tt("Documents"),body,tt("from the project folder"),"",docs.length);
+}
+function pjTools(t){
+  const cmds=(t&&t.commands)||[],cl=(t&&t.claude)||{};
+  const groups=[["skills",tt("Skills")],["commands",tt("Commands")],["agents",tt("Agents")],["mcp",tt("MCP servers")],["hooks",tt("Hooks")]].filter(([k])=>(cl[k]||[]).length);
+  if(!cmds.length&&!groups.length)return "";
+  const chips=l=>`<div class="pjchips">${l.map(([n,tip])=>`<code class="pjchip"${tip?` title="${esc(tip)}"`:""}>${esc(n)}</code>`).join("")}</div>`;
+  const body=(cmds.length?`<div class="pjtg"><h3>${esc(tt("Project commands"))}</h3>${chips(cmds.map(c=>[c.name,c.source?tt("found in {f}",{f:c.source}):""]))}</div>`:"")
+    +(groups.length?`<div class="pjtg"><h3>${esc(tt("Claude Code in this project"))}</h3><dl class="pjdl">${groups.map(([k,l])=>`<div><dt>${esc(l)}</dt><dd>${chips(cl[k].map(n=>[n,""]))}</dd></div>`).join("")}</dl></div>`:"");
+  return pjBlock("tools",tt("Tools"),body,tt("from the project folder, names only"));
+}
+function pjCosts(c){
+  if(!c||!(c.total_usd>0||(c.by_request||[]).length))return "";
+  const total=+c.total_usd||0,share=v=>total>0?Math.min(100,Math.round(100*(+v||0)/total)):0;
+  const kv=rows=>`<ul class="pjkv">${rows.map(([k,v])=>`<li style="--w:${share(v)}%"><span>${esc(k)}</span><span>${esc(fmtMoney(v))}</span></li>`).join("")}</ul>`;
+  const byReq=(c.by_request||[]).slice().sort((a,b)=>b.cost_usd-a.cost_usd).map(r=>[r.title||r.id,r.cost_usd]);
+  const byModel=Object.entries(c.by_model||{}).sort((a,b)=>b[1]-a[1]);
+  const body=`<div class="pjtotal" title="${esc(ESTIMATE())}"><strong>≈ ${esc(fmtMoney(total))}</strong><span>${esc(tt("estimated AI cost"))}</span></div>`
+    +(byReq.length?`<h3 class="pjkvh">${esc(tt("By request"))}</h3>${kv(byReq)}`:"")+(byModel.length?`<h3 class="pjkvh">${esc(tt("By model"))}</h3>${kv(byModel)}`:"")
+    +`<p class="pjnote">${esc(ESTIMATE())}</p>`;
+  return pjBlock("cost",tt("Costs"),body,tt("from your Claude Code logs"));
+}
+const LIVE=["working","running","blocked","idle","waiting"];
+function pjWorker(w){
+  const ph={spec:tt("Spec"),plan:tt("Plan"),"plan-validation":tt("Plan validation"),build:tt("Implementation"),review:tt("Review"),qa:tt("Question")}[w.phase]||"";
+  const live=LIVE.includes(w.state);
+  return `<li class="pjw"><b>${esc(w.name||w.id)}</b><span class="pstt ${live?(["working","running"].includes(w.state)?"ok":"acc"):""}">${esc(W_LABEL[w.state]||cap(w.state||""))}</span>
+    <span class="pmute">${esc([ph,w.model,w.started?ago(w.started,Date.now(),tt):""].filter(Boolean).join(" · "))}</span></li>`;
+}
+function pjWork(ws,todos){
+  ws=ws||[];todos=todos||[];
+  if(!ws.length&&!todos.length)return "";
+  const on=ws.filter(w=>LIVE.includes(w.state)),old=ws.filter(w=>!LIVE.includes(w.state));
+  const wl=ws.length?`${todos.length?`<h3 class="pjsep">${esc(tt("Workers"))}</h3>`:""}${on.length?`<ul class="pjws">${on.map(pjWorker).join("")}</ul>`:`<p class="pjquiet">${esc(tt("No open workers."))}</p>`}`
+    +(old.length?`<details class="pjhist" data-pjopen="workers"${PJ.open.workers?" open":""}><summary>${esc(tt("History ({n} finished or stopped)",{n:old.length}))}</summary><ul class="pjws">${old.map(pjWorker).join("")}</ul></details>`:""):"";
+  const tl=todos.length?`<h3 class="pjsep">${esc(tt("Session to-dos"))}</h3><ul class="pjws">${todos.map(x=>`<li class="pjtodo"><div class="ptop"><strong>${esc(x.title)}</strong><span class="pst ${esc(x.status)}">${esc(PEND_LABEL[x.status]||cap(x.status||""))}</span></div>${x.summary?`<p>${esc(x.summary)}</p>`:""}</li>`).join("")}</ul>`:"";
+  return pjBlock("work",tt("Workers and to-dos"),wl+tl,tt("from the Chief's workers and your Claude Code sessions"));
+}
+function projectHtml(){
+  const back=`<a class="pjback" href="#/projects"><span aria-hidden="true">←</span> ${esc(tt("Back to projects"))}</a>`;
+  if(PJ.state==="missing")return `<div class="pjmiss">${back}<h1>${esc(PJ.name)}</h1><p>${esc(tt("There is no project with this name, or it is hidden."))}</p></div>`;
+  if(!PJ.data)return `<div class="pjmiss">${back}<h1>${esc(PJ.name)}</h1><p>${esc(PJ.failed?tt("Could not load the project."):tt("Loading project…"))}</p></div>`;
+  const d=PJ.data,desc=firstParagraph(d.overview&&d.overview.text);
+  const main=[pjAttention(d),pjRequests(d.requests||{}),pjOverview(d.overview,desc),pjDocs(d.docs)].join("");
+  const side=[pjTools(d.tools),pjCosts(d.costs),pjWork(d.workers,d.todos)].join("");
+  const none=!main&&!side?`<p class="pjquiet">${esc(tt("No requests, documents or tools for this project yet."))}</p>`:"";
+  return `<div class="pj">${pjHeader(d.header,d.overview)}${none}<div class="pjgrid${side&&main?"":" one"}">${main?`<div class="pjmain">${main}</div>`:""}${side?`<aside class="pjside">${side}</aside>`:""}</div></div>`;
+}
+function paintProject(){
+  const html=projectHtml();
+  if(html===PJ.html)return;                   // the 8 s poll: nothing changed, keep focus, scroll and open details
+  PJ.html=html;
+  swapHtml($("projectView"),html);
+}
+function renderProject(name){
+  if(PJ.name!==name){Object.assign(PJ,{name,data:null,state:"loading",failed:false,open:{}});window.scrollTo(0,0);}
+  paintProject();refreshProject();
+}
+async function refreshProject(){
+  if(PJ.busy)return;                          // one request at a time
+  PJ.busy=true;const name=PJ.name;
+  try{const r=await getJson("/api/project?name="+encodeURIComponent(name));
+    if(r&&name===PJ.name){
+      if(r.status===404){PJ.data=null;PJ.state="missing";}
+      else if(!r.ok)throw new Error(r.data.error||String(r.status));
+      else{PJ.data=r.data;PJ.state="ok";PJ.failed=false;}
+    }
+  }catch(e){if(name===PJ.name){if(!PJ.failed)toast(tt("Could not load the project."),true);PJ.failed=true;}}
+  finally{PJ.busy=false;}
+  if(ROUTE.view!=="project")return;
+  if(name!==PJ.name){refreshProject();return;}   // another project was opened while this one was loading
+  paintProject();
+}
+let docSeq=0;
+async function openDoc(path){
+  const seq=++docSeq,name=PJ.name;
+  $("docTitle").textContent=path;$("docNote").hidden=true;$("docBody").innerHTML=`<p class="pjquiet">${esc(tt("Loading…"))}</p>`;
+  $("docD").showModal();
+  try{const r=await getJson("/api/project/doc?name="+encodeURIComponent(name)+"&path="+encodeURIComponent(path));
+    if(!r||seq!==docSeq)return;
+    if(!r.ok)throw new Error(r.data.error||tt("Error"));
+    $("docBody").innerHTML=md(stripFrontmatter(r.data.text));$("docNote").hidden=!r.data.truncated;$("docD").scrollTop=0;
+  }catch(e){if(seq!==docSeq)return;$("docD").close();toast(tt("Could not open the document: {e}",{e:e.message}),true);}
+}
+$("docClose").addEventListener("click",()=>$("docD").close());
+$("projectView").addEventListener("click",e=>{
+  const fb=e.target.closest("[data-fixreq]");
+  if(fb&&PJ.data){
+    const fl=PJ.data.fixes||[],f=fl[fixKeys(fl).indexOf(fb.dataset.fixreq)];
+    if(f)openNewRequest(fixPrefill(PJ.data.header.name,f,tt));else toast(tt("This finding is no longer listed."),true);
+    return;
+  }
+  const db=e.target.closest("[data-doc]");
+  if(db)openDoc(db.dataset.doc);
+});
+$("projectView").addEventListener("toggle",e=>{const k=e.target.dataset&&e.target.dataset.pjopen;if(k)PJ.open[k]=e.target.open;},true);
+// ---------- end project page ----------
+function showView(){
+  const v=ROUTE.view;
+  $("todayView").hidden=v!=="today";$("projectsView").hidden=v!=="projects";$("projectView").hidden=v!=="project";
+  document.querySelectorAll("#tabs a").forEach(a=>{
+    if(a.dataset.view===(v==="today"?"today":"projects"))a.setAttribute("aria-current","page");else a.removeAttribute("aria-current");});
+  syncChrome();
+  if(v==="projects"){renderProjects();refreshProjects();}else if(v==="project")renderProject(ROUTE.name);
+}
+window.addEventListener("hashchange",()=>{readHash();$("q").value=F.q;showView();render();});
 const matchName=(s,q)=>String(s||"").toLowerCase().includes(q.toLowerCase());
 
 function render(){
@@ -685,22 +1446,18 @@ function render(){
   $("repos").innerHTML=all.map(p=>`<option value="${esc(p.name)}">`).join("");
   if(!SET)$("domList").innerHTML=[...new Set(all.map(dom).filter(d=>d&&d!=="other"))].sort().map(d=>`<option value="${esc(cap(d))}">`).join("");
 
-  const domOf=new Map(all.map(p=>[p.name,dom(p)]));
-  const open=[...(S.features||[]).filter(f=>!["done","cancelled"].includes(f.status)),...(S.pending||[])];
-  const doms=["all",...[...new Set(all.map(dom))].sort()];
-  $("doms").innerHTML=doms.map(d=>{
-    const n=d==="all"?open.length:open.filter(x=>domOf.get(x.project)===d).length;
-    return `<button type="button" aria-pressed="${d===F.d}" data-d="${esc(d)}">${esc(d==="all"?tt("All"):cap(d))}${n?`<i>${n}</i>`:""}</button>`;
-  }).join("");
-  const names=new Set(all.filter(p=>(!F.q||matchName(p.name,F.q))&&(F.d==="all"||dom(p)===F.d)).map(p=>p.name));
-  const filtering=!!F.q||F.d!=="all";
+  const names=new Set(all.filter(p=>(!F.q||matchName(p.name,F.q))).map(p=>p.name));
+  const filtering=!!F.q;
 
   const ws=S.workers.filter(w=>filtering?names.has(w.project):true);
 
   const fts=(S.features||[]).filter(f=>filtering?names.has(f.project):true);
   const pds=(S.pending||[]).filter(x=>filtering?names.has(x.project):true);
   const waiting=(S.features||[]).filter(f=>f.status==="awaiting").length;
-  $("banner").innerHTML=S.claude_ok===false?`<p class="banner">${tt("I cannot talk to <b>claude</b> (agents). Worker status may be out of date.")}</p>`:"";
+  $("apNote").hidden=!S.vault;
+  $("banner").innerHTML=(S.demo?`<p class="banner demo">${tt("Demo mode: sample data and simulated workers. Nothing here runs a real worker or touches your projects.")}</p>`:"")
+    +limitBanner(S.limits)
+    +(S.claude_ok===false?`<p class="banner">${tt("I cannot talk to <b>claude</b> (agents). Worker status may be out of date.")}</p>`:"");
   const act=S.workers.filter(w=>["working","running"].includes(w.state)).length;
   const parados=S.workers.filter(w=>["blocked","idle","waiting"].includes(w.state)).length;
   $("stats").innerHTML=
@@ -708,27 +1465,38 @@ function render(){
     `<div class="stat ${(S.pending||[]).length?'hot':''}"><strong>${(S.pending||[]).length}</strong><span>${tt("To-dos")}</span></div>`+
     `<div class="stat"><strong>${act}</strong><span>${tt("Working")}</span></div>`+
     (parados?`<div class="stat" title="${esc(tt("Workers that finished what they had to do and left the session open waiting for input (you can close them with claude stop <id>)"))}"><strong>${parados}</strong><span>${tt("Idle sessions")}</span></div>`:"")+
-    `<div class="stat"><strong>${esc(S.updated)}</strong><span>${tt("Updated")}</span></div>`;
+    planMeters(S.plan)+
+    (S.session?`<button class="stat sess" id="sessBtn" type="button" title="${esc(tt("Work session: active time and estimated AI cost. Click for the details."))}"><strong>${esc(fmtDuration(S.session.active_s))}</strong><span>${tt("Session")}</span><em>${esc(fmtMoney(S.session.cost_usd))}${S.session.unpriced?"+":""}</em></button>`:"");
 
   renderFeatures(fts,filtering);
   renderPending(pds,filtering);
+  renderProposals((S.proposals||[]).filter(x=>filtering?names.has(x.project):true));
   $("nWork").textContent=ws.filter(w=>["working","running","blocked","idle","waiting"].includes(w.state)).length;
   {const cu=S.curation||{attempts:0},ci=$("curInfo");   // only warns when the automation stopped because of failures
-    ci.textContent=cu.attempts>=3?tt("Automatic curation stopped after failures"):"";ci.className="curinfo bad";}
+    const pz=cu.paused;
+    ci.textContent=pz?(pz.until_s==null?tt("Automatic curation paused by a usage limit"):tt("Automatic curation paused by a usage limit, continues in {t}",{t:fmtDuration(pz.until_s)})):cu.attempts>=3?tt("Automatic curation stopped after failures"):"";
+    ci.className=pz||cu.attempts<3?"curinfo":"curinfo bad";}
   $("searchBox").classList.toggle("has",!!F.q);
 
   {const live=w=>["working","running","blocked","idle","waiting"].includes(w.state);
-    const row=w=>`<tr><td>${esc(w.name)}<br><span class="path">${cp('claude attach '+w.id)}</span></td><td>${esc(cap(w.project))}</td><td>${esc(W_LABEL[w.state]||cap(w.state))}</td><td>${esc(w.task.slice(0,160))}</td><td class="m">${esc(w.started.replace("T"," "))}</td></tr>`;
+    const row=w=>`<tr><td>${esc(w.name)}<br><span class="path">${cp('claude attach '+w.id)}</span></td><td>${projCell(w.project)}</td><td>${esc(W_LABEL[w.state]||cap(w.state))}</td><td>${esc(w.task.slice(0,160))}</td><td class="m">${esc(ago(w.started,Date.now(),tt))}</td></tr>`;
     const tbl=l=>`<div class="wrap"><table><thead><tr><th>Worker</th><th>${tt("Project")}</th><th>${tt("Status")}</th><th>${tt("Task")}</th><th>${tt("Started")}</th></tr></thead><tbody>${l.map(row).join("")}</tbody></table></div>`;
     const on=ws.filter(live),old=ws.filter(w=>!live(w));
-    $("workers").innerHTML=(on.length?tbl(on):`<div class="empty">${filtering?tt("No open workers for this filter."):tt("No open workers.")}</div>`)+(old.length?`<details><summary class="m">${tt("History ({n} finished or stopped)",{n:old.length})}</summary>${tbl(old)}</details>`:"");}
+    $("workers").innerHTML=(on.length?tbl(on):`<div class="empty">${filtering?tt("No open workers for this filter."):tt("No open workers.")}</div>`)+(old.length?`<details><summary class="m">${tt("History of this session ({n} finished or stopped)",{n:old.length})}</summary>${tbl(old)}</details>`:"");}
 }
 
 // ---------- features ----------
+// what this request has cost in all (every worker, every round, every work session); nothing until a worker has been measured
+const PLAN_LABEL={five_hour:"5h",seven_day:"7d"};
+function meter(k,w,tt){return `<span class="meter ${esc(w.level)}" title="${esc(tt(k==="five_hour"?"Share of your 5-hour allowance used":"Share of your 7-day allowance used"))}${w.expired?" · "+esc(tt("window has reset")):w.resets_in_s?" · "+esc(tt("resets in {t}",{t:fmtDuration(w.resets_in_s)})):""}"><span>${PLAN_LABEL[k]}</span><i><b style="width:${Math.min(100,w.percent)}%"></b></i><strong>${Math.round(w.percent)}%</strong></span>`;}
+function planMeters(p){if(!p||!p.connected)return "";return ["five_hour","seven_day"].map(k=>p.windows[k]?`<button class="meter-btn" type="button" id="plan_${k}" style="all:unset">${meter(k,p.windows[k],tt)}</button>`:"").join("");}
+function limitBanner(L){return (L||[]).length?`<p class="banner">${tt("{n} worker(s) paused by a usage limit.",{n:L.length})} ${L.map(x=>x.resumes_in_s==null?"":(x.auto?tt("Continues by itself in {t}.",{t:fmtDuration(x.resumes_in_s)}):tt("The Chief restarts the phase in {t}.",{t:fmtDuration(x.resumes_in_s)}))).filter((v,i,a)=>v&&a.indexOf(v)===i).join(" ")}</p>`:"";}
+const pausedNote=f=>f.paused?`<p class="fdesc">⏸ ${tt("Paused by a usage limit")}${f.paused.until?"":""} — ${f.paused.auto?tt("Claude Code continues by itself."):tt("restarts once the limit has reset.")}${f.limit_resumes?" "+tt("Restarted {n} time(s).",{n:f.limit_resumes}):""}</p>`:"";
+const costChip=f=>f.cost&&f.cost.workers&&(f.cost.cost_usd>0||f.cost.unpriced)?`<span class="fcost" title="${esc(costTip(f.cost,tt))}">≈ ${esc(fmtMoney(f.cost.cost_usd))}${f.cost.unpriced?"+":""}</span>`:"";
 const STG=[["spec",tt("Spec")],["plan",tt("Plan")],["build",tt("Implementation")],["review",tt("Review")]];
-const KIND_LABEL={feature:tt("Feature"),fix:tt("Bug fix"),analysis:tt("Analysis"),maintenance:tt("Maintenance")};
-const KIND_STG={feature:["spec","plan","build","review"],fix:["spec","plan","build","review"],maintenance:["plan","build","review"],analysis:["build","review"]};
-const KIND_NAME={fix:{spec:tt("Diagnosis"),build:tt("Fix@noun")},analysis:{build:tt("Analysis"),review:tt("Verification")}};
+const KIND_LABEL={feature:tt("Feature"),fix:tt("Bug fix"),analysis:tt("Analysis"),maintenance:tt("Maintenance"),ship:tt("Publish"),release:tt("Release")};
+const KIND_STG={feature:["spec","plan","build","review"],fix:["spec","plan","build","review"],maintenance:["plan","build","review"],analysis:["build","review"],ship:["build","review"],release:["plan","build","review"]};
+const KIND_NAME={fix:{spec:tt("Diagnosis"),build:tt("Fix@noun")},analysis:{build:tt("Analysis"),review:tt("Verification")},ship:{build:tt("Prepare commit"),review:tt("Publish")},release:{plan:tt("Release plan"),build:tt("Regression"),review:tt("Promotion")}};
 const stg=f=>{const k=KIND_STG[f.kind]?f.kind:"feature";return KIND_STG[k].map(id=>[id,(KIND_NAME[k]||{})[id]||STG.find(x=>x[0]===id)[1]]);};
 const ST_LABEL={working:tt("Working"),awaiting:tt("To decide"),failed:tt("Failed"),done:tt("Done@status"),cancelled:tt("Cancelled")};
 const W_LABEL={working:tt("Working"),running:tt("Working"),blocked:tt("Blocked"),idle:tt("Idle"),waiting:tt("Waiting")};
@@ -763,6 +1531,14 @@ function statusLine(f){
       :checking?tt("An independent validator is checking the plan against the spec and the code")
       :f.stage==="plan"&&f.pv&&f.pv.fixes>0&&f.history.some(h=>h.event==="plan fixes")?tt("The plan is being fixed after validation (round {n} of 2)",{n:f.pv.fixes})
       :tt("A worker is writing")});
+  const shipLine=f.kind==="ship"?(f.status==="working"?(f.stage==="build"?tt("{l}: a worker is preparing the commit locally (nothing is pushed){w}",{l,w}):tt("{l}: publishing what you approved (push / pull request){w}",{l,w}))
+    :f.status==="awaiting"?(f.stage==="build"?tt("{l} ready. Read the report (branch, remote, commits, PR text) and approve to publish, or cancel. Nothing has been pushed.",{l})+" "+tt("To talk to the worker: {cmd}",{cmd:cp("claude attach "+f.worker_id)})
+      :tt("{l} finished. Read the result and close the request.",{l})):null)
+    :f.kind==="release"?(f.status==="working"?({plan:tt("{l}: a worker is writing the release plan (nothing is executed){w}",{l,w}),build:tt("{l}: an independent worker is running the regression tests on the candidate{w}",{l,w}),
+        review:tt("{l}: carrying out the promotion you approved{w}",{l,w})}[f.stage])
+    :f.status==="awaiting"?({plan:tt("{l} ready. Read the candidate, the tests, the promotion steps and the rollback, then approve to run the regression, or ask for changes.",{l}),
+        build:tt("{l} finished: {v}. Only a POSITIVE verdict lets you approve the promotion.",{l,v:relVerdictLabel(f.artifacts.build)}),
+        review:tt("{l} finished. Read the result and close the request.",{l})}[f.stage]+" "+tt("To talk to the worker: {cmd}",{cmd:cp("claude attach "+f.worker_id)})):null):null;
   const attach=tt("To talk to the worker: {cmd}",{cmd:cp("claude attach "+f.worker_id)});
   let awaiting;
   if(f.stage==="build"&&f.history.some(h=>h.event==="automatic review failed"))awaiting=tt("{l} ready, but the automatic review did not start: click “Send to review”.",{l});
@@ -774,10 +1550,10 @@ function statusLine(f){
       none:tt("{l} {ready} and no open questions. Read {what} and approve, or ask for changes.",{l,ready,what}),
       unparsed:tt("{l} {ready}. It has text under “Open questions” that I could not turn into a form: read {what} and answer in the decision field, or approve.",{l,ready,what})}[st];
   }
-  const m={working,
-    awaiting:`${awaiting} ${attach}`,
+  const m={working:shipLine&&f.status==="working"?shipLine:working,
+    awaiting:shipLine&&f.status==="awaiting"?shipLine:`${awaiting} ${attach}`,
     failed:tt("{l}: the worker finished without writing the result{w}. Check {logs} or try again.",{l,w,logs:`<span class="path">claude logs ${esc(f.worker_id)}</span>`}),
-    done:f.kind==="analysis"?tt("Analysis done. The report was archived in the project and in the vault."):(()=>{const ex=parseExecution(f.artifacts.build);
+    done:f.kind==="release"?tt("Done. See the regression report and the promotion result above."):f.kind==="ship"?tt("Done. See the report and the publication result above."):f.kind==="analysis"?(S.vault?tt("Analysis done. The report was archived in the project and in the vault."):tt("Analysis done. The report was archived in the project.")):(()=>{const ex=parseExecution(f.artifacts.build);
       return ex==="done"?tt("Done. The branch {br} is in the repo; the merge and the push are yours.",{br:`<b class="path">feat/${esc(f.id)}</b>`})
         :tt("Done in the pipeline, but <b>the report does not confirm verified execution</b> ({ex}): check the report before calling it finished.",{ex:EXEC[ex][0].toLowerCase()});})(),
     cancelled:tt("Cancelled.")};
@@ -785,14 +1561,17 @@ function statusLine(f){
 }
 // ---------- markdown reader (minimal and safe: escapes everything before formatting) ----------
 function mdInline(t){
-  const codes=[];
-  t=String(t).replace(/`([^`]+)`/g,(_,c)=>{codes.push(c);return "\u0000"+(codes.length-1)+"\u0000";});
-  t=esc(t);
+  // NUL and U+E000/U+E001 are this function's placeholder marks: input copies of them are dropped first
+  const codes=[],links=[];
+  t=String(t).replace(/[\u0000\uE000\uE001]/g,"").replace(/`([^`]+)`/g,(_,c)=>{codes.push(c);return "\u0000"+(codes.length-1)+"\u0000";});
+  // project links of Obsidian wikilinks are held out of the rules below and put back at the end
+  t=wikiHtml(esc(t),projectNames(),a=>{links.push(a);return "\uE000"+(links.length-1)+"\uE001";});
   t=t.replace(/\*\*([^*]+)\*\*/g,"<strong>$1</strong>")
      .replace(/(^|[^*\w])\*([^*\s][^*]*?)\*(?!\*)/g,"$1<em>$2</em>")
      .replace(/~~([^~]+)~~/g,"<del>$1</del>")
-     .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-  return t.replace(/\u0000(\d+)\u0000/g,(_,n)=>"<code>"+esc(codes[+n])+"</code>");
+     .replace(/\[([^\[\]\n\uE000]{1,300})\]\((https?:\/\/[^\s)\u0000\uE000\uE001]{1,2000})\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  t=t.replace(/\uE000(\d+)\uE001/g,(m,n)=>links[+n]??"");
+  return t.replace(/\u0000(\d+)\u0000/g,(m,n)=>codes[+n]===undefined?"":"<code>"+esc(codes[+n])+"</code>");
 }
 function mdTable(rows){
   const cells=r=>r.trim().replace(/^\||\|$/g,"").split("|").map(c=>c.trim());
@@ -814,8 +1593,11 @@ function mdList(items){
   while(stack.length)html+=`</li></${stack.pop().tag}>`;
   return html;
 }
-function md(src){
-  const L=String(src??"").replace(/\r\n/g,"\n").split("\n"),out=[];
+const projectNames=()=>typeof S!=="undefined"&&S&&S.projects?S.projects.map(p=>p.name):[];
+const MD_DEPTH=20;   // nested blockquotes deeper than this are shown as text (hostile README input must not overflow the stack)
+function md(src,depth){
+  depth=depth||0;
+  const L=dropEmbeds(String(src??"").replace(/\r\n/g,"\n")).split("\n"),out=[];   // Obsidian ![[embeds]] are dropped
   let i=0;
   const blank=l=>!l.trim();
   const LIST=/^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
@@ -836,7 +1618,8 @@ function md(src){
     }
     if(/^\s*>/.test(l)){
       const buf=[];while(i<L.length&&/^\s*>/.test(L[i]))buf.push(L[i++].replace(/^\s*>\s?/,""));
-      out.push(`<blockquote>${md(buf.join("\n"))}</blockquote>`);continue;
+      buf[0]=buf[0].replace(/^\[!\w+\][+-]?\s*/,"");                     // an Obsidian callout keeps its title, not the [!type] marker
+      out.push(`<blockquote>${depth<MD_DEPTH?md(buf.join("\n"),depth+1):`<p>${buf.map(mdInline).join("<br>")}</p>`}</blockquote>`);continue;
     }
     if(LIST.test(l)){
       const items=[];
@@ -1084,7 +1867,35 @@ function reviewTestsHtml(f){
   const nums=fmtNums({...parseTestNumbers(f.artifacts.build||""),reviewer:n.reviewer});
   return `<div class="verdict ${tc}"><strong>${tt("Reviewer's tests: {t}",{t:tl})}</strong><span>${td}${nums?" · "+esc(nums):""}</span></div>`;
 }
+function relVerdict(src){
+  // the independent regression's verdict: the first word of the «Regression verdict» section (the server enforces the same rule)
+  const sec=extractSection(src||"",/^#{2,3}\s+regression verdict\s*$/i),line=(sec||"").split("\n").find(x=>x.trim())||"";
+  const pos=/\b(POSITIVE|POSITIVO)\b/i.test(line),neg=/\b(NEGATIVE|NEGATIVO)\b/i.test(line);
+  return pos&&!neg?"positive":neg&&!pos?"negative":"unknown";
+}
+function relVerdictLabel(src){return {positive:tt("POSITIVE"),negative:tt("NEGATIVE"),unknown:tt("verdict not identified")}[relVerdict(src)];}
+function releasePanel(f,id,go){
+  const v=relVerdict(f.artifacts.build),cls={positive:"approved",negative:"blocked",unknown:"unknown"}[v];
+  const steps=extractSection(f.artifacts.plan||"",/^#{2,3}\s+promotion steps/i),post=extractSection(f.artifacts.plan||"",/^#{2,3}\s+post-checks/i);
+  const auth=v==="positive"?`<div class="verdict reserves"><strong>${tt("Approving authorises exactly this")}</strong></div>
+      <div class="md sm">${steps?md(steps):`<p>${tt("The plan has no promotion steps.")}</p>`}${post?md(post):""}</div>`
+    :`<p class="rnote">${v==="negative"?tt("The regression found problems. Read the report, fix them and run the tests again, or cancel. The promotion cannot be approved."):tt("The report has no readable verdict, so the promotion cannot be approved. Run the tests again.")}</p>`;
+  return `<div class="decide"><div class="dtop"><span class="dtitle">${tt("Independent regression")}</span></div>
+    <div class="verdict ${cls}"><strong>${tt("Regression: {v}",{v:relVerdictLabel(f.artifacts.build)})}</strong><span>${tt("Written by a worker that did not write the plan")}</span></div>
+    ${auth}
+    <div class="dfoot"><span class="dhint">${tt("Read the regression report above before deciding")}</span>
+      <button class="btn ghost" data-act="cancel" data-id="${id}" type="button">${tt("Cancel request")}</button>
+      <button class="btn" data-act="rerun" data-id="${id}" type="button">${tt("Run the tests again")}</button>
+      <button class="btn pri" data-act="approve" data-id="${id}" type="button"${v==="positive"?"":" disabled"}>${go}</button></div></div>`;
+}
+function shipAuth(f){
+  // what the click on «Approve and publish» authorises: the report's «Ready to publish» section, shown beside the button
+  const sec=extractSection(f.artifacts.build||"",/^#{2,3}\s+ready to publish/i);
+  return sec?`<div class="verdict reserves"><strong>${tt("Approving authorises exactly this")}</strong></div><div class="md sm">${md(sec)}</div>`
+    :`<div class="verdict blocked"><strong>${tt("The report has no “Ready to publish” section")}</strong><span>${tt("Ask for changes: the server will not accept an approval without it.")}</span></div>`;
+}
 function execBanner(f){
+  if(f.kind==="ship"){const [t,c,d]=EXEC[parseExecution(f.artifacts.build)];return `<div class="verdict ${c}"><strong>${tt("Execution: {t}",{t})}</strong><span>${d}</span></div>`;}
   if(f.stage!=="build"||f.kind==="analysis")return "";
   const [t,c,d]=EXEC[parseExecution(f.artifacts.build)],[tl,tc,td]=TESTS[parseTests(f.artifacts.build)];
   return `<div class="verdict ${c}"><strong>${tt("Execution: {t}",{t})}</strong><span>${d}</span></div>
@@ -1154,9 +1965,16 @@ function reviewPanel(f,id,go){
 }
 function actions(f){
   const st2=stg(f),i=st2.findIndex(s=>s[0]===f.stage),last=i===st2.length-1;
-  const go=last?(f.kind==="analysis"?tt("Accept analysis"):tt("Accept implementation")):f.stage==="build"?tt("Send to review"):tt("Approve and move on to {next}",{next:st2[i+1][1].toLowerCase()});
+  const go=f.kind==="release"?(last?tt("Close request"):f.stage==="plan"?tt("Approve and run the regression"):tt("Approve and promote to production"))
+    :f.kind==="ship"?(last?tt("Close request"):tt("Approve and publish")):last?(f.kind==="analysis"?tt("Accept analysis"):tt("Accept implementation")):f.stage==="build"?tt("Send to review"):tt("Approve and move on to {next}",{next:st2[i+1][1].toLowerCase()});
   const id=esc(f.id);
   if(f.status==="awaiting"){
+    if(f.stage==="build"&&f.kind==="release")return releasePanel(f,id,go);
+    if(f.stage==="review"&&(f.kind==="ship"||f.kind==="release"))return `<div class="decide"><div class="dtop"><span class="dtitle">${tt("Publication")}</span></div>
+      <p class="rnote">${tt("Read the result above. If it says BLOCKED, or something was not done, cancel the request instead of closing it.")}</p>
+      <div class="dfoot"><span class="dhint">${tt("Closing does not undo anything that was pushed")}</span>
+        <button class="btn ghost" data-act="cancel" data-id="${id}" type="button">${tt("Cancel request")}</button>
+        <button class="btn pri" data-act="approve" data-id="${id}" type="button">${go}</button></div></div>`;
     if(f.stage==="review")return reviewPanel(f,id,go);
     const u=fui(f.id),qf=questionsFor(f);u.qs=qf.qs;
     const qst=qf.status;
@@ -1167,6 +1985,7 @@ function actions(f){
     return `<div class="decide"><div class="dtop"><span class="dtitle">${tt("Your decision")}</span>
       ${qst==="form"?`<span class="dprog" data-prog="${id}">${tt("{n}/{total} answered",{n:st.n,total:st.total})}</span>`:qst==="none"?`<span class="dprog ok">${tt("✓ no open questions")}</span>`:""}</div>
       ${execBanner(f)}
+      ${f.kind==="ship"&&f.stage==="build"?shipAuth(f):""}
       ${f.stage==="plan"?planCheckHtml(f,id):""}
       ${u.qs.length?`<div class="qs">${questionsHtml(f.id,u.qs)}</div>`:""}
       <label class="dhead" for="c-${id}">${label}</label>
@@ -1185,7 +2004,7 @@ function threadHtml(f){
   // the current phase's conversation: what the user sent and what the worker answered
   const rounds=f.history.filter(h=>h.stage===f.stage&&h.event==="changes requested");
   if(!rounds.length||!["working","awaiting"].includes(f.status))return "";
-  const hm=a=>esc(String(a).slice(11,16));
+  const hm=a=>esc(ago(a,Date.now(),tt));
   const you=rounds.map((h,i)=>`<div class="msg you"><div class="who">${tt("You")} · ${hm(h.at)}${rounds.length>1?` · ${tt("Round {n}",{n:i+1})}`:""}</div><div class="md sm">${md(h.note)}</div></div>`).join("");
   let bot;
   if(f.status==="working"){
@@ -1205,11 +2024,43 @@ function threadHtml(f){
   }
   return `<div class="thread">${you}${bot}</div>`;
 }
+function qaHtml(f){
+  // «Ask the worker»: questions about the request's conclusions, answered by a read-only worker; the request never changes
+  const id=esc(f.id),u=fui(f.id),qa=f.qa||[],busy=qa.some(e=>e.status==="working");
+  const hm=a=>esc(ago(a,Date.now(),tt));
+  const thread=qa.map(e=>{
+    const you=`<div class="msg you"><div class="who">${tt("You")} · ${hm(e.at)}</div><div class="md sm">${md(e.q)}</div></div>`;
+    const bot=e.status==="answered"?`<div class="msg bot"><div class="who">Worker</div><div class="md sm">${md(e.answer||"")}</div></div>`
+      :e.status==="working"?`<div class="msg bot"><div class="who">Worker</div><p>${tt("Reading the work and preparing the answer…")}</p></div>`
+      :`<div class="msg bot bad"><div class="who">Worker</div><p>${tt("The worker stopped without answering. Ask again.")}</p></div>`;
+    return you+bot;}).join("");
+  return `<details class="qa" data-qa="${id}" data-busy="${busy?1:0}"${u.askOpen?" open":""}><summary>${tt("Ask the worker")}${qa.length?` <em>${qa.length}</em>`:""}</summary>
+    <p class="qahint">${tt("The worker reads the request and the work (read-only) and answers here. It does not change the request.")}</p>
+    ${thread?`<div class="thread" role="log" aria-live="polite">${thread}</div>`:""}
+    <label class="sr" for="ask-${id}">${tt("Ask the worker")}</label>
+    <textarea id="ask-${id}" data-ask="${id}" maxlength="2000" rows="2" placeholder="${esc(tt("Ask a question about this request, its conclusions or the work done…"))}">${esc(u.ask||"")}</textarea>
+    <div class="dfoot"><span class="dhint">${tt("Ctrl+Enter sends the question")}</span>
+      <button class="btn pri" data-act="ask" data-id="${id}" type="button"${busy||!(u.ask||"").trim()?" disabled":""}>${tt("Ask")}</button></div></details>`;
+}
+function patchQa(root,f){
+  // update the thread, the counter and the button of one «Ask the worker» block in place, leaving the input box (focus, draft) alone
+  const box=root.querySelector(`details.qa[data-qa="${CSS.escape(f.id)}"]`);if(!box)return;
+  const t=document.createElement("template");t.innerHTML=qaHtml(f);
+  const n=t.content.querySelector("details.qa");if(!n)return;
+  const old=box.querySelector(".thread"),nw=n.querySelector(".thread");
+  if(nw&&old){if(old.innerHTML!==nw.innerHTML)old.innerHTML=nw.innerHTML;}
+  else if(nw)box.insertBefore(nw,box.querySelector("label.sr"));
+  const sm=box.querySelector("summary"),ns=n.querySelector("summary");
+  if(sm&&ns&&sm.innerHTML!==ns.innerHTML)sm.innerHTML=ns.innerHTML;
+  box.dataset.busy=n.dataset.busy;
+  const b=box.querySelector('[data-act="ask"]'),nb=n.querySelector('[data-act="ask"]');
+  if(b&&nb)b.disabled=nb.disabled;
+}
 function featCard(f){
-  const hist=f.history.map(h=>`<li>${esc(h.at.replace("T"," "))} · ${esc(h.stage)} · ${esc(up1(tt(h.event)))}${h.note?" — "+esc(h.note):""}</li>`).join("");
-  return `<article class="feat s-${esc(f.status)}"><div class="ftop"><h3>${esc(f.title)}</h3><span class="fp">${esc(cap(f.project))}</span><span class="kind">${esc(KIND_LABEL[f.kind]||KIND_LABEL.feature)}</span>${(()=>{const pr=S.projects.find(q=>q.name===f.project),d=pr?dom(pr):"other";return `<span class="dom d-${esc(d)}">${esc(cap(d))}</span>`;})()}
+  const hist=f.history.map(h=>`<li>${esc(ago(h.at,Date.now(),tt))} · ${esc(h.stage)} · ${esc(up1(tt(h.event)))}${h.note?" — "+esc(h.note):""}</li>`).join("");
+  return `<article class="feat s-${esc(f.status)}" data-fid="${esc(f.id)}"><div class="ftop"><h3>${esc(f.title)}</h3>${projLink(f.project)}<span class="kind">${esc(KIND_LABEL[f.kind]||KIND_LABEL.feature)}</span>${costChip(f)}${(()=>{const pr=S.projects.find(q=>q.name===f.project),d=pr?dom(pr):"other";return `<span class="dom d-${esc(d)}">${esc(cap(d))}</span>`;})()}
     <span class="fst">${esc(ST_LABEL[f.status]||f.status)}</span></div>
-    <p class="fdesc">${esc(f.desc)}</p>${stepper(f)}${statusLine(f)}${threadHtml(f)}${artifacts(f)}${actions(f)}
+    <p class="fdesc">${esc(f.desc)}</p>${stepper(f)}${statusLine(f)}${pausedNote(f)}${threadHtml(f)}${artifacts(f)}${actions(f)}${qaHtml(f)}
     <details class="hist"><summary>${tt("History")}</summary><ul>${hist}</ul></details></article>`;
 }
 let featHtml="";
@@ -1217,30 +2068,83 @@ const CLOSED=["done","cancelled"];
 let doneHtml="";
 function closedItem(f){
   const last=f.history.length?f.history[f.history.length-1].at:"";
-  return `<details class="cl" data-cl="${esc(f.id)}"><summary><span class="cltt">${esc(f.title)}</span><span class="fp">${esc(cap(f.project))}</span><span class="fst">${esc(ST_LABEL[f.status]||f.status)}</span><time class="m">${esc(last.slice(0,16).replace("T"," "))}</time></summary>${featCard(f)}</details>`;
+  return `<details class="cl" data-cl="${esc(f.id)}"><summary><span class="cltt">${esc(f.title)}</span><span class="fp">${esc(cap(f.project))}</span><span class="fst">${esc(ST_LABEL[f.status]||f.status)}</span>${costChip(f)}<time class="m">${esc(ago(last,Date.now(),tt))}</time></summary>${featCard(f)}</details>`;
 }
 let doneProj="",lastFs=[],lastFiltering=false;
+function syncAround(host,cards,typing){
+  // The user is typing in one card (an answer, a note or a question): update every OTHER card in place so that, for example, a card whose
+  // worker just finished does not stay frozen on its old state until the cursor leaves the box. The card being typed in is left alone,
+  // except its «Ask the worker» block, whose answers are refreshed around the box. If the set of cards changed, wait for the next redraw.
+  const own=typing.closest("article.feat"),keep=own&&own.dataset.fid;
+  const have=[...host.children].filter(c=>c.matches&&c.matches("article.feat"));
+  if(!keep||have.map(c=>c.dataset.fid).join("|")!==cards.map(c=>c[0].id).join("|"))return;
+  const tpl=document.createElement("template");
+  cards.forEach(([f,h],i)=>{
+    const old=have[i];
+    if(f.id===keep){
+      if(!typing.matches("[data-ask]"))return;                    // typing in the decision form itself: it is left exactly as it is
+      patchQa(old,f);
+      const core=x=>x.replace(/<details class="qa"[\s\S]*?<\/details>/,"");   // the rest of the card, without the box being typed in
+      if(core(cardHtml[f.id]||"")===core(h))return;
+      tpl.innerHTML=h;const fresh=tpl.content.firstElementChild,live=old.querySelector("details.qa"),slot=fresh.querySelector("details.qa");
+      if(!live||!slot)return;
+      const [s0,s1]=[typing.selectionStart,typing.selectionEnd];
+      slot.replaceWith(live);old.replaceWith(fresh);cardHtml[f.id]=h;       // the live box moves into the new card; focus and cursor are put back
+      typing.focus();try{typing.setSelectionRange(s0,s1);}catch(_){}
+      return;
+    }
+    if(cardHtml[f.id]===h)return;
+    tpl.innerHTML=h;old.replaceWith(tpl.content.firstElementChild);cardHtml[f.id]=h;
+  });
+}
+let cardHtml={};      // what each open card was last drawn from
 function renderFeatures(fs,filtering){
   lastFs=fs;lastFiltering=filtering;
   const open=fs.filter(f=>!CLOSED.includes(f.status)),closed=fs.filter(f=>CLOSED.includes(f.status));
   $("nFeat").textContent=open.length;
-  const html=open.map(featCard).join("")||`<div class="empty">${filtering?tt("No request in progress for this filter."):tt("Nothing in progress. Create one with “+ New request”.")}</div>`;
+  const cards=open.map(f=>[f,featCard(f)]);
+  const html=cards.map(c=>c[1]).join("")||`<div class="empty">${filtering?tt("No request in progress for this filter."):tt("Nothing in progress. Create one with “+ New request”.")}</div>`;
   const a=document.activeElement;
-  if(!(html===featHtml||(a&&a.matches&&a.matches("[data-comment],[data-qnote]")))){featHtml=html;$("feats").innerHTML=html;}
+  const typing=a&&a.matches&&a.matches("[data-comment],[data-qnote],[data-ask]")?a:null;
+  if(!typing){if(html!==featHtml){featHtml=html;cardHtml=Object.fromEntries(cards.map(([f,h])=>[f.id,h]));$("feats").innerHTML=html;}}
+  else if(html!==featHtml)syncAround($("feats"),cards,typing);   // typing somewhere: every other card keeps updating
   const keep=new Set([...document.querySelectorAll("#featsDone details.cl[open]")].map(d=>d.dataset.cl));
   const projs=[...new Set(closed.map(f=>f.project))].sort();
   if(doneProj&&!projs.includes(doneProj))doneProj="";
   const shown=doneProj?closed.filter(f=>f.project===doneProj):closed;
   const bar=projs.length>1?`<div class="clbar"><label>${tt("Project")} <select id="doneProj" aria-label="${esc(tt("Filter done items by project"))}"><option value="">${tt("All")} (${closed.length})</option>${projs.map(n=>`<option value="${esc(n)}"${n===doneProj?" selected":""}>${esc(cap(n))} (${closed.filter(f=>f.project===n).length})</option>`).join("")}</select></label></div>`:"";
-  const dh=closed.length?`<details class="cls"${doneOpen?" open":""}><summary>${tt("Done")} <em>${doneProj?tt("{a} of {b}",{a:shown.length,b:closed.length}):closed.length}</em></summary>${bar}${shown.map(closedItem).join("")}</details>`:"";
-  if(dh===doneHtml)return;
-  doneHtml=dh;$("featsDone").innerHTML=dh;
+  const dh=closed.length?`<details class="cls"${doneOpen?" open":""}><summary>${tt("Done in this session")} <em>${doneProj?tt("{a} of {b}",{a:shown.length,b:closed.length}):closed.length}</em></summary>${bar}${shown.map(closedItem).join("")}</details>`:"";
+  const earlier=(typeof S==="object"&&S&&S.earlier_closed)||0;
+  const note=earlier?`<p class="cnote">${tt("{n} earlier requests are in past sessions.",{n:earlier})} <button class="lnk" id="openPast" type="button">${tt("See past sessions")}</button></p>`:"";
+  const dn=dh+note;
+  if(a&&a.matches&&a.matches("[data-ask]")){closed.forEach(f=>patchQa($("featsDone"),f));return;}   // typing in a done card: refresh only its answers
+  if(dn===doneHtml)return;                   // the 8 s poll: unchanged, keep focus and open items
+  doneHtml=dn;$("featsDone").innerHTML=dn;
   document.querySelectorAll("#featsDone details.cl").forEach(d=>{if(keep.has(d.dataset.cl))d.open=true;});
 }
 let doneOpen=false;
 $("featsDone").addEventListener("change",e=>{if(e.target.id!=="doneProj")return;doneProj=e.target.value;renderFeatures(lastFs,lastFiltering);});
 $("featsDone").addEventListener("toggle",e=>{if(e.target.classList.contains("cls"))doneOpen=e.target.open;},true);
+function askInput(e){
+  const t=e.target;if(!t.dataset||!t.dataset.ask)return false;
+  fui(t.dataset.ask).ask=t.value;
+  const box=t.closest(".qa"),b=box&&box.querySelector('[data-act="ask"]');
+  if(b)b.disabled=box.dataset.busy==="1"||!t.value.trim();
+  return true;
+}
+function askToggle(e){
+  const d=e.target;if(!d.classList||!d.classList.contains("qa")||!d.dataset.qa)return;
+  fui(d.dataset.qa).askOpen=d.open;
+}
+$("featsDone").addEventListener("input",askInput);
+$("featsDone").addEventListener("toggle",askToggle,true);
+$("feats").addEventListener("toggle",askToggle,true);
+$("featsDone").addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)&&e.target.dataset&&e.target.dataset.ask){
+    const b=e.target.closest(".qa").querySelector('[data-act="ask"]');if(b&&!b.disabled)b.click();}
+});
 $("feats").addEventListener("input",e=>{
+  if(askInput(e))return;
   const t=e.target;
   if(t.dataset.comment){fui(t.dataset.comment).comment=t.value;refreshDecide(t.dataset.comment);return;}
   if(t.dataset.qnote){const q=fui(t.dataset.fid).qa;(q[t.dataset.qnote]=q[t.dataset.qnote]||{opt:null}).note=t.value;refreshDecide(t.dataset.fid);}
@@ -1260,16 +2164,20 @@ $("feats").addEventListener("click",e=>{
 });
 $("feats").addEventListener("keydown",e=>{
   const d=e.target.dataset;
+  if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)&&d&&d.ask){
+    const b=e.target.closest(".qa").querySelector('[data-act="ask"]');if(b&&!b.disabled)b.click();return;
+  }
   if(e.key==="Enter"&&(e.ctrlKey||e.metaKey)&&d&&(d.comment||d.qnote)){
     const b=e.target.closest(".decide").querySelector('[data-act="revise"]');if(b&&!b.disabled)b.click();
   }
 });
-$("feats").addEventListener("click",async e=>{
+async function featClick(e){
   const b=e.target.closest("[data-act]");if(!b)return;
   const id=b.dataset.id,act=b.dataset.act;
   if(act==="cancel"&&!confirm(tt("Cancel this feature? The running worker will be stopped (its conversation is kept).")))return;
   const body={};
   const u=fui(id);
+  if(act==="rerun"){body.comment=tt("Run the regression tests again from scratch and report a new verdict.");}
   if(act==="revise"){
     const ff=S.features.find(x=>x.id===id)||{artifacts:{}},pf=ff.stage==="plan"?parseFindings(ff.artifacts.planreview):[];
     body.comment=pf.length?[compileAnswers(u.qs||[],u.qa,"",ff.lang),compileFixes(pf,u.fx,u.comment,ff.lang)].filter(Boolean).join("\n\n").trim():compileAnswers(u.qs||[],u.qa,u.comment,ff.lang);
@@ -1283,22 +2191,38 @@ $("feats").addEventListener("click",async e=>{
   }
   if(act==="approve"&&b.dataset.fixing==="1"&&!confirm(tt("You marked findings to fix and are about to accept without fixing them. Accept anyway?")))return;
   if(act==="approve"){const st=decideState(id);if(st.total>st.n&&!confirm(tt("There are still {n} unanswered question(s). Approve anyway?",{n:st.total-st.n})))return;}
-  document.querySelectorAll(`#feats [data-id="${id}"].btn`).forEach(x=>x.disabled=true);
-  try{await api(`/api/features/${encodeURIComponent(id)}/${act}`,body);
+  if(act==="ask"){body.question=(u.ask||"").trim();if(!body.question){toast(tt("Write a question first."),true);return;}}
+  document.querySelectorAll(`#feats [data-id="${id}"].btn,#featsDone [data-id="${id}"].btn`).forEach(x=>x.disabled=true);
+  try{await api(`/api/features/${encodeURIComponent(id)}/${act==="rerun"?"revise":act}`,body);
     if(act==="revise"){u.comment="";u.qa={};u.fx={};}
     if(act==="fix"){u.comment="";u.qa={};u.fx={};}
-    toast(tt({fix:"Fixes sent to the implementation worker.",approve:"Approved: next worker launched.",revise:"Changes sent to the worker.",retry:"Worker relaunched.",cancel:"Cancelled."}[act]));
+    if(act==="ask"){u.ask="";u.askOpen=true;}
+    toast(tt({fix:"Fixes sent to the implementation worker.",approve:"Approved: next worker launched.",revise:"Changes sent to the worker.",rerun:"Regression launched again.",retry:"Worker relaunched.",cancel:"Cancelled.",ask:"Question sent: the answer appears here."}[act]));
   }catch(err){toast(err.message,true);}
-  featHtml="";await load();
-});
-$("newBtn").addEventListener("click",()=>{
+  featHtml="";doneHtml="";await load();
+  if(act==="ask"){const ta=document.getElementById("ask-"+id);if(ta)ta.focus();}
+}
+$("feats").addEventListener("click",featClick);
+$("featsDone").addEventListener("click",e=>{if(e.target.closest("[data-act='ask']"))featClick(e);});
+// the new-request dialog; `pre` ({project,kind,title,desc}) pre-fills it, e.g. «Create fix request» on a project page
+let nfPrefilled=false;
+let nfFromProposal="";
+function openNewRequest(pre){
   if(!S)return;
+  nfFromProposal=pre&&pre.proposal||"";
+  if(nfPrefilled&&!pre)$("newForm").reset();   // a pre-filled draft that was cancelled does not leak into a plain new request
   $("nfProject").innerHTML=S.projects.map(p=>`<option value="${esc(p.name)}">${esc(cap(p.name))}</option>`).join("");
-  const only=S.projects.filter(p=>!F.q||matchName(p.name,F.q));
-  if(only.length===1)$("nfProject").value=only[0].name;
-  nfSync();$("newF").showModal();$("nfTitle").focus();
-});
-$("doms").addEventListener("click",e=>{const b=e.target.closest("button");if(b){F.d=b.dataset.d;update();}});
+  $("nfModel").innerHTML=`<option value="">${esc(tt("Default"))}</option>`+(S.models||[]).map(m=>`<option value="${esc(m)}">${esc(up1(m))}</option>`).join("");
+  if(pre){
+    $("nfProject").value=pre.project;$("nfKind").value=pre.kind;$("nfTitle").value=pre.title;$("nfDesc").value=pre.desc;
+  }else{
+    const only=S.projects.filter(p=>!F.q||matchName(p.name,F.q));
+    if(only.length===1)$("nfProject").value=only[0].name;
+  }
+  nfPrefilled=!!pre;
+  nfSync();$("newF").showModal();(pre?$("nfDesc"):$("nfTitle")).focus();
+}
+$("newBtn").addEventListener("click",()=>openNewRequest());
 // ---------- settings ----------
 let SET=null,moving="";
 async function loadSettings(){
@@ -1331,15 +2255,27 @@ function renderSettings(){
       <div class="wrap"><table><thead><tr><th>${tt("Project")}</th><th>${tt("Category")}</th><th>${tt("Git remote")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>
     <section class="sset"><h4>${tt("Vault")}</h4>
       <div class="row"><input id="sVault" value="${esc(SET.vault)}" maxlength="400" aria-label="${esc(tt("Vault path"))}"><button class="btn" data-sact="vault" type="button">${tt("Save")}</button></div>
-      <p class="m">${tt("Changing the vault only takes effect after you restart the server.")}</p></section>
+      <p class="m">${tt("The vault is optional: leave it empty to work without one. Changing it only takes effect after you restart the server.")}</p></section>
     <section class="sset"><h4>${tt("Project folders")}</h4>
       <p class="m">${tt("Every subfolder of these folders shows up as a project.")}</p><ul>${roots}</ul>
-      <div class="row"><input id="sRoot" placeholder="D:/Projetos" maxlength="400" aria-label="${esc(tt("New project folder"))}"><button class="btn" data-sact="root-add" type="button">${tt("Add folder")}</button></div>
+      <div class="row"><input id="sRoot" placeholder="D:/Projects" maxlength="400" aria-label="${esc(tt("New project folder"))}"><button class="btn" data-sact="root-add" type="button">${tt("Add folder")}</button></div>
       <h4>${tt("Ignored folders")}</h4>${ign}</section>
+    <section class="sset"><h4>${tt("Plan usage and limits")}</h4>${planSet(SET.plan)}</section>
     <section class="sset sgit"><h4>${tt("Git and GitHub")}</h4>${gh}${login}<p class="m">${helpers}</p>
       <p class="m">${tt("Private repos: the Chief uses the login your git already has and never asks for or stores passwords or tokens.")}</p>
       <div class="row"><input id="sHosts" value="${esc(SET.hosts.join(", "))}" maxlength="300" aria-label="${esc(tt("Hosts allowed for cloning"))}"><button class="btn" data-sact="hosts" type="button">${tt("Save")}</button></div>
       <p class="m">${tt("Hosts the Chief accepts cloning from (comma-separated).")}</p></section>`;
+}
+function planSet(pl){
+  const c=pl.connection;
+  const st=c==="connected"?`<p class="ok">${tt("Connected: the 5-hour and 7-day percentages show in the header.")}</p>`
+    :c==="unreadable"?`<p class="warn">${tt("Claude Code's settings.json could not be read.")}</p>`
+    :`<p class="warn">${c==="other"?tt("You have your own status line; connecting keeps it and adds the percentages after it."):tt("Not connected: the header cannot show the 5-hour and 7-day percentages.")}</p>`;
+  const btn=c==="connected"?`<button class="btn sm ghost" data-sact="plan-off" type="button">${tt("Disconnect")}</button>`
+    :c==="unreadable"?"":`<button class="btn" data-sact="plan-on" type="button">${tt("Connect to Claude Code")}</button>`;
+  return `${st}<p class="m">${tt("Connecting adds a status line command to ~/.claude/settings.json (a backup is kept next to it). The Chief reads only the two percentages and when they reset; never credentials.")}</p><div class="row">${btn}</div>
+    <label class="row"><input type="checkbox" id="sResume" ${pl.resume_after_limit?"checked":""} data-sact="resume"> <span>${tt("Restart a phase automatically once a usage limit has reset")}</span></label>
+    <p class="m">${tt("A worker stopped by a limit is restarted after the limit resets (at most 3 times per request), unless Claude Code continues by itself.")}</p>`;
 }
 async function setAct(path,body,ok){
   try{const r=await api("/api/settings/"+path,body);toast(ok||tt("Saved."));
@@ -1350,6 +2286,85 @@ async function setAct(path,body,ok){
 }
 $("setBtn").addEventListener("click",()=>{$("setD").showModal();loadSettings();});
 $("setClose").addEventListener("click",()=>$("setD").close());
+
+// ---------- sessions and costs ----------
+let COST=null,endArmed=false,endTimer=0;
+const costCell=v=>v.unpriced_tokens?(v.cost_usd?`${esc(fmtMoney(v.cost_usd))}+`:`<span class="m" title="${esc(tt("No price is known for this model, so only its tokens are counted. Add it under prices in projects.json."))}">${tt("no price")}</span>`):esc(fmtMoney(v.cost_usd));
+const PHASE_LABEL={spec:"Spec",plan:"Plan","plan-validation":"Plan validation",build:"Implementation",review:"Review",qa:"Question",extraction:"Extraction",curation:"Curation",other:"Other"};
+function modelTable(by){
+  const rows=Object.entries(by||{}).sort((a,b)=>b[1].cost_usd-a[1].cost_usd);
+  if(!rows.length)return `<p class="cnote">${tt("No AI usage recorded yet.")}</p>`;
+  return `<div class="wrap"><table><thead><tr><th>${tt("Model")}</th><th class="n">${tt("Estimated cost")}</th><th class="n">${tt("Input")}</th><th class="n">${tt("Output")}</th><th class="n">${tt("Cache read")}</th><th class="n">${tt("Cache write")}</th></tr></thead><tbody>${
+    rows.map(([m,v])=>`<tr><td>${esc(m)}</td><td class="n">${costCell(v)}</td><td class="n">${esc(fmtTokens(v.input))}</td><td class="n">${esc(fmtTokens(v.output))}</td><td class="n">${esc(fmtTokens(v.cache_read))}</td><td class="n">${esc(fmtTokens((v.cache_write_5m||0)+(v.cache_write_1h||0)))}</td></tr>`).join("")}</tbody></table></div>`;
+}
+// the cards a session's workers worked on (finished or not): what each cost in this session, and what it has cost so far
+function cardsTable(cards){
+  if(!(cards||[]).length)return "";
+  return `<h5>${tt("Cards worked on")}</h5><div class="wrap"><table><thead><tr><th>${tt("Request")}</th><th>${tt("Project")}</th><th>${tt("Status")}</th><th class="n">${tt("This session")}</th><th class="n">${tt("In all")}</th></tr></thead><tbody>${
+    cards.map(r=>`<tr><td>${esc(r.title)}</td><td>${projCell(r.project)}</td><td>${esc(r.closed_here?tt("Closed in this session"):(ST_LABEL[r.status]||W_LABEL[r.status]||cap(r.status)))}</td><td class="n">${esc(fmtMoney(r.cost_session))}</td><td class="n">${esc(fmtMoney(r.cost_total))}${r.unpriced?"+":""}</td></tr>`).join("")}</tbody></table></div>`;
+}
+function projectTable(by){
+  const rows=Object.entries(by||{}).sort((a,b)=>b[1].cost_usd-a[1].cost_usd);
+  if(!rows.length)return "";
+  return `<div class="wrap"><table><thead><tr><th>${tt("Project")}</th><th class="n">${tt("Estimated cost")}</th><th class="n">${tt("Workers")}</th></tr></thead><tbody>${
+    rows.map(([p,v])=>`<tr><td>${projCell(p)}</td><td class="n">${costCell(v)}</td><td class="n">${v.workers}</td></tr>`).join("")}</tbody></table></div>`;
+}
+const END_LABEL={user:tt("ended by you"),idle:tt("closed after a long break"),migration:tt("before sessions were recorded")};
+function planSection(p){
+  let h=`<section class="csec" id="planSec"><h4>${tt("Plan usage")}</h4>`;
+  if(p&&p.connected){
+    h+=`<div class="plan-row">${["five_hour","seven_day"].map(k=>p.windows[k]?meter(k,p.windows[k],tt):"").join("")}<span class="m">${tt("as of {t} ago",{t:fmtDuration(p.age_s)})}</span></div>`;
+  }else{
+    h+=`<p class="cnote">${tt("Not connected. Claude Code only hands these percentages to a status line command. Add this to ~/.claude/settings.json (the Chief never edits it):")}</p><pre class="cnote">${esc(JSON.stringify(p&&p.setup?p.setup.snippet:{},null,2))}</pre>`;
+  }
+  const sp=(p&&p.spend)||{five_hour_usd:0,seven_day_usd:0};
+  h+=`<p class="cnote">${tt("Chief workers, estimated: last 5 hours {a} · last 7 days {b}. The percentages cover everything you do with Claude; the amounts only the workers the Chief launched.",{a:esc(fmtMoney(sp.five_hour_usd)),b:esc(fmtMoney(sp.seven_day_usd))})}</p></section>`;
+  return h;
+}
+function renderCosts(){
+  const c=COST;if(!c)return;
+  const cur=c.current;
+  let h="";
+  if(cur){
+    h+=`<section class="csec"><h4>${tt("This session")}</h4><div class="cgrid">`+
+      `<div><strong>${esc(fmtDuration(cur.active_s))}</strong><span>${tt("active time")}</span></div>`+
+      `<div title="${esc(cur.unpriced_models.length?tt("A + means some models have no known price and are counted in tokens only."):"")}"><strong>${esc(fmtMoney(cur.cost_usd))}${cur.unpriced_models.length?"+":""}</strong><span>${tt("estimated AI cost")}</span></div>`+
+      `<div><strong>${cur.workers}</strong><span>${tt("workers launched")}</span></div>`+
+      `<div><strong>${cur.requests.length}</strong><span>${tt("requests closed")}</span></div></div>`+
+      cardsTable(cur.cards)+`<h5>${tt("By model")}</h5>`+modelTable(cur.by_model)+`<h5>${tt("By project")}</h5>`+projectTable(cur.by_project)+
+      `<div><button class="btn" id="endSess" type="button">${endArmed?tt("Click again to end the session"):tt("End session")}</button></div></section>`;
+  }
+  h=planSection(c.plan)+h;
+  h+=`<section class="csec"><h4>${tt("By project, all sessions")}</h4>${c.projects.length?`<div class="wrap"><table><thead><tr><th>${tt("Project")}</th><th class="n">${tt("Estimated cost")}</th><th>${tt("Models")}</th><th class="n">${tt("Sessions")}</th></tr></thead><tbody>${
+    c.projects.map(p=>`<tr><td>${projCell(p.project)}</td><td class="n">${costCell({cost_usd:p.cost_usd,unpriced_tokens:p.unpriced_models.length})}</td><td class="m">${esc(Object.keys(p.by_model).join(", "))}</td><td class="n">${p.sessions}</td></tr>`).join("")}</tbody></table></div>`:`<p class="cnote">${tt("No AI usage recorded yet.")}</p>`}</section>`;
+  h+=`<section class="csec"><h4>${tt("By phase, all sessions")}</h4>${(c.phases||[]).length?`<div class="wrap"><table><thead><tr><th>${tt("Phase")}</th><th class="n">${tt("Estimated cost")}</th><th class="n">${tt("Workers")}</th><th>${tt("Models")}</th></tr></thead><tbody>${
+    c.phases.map(r=>`<tr><td>${esc(PHASE_LABEL[r.phase]?tt(PHASE_LABEL[r.phase]):r.phase)}</td><td class="n">${esc(fmtMoney(r.cost_usd))}</td><td class="n">${r.workers}</td><td class="m">${esc(Object.entries(r.by_model).sort((a,b)=>b[1]-a[1]).map(([m,v])=>m+" "+fmtMoney(v)).join(", "))}</td></tr>`).join("")}</tbody></table></div><p class="cnote">${tt("What each kind of work cost and on which models: use it to judge the model routing.")}</p>`:`<p class="cnote">${tt("No AI usage recorded yet.")}</p>`}</section>`;
+  h+=`<section class="csec"><h4>${tt("By request, all sessions")}</h4>${(c.requests||[]).length?`<div class="wrap"><table><thead><tr><th>${tt("Request")}</th><th>${tt("Project")}</th><th>${tt("Status")}</th><th class="n">${tt("Estimated cost")}</th><th class="n">${tt("Workers")}</th><th class="n">${tt("Sessions")}</th></tr></thead><tbody>${
+    c.requests.slice(0,15).map(r=>`<tr title="${esc(costTip(r,tt))}"><td>${esc(r.title)}</td><td>${projCell(r.project)}</td><td>${esc(ST_LABEL[r.status]||W_LABEL[r.status]||cap(r.status))}</td><td class="n">${costCell({cost_usd:r.cost_usd,unpriced_tokens:r.unpriced?1:0})}</td><td class="n">${r.workers}</td><td class="n">${r.sessions}</td></tr>`).join("")}</tbody></table></div>`:`<p class="cnote">${tt("No AI usage recorded yet.")}</p>`}</section>`;
+  h+=`<section class="csec" id="pastSessions"><h4>${tt("Past sessions")}</h4>${c.sessions.length?c.sessions.map(s=>
+    `<details class="cl"><summary><span class="cltt">${esc(s.started.slice(0,10))}</span><span class="fp">${esc(fmtDuration(s.active_s))}</span><span class="fst">${esc(fmtMoney(s.cost_usd))}${s.unpriced_models.length?"+":""}</span>`+
+    `<span class="m">${s.requests.length===1?tt("{n} request closed",{n:1}):tt("{n} requests closed",{n:s.requests.length})} · ${esc(END_LABEL[s.ended_by]||"")}</span></summary><div class="sbody">`+
+    (s.requests.length?`<ul class="cnote">${s.requests.map(r=>`<li>${esc(r.title)} · ${esc(cap(r.project))} · ${esc(ST_LABEL[r.status]||r.status)}</li>`).join("")}</ul>`:"")+
+    cardsTable(s.cards)+modelTable(s.by_model)+projectTable(s.by_project)+`</div></details>`).join(""):`<p class="cnote">${tt("No past sessions yet.")}</p>`}</section>`;
+  h+=`<p class="cnote">${tt("Costs are estimates: the tokens in Claude Code's session logs priced at list prices (as of {date}), the same way Claude Code itself estimates. A subscription, discounts or special rates are not reflected, so your bill may differ. Models without a known price are counted in tokens only: add them under prices in projects.json.",{date:esc(c.prices.as_of)})} <a href="${esc(c.prices.source)}" target="_blank" rel="noopener noreferrer">${tt("Price list")}</a>${c.prices.custom.length?` · ${tt("Your own prices: {models}",{models:esc(c.prices.custom.join(", "))})}`:""}</p>`;
+  $("costBody").innerHTML=h;
+}
+async function loadCosts(){
+  try{const r=await fetch("/api/costs?t="+T);if(!r.ok)throw new Error(tt("Error"));COST=await r.json();renderCosts();}
+  catch(e){$("costBody").innerHTML=`<p class="cnote">${esc(e.message)}</p>`;}
+}
+function openCosts(){$("costD").showModal();loadCosts();}
+$("stats").addEventListener("click",e=>{if(e.target.closest("#sessBtn,.meter-btn"))openCosts();});
+$("featsDone").addEventListener("click",e=>{if(e.target.id==="openPast"){openCosts();setTimeout(()=>{const x=$("pastSessions");if(x)x.scrollIntoView();},300);}});
+$("costClose").addEventListener("click",()=>$("costD").close());
+$("costBody").addEventListener("click",e=>{if(e.target.closest("a.plink"))$("costD").close();});   // a project link leaves the dialog
+$("costBody").addEventListener("click",async e=>{
+  const b=e.target.closest("#endSess");if(!b)return;
+  if(!endArmed){endArmed=true;renderCosts();clearTimeout(endTimer);endTimer=setTimeout(()=>{endArmed=false;renderCosts();},4000);return;}
+  endArmed=false;clearTimeout(endTimer);
+  try{const r=await api("/api/session/end",{});toast(tt("Session ended: {d} active, about {c}.",{d:fmtDuration(r.ended.active_s),c:fmtMoney(r.ended.cost_usd)}));await load();await loadCosts();}
+  catch(err){toast(err.message,true);renderCosts();}
+});
 $("setBody").addEventListener("change",e=>{
   const t=e.target;
   if(t.classList.contains("sdom"))setAct("domain",{name:t.dataset.name,domain:t.value},tt("Category saved."));
@@ -1365,6 +2380,9 @@ $("setBody").addEventListener("click",e=>{
   if(act==="root-rm"){setAct("root_remove",{path:b.dataset.path},tt("Folder taken off the list."));return;}
   if(act==="ign-rm"){setAct("ignore_remove",{name},tt("The folder shows up again."));return;}
   if(act==="hosts"){setAct("hosts",{hosts:$("sHosts").value});return;}
+  if(act==="plan-on"){setAct("plan_connect",{},tt("Connected."));return;}
+  if(act==="plan-off"){setAct("plan_disconnect",{},tt("Disconnected."));return;}
+  if(act==="resume"){setAct("resume_after_limit",{on:b.checked},tt("Saved."));return;}
 });
 $("addProjBtn").addEventListener("click",()=>{$("addP").showModal();$("apPath").focus();});
 $("apCancel").addEventListener("click",()=>$("addP").close());
@@ -1387,7 +2405,9 @@ const NF={
   feature:["This launches a worker that writes only the <b>spec</b>. Nothing moves forward (plan, code) without your “approve” here.","Launch spec"],
   fix:["This launches a worker that investigates and writes only the <b>diagnosis</b> (root cause). Nothing moves forward (plan, fix) without your “approve” here.","Launch diagnosis"],
   analysis:["This launches a read-only worker that writes the <b>analysis</b>; another then verifies the facts. It changes nothing in the project.","Launch analysis"],
-  maintenance:["This launches a worker that writes only the maintenance <b>plan</b> (behavior does not change). Nothing moves forward without your “approve” here.","Launch plan"]};
+  maintenance:["This launches a worker that writes only the maintenance <b>plan</b> (behavior does not change). Nothing moves forward without your “approve” here.","Launch plan"],
+  ship:["This launches a worker that prepares the <b>commit</b> locally and writes what would be published (branch, remote, commits, PR text). Nothing is pushed until you approve here.","Prepare commit"],
+  release:["This launches a read-only worker that writes the <b>release plan</b>. Then an independent worker runs the regression tests, and only a POSITIVE verdict plus your approval lets a worker carry out the promotion.","Launch release plan"]};
 function nfSync(){const k=NF[$("nfKind").value]?$("nfKind").value:"feature";
   $("nfNote").innerHTML=tt(NF[k][0]);$("nfGo").textContent=tt(NF[k][1]);}
 $("nfKind").addEventListener("change",nfSync);
@@ -1396,11 +2416,42 @@ $("nfCancel").addEventListener("click",()=>$("newF").close());
 $("newForm").addEventListener("submit",async e=>{
   e.preventDefault();const go=$("nfGo");go.disabled=true;go.textContent=tt("Launching…");
   try{await api("/api/features",{project:$("nfProject").value,title:$("nfTitle").value,desc:$("nfDesc").value,model:$("nfModel").value,kind:$("nfKind").value});
-    $("newF").close();$("newForm").reset();toast(tt("Request created: worker launched."));featHtml="";await load();
+    $("newF").close();$("newForm").reset();toast(tt("Request created: worker launched."));featHtml="";
+    if(nfFromProposal){try{await api(`/api/proposals/${encodeURIComponent(nfFromProposal)}/dismiss`,{});}
+      catch(_){toast(tt("Request created, but the suggestion could not be dismissed: dismiss it yourself so it is not created twice."),true);}nfFromProposal="";propHtml="";}
+    await load();
   }catch(err){toast(err.message,true);}
   go.disabled=false;nfSync();
 });
 
+// ---------- requests suggested by workers: nothing starts until the user accepts ----------
+let propHtml="",lastProps=[];
+function propCard(x){
+  const proj=S.projects.find(p=>p.name===x.project),id=esc(x.id);
+  return `<article class="pend"><div class="ptop">${projLink(x.project)}<span class="dom d-${esc(proj?dom(proj):"other")}">${esc(cap(proj?dom(proj):"other"))}</span><span class="kind">${esc(KIND_LABEL[x.kind]||KIND_LABEL.feature)}</span></div>
+    <h3>${esc(x.title)}</h3><div class="md sm">${md(x.desc)}</div>
+    <div class="pfoot"><span class="org">${x.by?tt("Suggested by {w}",{w:esc(x.by)}):tt("Suggested by a worker")}</span>
+      <button class="btn sm pri" type="button" data-prop-go="${id}" title="${esc(tt("Opens the new-request dialog already filled in: nothing starts until you confirm"))}">${tt("Review and create")}</button>
+      <button class="btn sm ghost" type="button" data-prop-dis="${id}">${tt("Dismiss")}</button></div></article>`;
+}
+function renderProposals(list){
+  lastProps=list;
+  $("propsWrap").hidden=!list.length;$("nProp").textContent=list.length;
+  const html=list.map(propCard).join("");
+  if(html===propHtml)return;
+  propHtml=html;$("props").innerHTML=html;
+}
+$("props").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-prop-go],[data-prop-dis]");if(!b)return;
+  if(b.dataset.propGo){
+    const x=lastProps.find(q=>q.id===b.dataset.propGo);if(!x)return;
+    openNewRequest({project:x.project,kind:x.kind,title:x.title,desc:x.desc,proposal:x.id});return;
+  }
+  b.disabled=true;
+  try{await api(`/api/proposals/${encodeURIComponent(b.dataset.propDis)}/dismiss`,{});toast(tt("Suggestion dismissed."));}
+  catch(err){toast(err.message,true);}
+  propHtml="";await load();
+});
 // ---------- session to-dos ----------
 const PEND_LABEL={awaiting:tt("To decide"),blocked:tt("Blocked"),running:tt("In progress"),optional:tt("Optional")};
 let pendStatus="",pendProj="",lastPend=[],lastPendFiltering=false,pfiltHtml="";
@@ -1409,7 +2460,7 @@ function pendCard(x){
   const proj=S.projects.find(p=>p.name===x.project);
   const canResume=!!(proj&&x.session);
   const id=esc(x.id);
-  return `<article class="pend"><div class="ptop"><span class="fp">${esc(cap(x.project))}</span><span class="dom d-${esc(proj?dom(proj):"other")}">${esc(cap(proj?dom(proj):"other"))}</span><span class="pst ${esc(x.status)}">${PEND_LABEL[x.status]||esc(x.status)}</span></div>
+  return `<article class="pend"><div class="ptop">${projLink(x.project)}<span class="dom d-${esc(proj?dom(proj):"other")}">${esc(cap(proj?dom(proj):"other"))}</span><span class="pst ${esc(x.status)}">${PEND_LABEL[x.status]||esc(x.status)}</span></div>
     <h3>${esc(x.title)}</h3>${x.summary?`<p>${esc(x.summary)}</p>`:""}${x.missing?`<p><b>${tt("Missing:")}</b> ${esc(x.missing)}</p>`:""}
     <div class="pfoot"><span class="org">${tt("Session")} ${esc((x.session||"").slice(0,8))} · ${esc(x.date)}</span>
       ${canResume?`<button class="btn sm" type="button" data-pres="${id}" title="${esc(tt("Opens a new terminal in this session"))}">${tt("Resume")}</button>`:""}
@@ -1421,7 +2472,7 @@ function renderPending(list,filtering){
   $("nPend").textContent=list.length;
   const statuses=Object.keys(PEND_LABEL).filter(k=>list.some(x=>x.status===k));
   const projs=[...new Set(list.map(x=>x.project))].sort();
-  if(pendStatus&&!estados.includes(pendStatus))pendStatus="";
+  if(pendStatus&&!statuses.includes(pendStatus))pendStatus="";
   if(pendProj&&!projs.includes(pendProj))pendProj="";
   const shown=list.filter(x=>(!pendStatus||x.status===pendStatus)&&(!pendProj||x.project===pendProj));
   const chip=(k,t,n)=>`<button type="button" data-pe="${k}" aria-pressed="${pendStatus===k}">${t}<i>${n}</i></button>`;
@@ -1445,7 +2496,7 @@ $("pends").addEventListener("click",async e=>{
   b.disabled=false;
   if(act!=="resume"){pendHtml="";featHtml="";await load();}
 });
-function update(){writeHash();render();}
+function update(){writeHash();syncChrome();render();if(ROUTE.view==="projects")renderProjects();}
 
 $("q").addEventListener("input",e=>{F.q=e.target.value.trim();update();});
 $("clear").addEventListener("click",()=>{F.q="";$("q").value="";update();$("q").focus();});
@@ -1471,7 +2522,7 @@ async function load(){
     if(r.ok){S=await r.json();
       // the server changes “version” when index.html changes: reload so old code (and buttons that do nothing) is not kept
       if(UI_V&&S.ui&&S.ui!==UI_V&&!(document.activeElement&&document.activeElement.matches&&document.activeElement.matches("textarea,input[type=search]")))location.reload();
-      UI_V=UI_V||S.ui;render();}}
+      UI_V=UI_V||S.ui;render();if(ROUTE.view==="projects")refreshProjects();else if(ROUTE.view==="project")refreshProject();}}
   catch(e){$("stats").innerHTML=`<div class="stat hot"><strong style="font-size:14px">${tt("No connection to the server")}</strong></div>`;}
 }
 document.querySelectorAll("#langSw button").forEach(b=>b.addEventListener("click",()=>{
@@ -1480,7 +2531,7 @@ document.querySelectorAll("#langSw button").forEach(b=>b.addEventListener("click
   const u=new URL(location.href);u.searchParams.delete("lang");location.href=u.toString();
 }));
 applyStatic();
-readHash();$("q").value=F.q;load();setInterval(load,8000);
+readHash();$("q").value=F.q;showView();load();setInterval(load,8000);
 </script>
 </body>
 </html>

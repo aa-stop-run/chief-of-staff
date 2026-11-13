@@ -22,7 +22,7 @@ def _pt_dict() -> dict:
     if not node:
         pytest.skip("node is not installed")
     block = re.search(r"const PT = (\{.*?\n\});\nlet LANG", HTML, re.S).group(1)
-    out = subprocess.run([node, "-e", f"console.log(JSON.stringify({block}))"], capture_output=True, text=True, encoding="utf-8")
+    out = subprocess.run([node, "-"], input=f"console.log(JSON.stringify({block}))", capture_output=True, text=True, encoding="utf-8")  # stdin: the dictionary outgrew Windows' command-line limit
     assert out.returncode == 0, out.stderr
     return json.loads(out.stdout)
 
