@@ -23,6 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import atomicio
 import home
 import migrations
 import planusage
@@ -276,6 +277,23 @@ DEFAULT_PHASE_TOOLS = {
                              "Bash(git push*+*)", "Bash(git remote add:*)", "Bash(git remote set-url:*)", "Bash(git config:*)",
                              "Bash(gh pr merge:*)", "Bash(gh auth:*)"]},
 }
+# Denied to EVERY worker, whatever its phase and whatever `phase_tools` says: the preamble's «do not push» as a rule and not only
+# as a sentence. A plain `git push` is denied too, unless the phase was explicitly allowed one (the publication of «ship»).
+FIXED_DENY = ("Bash(git push*--force*)", "Bash(git push*-f *)", "Bash(git push*--delete*)", "Bash(git push*--mirror*)",
+              "Bash(git remote add:*)", "Bash(git remote set-url:*)", "Bash(gh pr merge:*)", "Bash(gh auth:*)")
+NO_PUSH = "Bash(git push:*)"
+
+
+def fixed_deny(allow=(), deny=()) -> list:
+    """The deny rules a worker really gets: its phase's own, then the fixed ones (and no push at all unless it was allowed one)."""
+    may_push = any(isinstance(a, str) and a.startswith("Bash(git push") for a in allow)
+    out = []
+    for rule in [*deny, *FIXED_DENY, *(() if may_push else (NO_PUSH,))]:
+        if rule not in out:
+            out.append(rule)
+    return out
+
+
 _TOOL_OK = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\([^\n,]{1,200}\))?$")
 MAX_TOOL_RULES = 24
 
@@ -462,6 +480,8 @@ def full_state(live_list=None, with_git=True):
     for w in workers:
         s = live.get(w["id"])
         w["state"] = session_state(s) if s else "finished"
+        if s and w["state"] == "blocked":          # what it is waiting for (a permission, an answer), for the dashboard's alert
+            w["waiting_for"] = " ".join(str(s.get("waitingFor") or "").split())[:160]
     if with_git:
         with ThreadPoolExecutor(max_workers=8) as pool:
             infos = list(pool.map(lambda q: git_info(q["path"]), projs))
@@ -702,12 +722,13 @@ def build_command(p, task, mode="auto", model=None, extra_dirs=(), label=None, e
         cmd += ["--model", model]
     if effort in EFFORTS:
         cmd += ["--effort", effort]
-    allow, deny = _tool_list(list(allow)), _tool_list(list(deny))
+    allow = _tool_list(list(allow))
+    deny = fixed_deny(allow, _tool_list(list(deny)))
     if allow:                                  # one `=` argument each, then «--»: these options are variadic and must not swallow the prompt
         cmd += ["--allowedTools=" + ",".join(allow)]
     if deny:
         cmd += ["--disallowedTools=" + ",".join(deny)]
-    return name, cmd + (["--"] if allow or deny else []) + [prompt], prompt
+    return name, cmd + ["--", prompt], prompt
 
 
 _LAUNCH_LOCK = threading.Lock()  # unique names and lossless workers.json when several are launched at once
@@ -728,7 +749,8 @@ def _launch_worker_locked(project, task, model, extra_dirs, mode, label=None, ef
                        creationflags=NO_WINDOW)
     m = re.search(r"backgrounded\s*·\s*([0-9a-f]{6,})", r.stdout + r.stderr)
     if not m:
-        raise RuntimeError("claude --bg did not start: " + (r.stdout + r.stderr)[-600:])
+        raise RuntimeError("claude --bg did not start, or its output changed (expected «backgrounded · <id>»; "
+                           "run `python scripts/chief.py doctor`): " + (r.stdout + r.stderr)[-600:])
     w = {"name": name, "id": m[1], "project": p["name"], "cwd": p["path"], "task": task.strip()[:2000],
          "started": datetime.now().isoformat(timespec="seconds"), "model": model or "default",
          "session": work_sessions().current_id()}
@@ -743,20 +765,18 @@ def _launch_worker_locked(project, task, model, extra_dirs, mode, label=None, ef
 
 
 def _save_workers(workers: list) -> None:
-    STATE.mkdir(parents=True, exist_ok=True)
-    tmp = STATE / "workers.json.tmp"
-    tmp.write_text(json.dumps(workers, ensure_ascii=False, indent=1), encoding="utf-8")
-    tmp.replace(STATE / "workers.json")
+    atomicio.write_text(STATE / "workers.json", json.dumps(workers, ensure_ascii=False, indent=1))
 
 
 def record_worker(w: dict) -> None:
-    """Add a launched worker to state/workers.json."""
-    _save_workers(load_workers() + [w])
+    """Add a launched worker to state/workers.json (the server and a `chief.py dispatch` in a terminal may both do it)."""
+    with atomicio.locked(STATE / "workers.json"):
+        _save_workers(load_workers() + [w])
 
 
 def tag_worker(worker_id: str, **fields) -> bool:
     """Attach what a worker is for (the request and the phase) so its cost can be attributed. False if it is not recorded."""
-    with _LAUNCH_LOCK:
+    with _LAUNCH_LOCK, atomicio.locked(STATE / "workers.json"):
         workers = load_workers()
         hit = next((w for w in workers if w.get("id") == worker_id), None)
         if hit is None:
@@ -806,7 +826,8 @@ def launch_curator(prompt):
     user accepts the folder trust. The prompt tells it to read the vault's CLAUDE.md first."""
     if not vault_enabled():
         raise RuntimeError("no vault configured")
-    cmd = ["claude", "--bg", "-n", "cos-curation", "--add-dir", str(VAULT), "--permission-mode", "auto", prompt]
+    cmd = ["claude", "--bg", "-n", "cos-curation", "--add-dir", str(VAULT), "--permission-mode", "auto",
+           "--disallowedTools=" + ",".join(fixed_deny()), "--", prompt]
     with _LAUNCH_LOCK:
         r = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, encoding="utf-8", timeout=120,
                            creationflags=NO_WINDOW)
@@ -865,6 +886,17 @@ def archive_doc(kind, project, title, fid, created, text, lang="en"):
     return result
 
 
+# Files that are never committed by the pipeline, whatever the project's .gitignore says (names, not contents).
+SECRET_FILES = re.compile(r"^(?:\.env(?:\..+)?|.*\.(?:pem|key|pfx|p12|keystore)|id_(?:rsa|dsa|ecdsa|ed25519)|credentials\.json|"
+                          r"\.npmrc|\.pypirc|\.netrc|(?:secrets?|segredos?)(?:\.(?:json|ya?ml|toml|txt|ini|env|md))?)$", re.I)
+SECRET_FILES_OK = re.compile(r"\.(?:example|sample|template|dist)$", re.I)
+
+
+def secret_paths(paths) -> list:
+    """The paths whose file name looks like a secret (`.env`, a private key, a credentials file); examples and templates pass."""
+    return [x for x in paths if SECRET_FILES.match(x.rsplit("/", 1)[-1]) and not SECRET_FILES_OK.search(x)]
+
+
 def commit_worktree(path, message):
     """Commit everything in a feature's worktree (only after the review passes). Return (ok, sha or reason).
 
@@ -882,6 +914,10 @@ def commit_worktree(path, message):
             return False, "git add failed"
         if not run("status", "--porcelain").stdout.strip():
             return True, "no changes to commit"
+        bad = secret_paths(run("diff", "--cached", "--name-only").stdout.split("\n"))
+        if bad:                                   # nothing is committed: the user looks at the worktree and decides
+            run("reset", "-q")
+            return False, "not committed: these look like secrets: " + ", ".join(bad[:5]) + (" …" if len(bad) > 5 else "")
         r = run("commit", "-m", message)
         if r.returncode != 0:
             return False, ((r.stderr or r.stdout).strip() or "git commit failed")[-300:]

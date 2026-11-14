@@ -556,3 +556,30 @@ def test_suggestions_are_listed_dismissed_and_never_start_anything(fresh):
 def test_a_ship_request_can_be_created_through_the_route(fresh):
     code, out = fresh.post("/api/features", {"project": "Dotfiles", "title": "Commit the aliases", "desc": "Commit alias.sh.", "kind": "ship"})
     assert code == 200 and out["kind"] == "ship" and out["stage"] == "build"
+
+
+# ---- fewer clicks, fewer surprises ----
+@pytest.mark.parametrize("path", ["/api/state", "/api/costs", "/api/settings", "/api/projects"])
+def test_reads_accept_the_token_in_a_header_so_it_stays_out_of_the_address(ro, path):
+    assert ro.request("GET", path, token=False, headers={"X-Token": ro.token})[0] == 200
+    assert ro.request("GET", path, token=False, headers={"X-Token": "wrong"})[0] == 403
+
+
+def test_the_state_carries_the_alerts_list(ro):
+    assert isinstance(ro.state()["alerts"], list)
+
+
+def test_a_request_can_ask_to_run_until_the_review_but_never_a_publication(fresh):
+    code, out = fresh.post("/api/features", {"project": "Dotfiles", "title": "Group aliases", "desc": "One file.", "autopilot": True})
+    assert code == 200 and out["autopilot"] is True
+    code, out = fresh.post("/api/features", {"project": "Dotfiles", "title": "Plain one", "desc": "One file.", "autopilot": "yes"})
+    assert code == 200 and "autopilot" not in out
+    code, out = fresh.post("/api/features", {"project": "Dotfiles", "title": "Commit it", "desc": "Commit alias.sh.", "kind": "ship",
+                                            "autopilot": True})
+    assert code == 200 and "autopilot" not in out
+
+
+def test_the_page_sends_the_token_in_a_header_and_offers_the_new_option(ro):
+    _, html = ro.request("GET", "/", token=False)
+    assert "?t=" not in html and '"t="+T' not in html
+    assert 'id="nfAuto"' in html and "function alertBanner" in html

@@ -131,7 +131,7 @@ If there are no findings write "None.\"""",
 }
 
 BUILD_RESUME = """## Phase 3: implementation (continuation)
-This implementation's worktree already exists at "{work}" (branch feat/{fid}): enter it and continue there. Do NOT create it again
+This implementation's worktree already exists at "{work}" (branch feat/{fid}): work there, with `cd "{work}"` or absolute paths. Do NOT use the EnterWorktree tool (it asks the user for permission and a background worker cannot answer, so it would stay blocked). Do NOT create it again
 or check out in the repo's main folder. Spec: {spec}. Plan: {plan}.
 Use `superpowers:test-driven-development` (failing test first) and finish with `superpowers:verification-before-completion`;
 do NOT commit (the pipeline commits after the review) or push; do not run irreversible actions or actions on shared systems
@@ -197,3 +197,17 @@ CHANGES_BLOCK = ("\n\n## Changes requested by the user\n{feedback}\n"
                  "The previous version is at {prev}; review it and write the new version to {path}.\n"
                  "If the user asked questions or has doubts, answer them directly in a section “## Answers to your doubts”, treat the "
                  "answered questions as decided, and leave in “## Open questions” only what is still missing (same format, with options).")
+
+# Appended to every phase's prompt (features._task, the plan validation and «Ask the worker»): the card shows the artifact as it
+# is, so the artifact is short and made of bullets. What the next worker needs in full goes to a side file the card does not show.
+BRIEF = """
+
+## How to write it (the user reads this on a small card)
+- Bullets only: no paragraphs of prose, no introduction, no closing summary, and do not repeat the user's request or these instructions.
+- One line per bullet, 25 words at most; sub-bullets only when they carry a fact (a path, a command, a number).
+- Keep every section, heading, table and fixed line this phase asks for, exactly as asked: they are read by the server. Tables only
+  where the phase asks for one.
+- Size: aim for 40 lines, never more than 80 (questions included). Say each thing once.
+- Long material (command output, code, step-by-step detail the next worker needs, logs) does NOT go in the artifact: write it to a
+  file next to it named `<artifact name>-details.md` and point to it with one bullet. Never paste secrets in either file.
+- Your final chat message: [DONE], [BLOCKED] or [QUESTION] and at most 5 short bullets."""

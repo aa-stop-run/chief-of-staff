@@ -37,6 +37,7 @@ if DEMO:                              # the data folder must exist before `chief
 import chief  # noqa: E402
 import home  # noqa: E402
 import settings  # noqa: E402
+from alerts import Alerts  # noqa: E402
 from curation import CurationError, Curator  # noqa: E402
 from features import FeatureError, Features  # noqa: E402
 from i18n import request_lang, translate  # noqa: E402
@@ -80,6 +81,7 @@ FEATURES = Features(chief.STATE, chief.launch_worker, _is_active, grace_s=GRACE_
                     has_vault=chief.vault_enabled(), session=SESSIONS.current_id, on_launch=chief.tag_worker, limit=chief.worker_limit, route=chief.route, tools=chief.tools_for)
 TICK_S = 10
 PENDING = Pending(chief.STATE)
+ALERTS = Alerts()                           # a worker stuck on a prompt or a failed request, once it has lasted a few minutes
 PROPOSALS = Proposals(chief.STATE)          # requests that workers suggested; only the user turns one into a request
 
 
@@ -120,12 +122,23 @@ def invalidate_cache() -> None:
 
 
 def build_state() -> dict:
-    with _live_lock:
+    """The dashboard's state, rebuilt at most every CACHE_S. Building it asks Claude Code for its sessions, which can take many
+    seconds: a request that arrives meanwhile gets the previous state instead of waiting, unless an action has just changed
+    something (the cache was invalidated), in which case it waits for the fresh one."""
+    cached = _cache["state"]
+    if cached is not None and time.monotonic() - _cache["at"] < CACHE_S:
+        return cached
+    stale_ok = cached is not None and _cache["at"] > 0
+    if not _live_lock.acquire(blocking=not stale_ok):
+        return cached
+    try:
         if _cache["state"] is not None and time.monotonic() - _cache["at"] < CACHE_S:
             return _cache["state"]
         state = _build_state_uncached()
         _cache.update(at=time.monotonic(), state=state)
         return state
+    finally:
+        _live_lock.release()
 
 
 def _limited_workers(sessions: list) -> list:
@@ -254,14 +267,19 @@ def _build_state_uncached() -> dict:
     state["curation"] = CURATOR.status()
     state["plan"] = _plan_block(LEDGER.load())
     state["limits"] = _limited_workers(sess or [])
+    shown, fresh = ALERTS.update(Alerts.items(state["workers"], in_scope))
+    state["alerts"] = shown
+    for a in fresh:                              # said once in the server's terminal too: the dashboard may be closed
+        print(f"[alert] {a['kind']}: {a['project']} · {a['title']} ({a['detail']})", file=sys.stderr)
     state["session"] = _session_summary(cur, in_scope)
     state["ui"] = str((APP / "index.html").stat().st_mtime_ns)
     return state
 
 
-def _token_ok(query: dict) -> bool:
-    """The `t` parameter of a parsed query string equals the start-up token (constant-time comparison)."""
-    return secrets.compare_digest(query.get("t", [""])[0].encode("utf-8"), TOKEN.encode("utf-8"))
+def _token_ok(query: dict, headers=None) -> bool:
+    """The start-up token, from the `X-Token` header (what the page sends) or the `t` parameter (constant-time comparison)."""
+    given = (headers.get("X-Token") if headers is not None else "") or query.get("t", [""])[0]
+    return secrets.compare_digest(given.encode("utf-8"), TOKEN.encode("utf-8"))
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -299,20 +317,20 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/logo.svg":
             return self._send(200, (APP / "logo.svg").read_bytes(), "image/svg+xml")
         if u.path == "/api/state":
-            if not _token_ok(parse_qs(u.query)):
+            if not _token_ok(parse_qs(u.query), self.headers):
                 return self._send(403, b"token", "text/plain")
             return self._json(200, build_state())
         if u.path == "/api/costs":
-            if not _token_ok(parse_qs(u.query)):
+            if not _token_ok(parse_qs(u.query), self.headers):
                 return self._send(403, b"token", "text/plain")
             return self._json(200, _costs_report())
         if u.path == "/api/settings":
-            if not _token_ok(parse_qs(u.query)):
+            if not _token_ok(parse_qs(u.query), self.headers):
                 return self._send(403, b"token", "text/plain")
             return self._json(200, settings.snapshot())
         if u.path in ("/api/projects", "/api/project", "/api/project/doc"):
             q = parse_qs(u.query)
-            if not _token_ok(q):
+            if not _token_ok(q, self.headers):
                 return self._send(403, b"token", "text/plain")
             self._lang = request_lang(self.headers.get("X-Lang"))
             return self._project_route(u.path, q)
@@ -458,7 +476,8 @@ class Handler(BaseHTTPRequestHandler):
             if body.get("project") not in names:
                 raise FeatureError("unknown project")
             return FEATURES.create(body["project"], str(body.get("title", "")), str(body.get("desc", "")),
-                                   body.get("model") or None, lang=self._lang, kind=str(body.get("kind") or "feature"))
+                                   body.get("model") or None, lang=self._lang, kind=str(body.get("kind") or "feature"),
+                                   autopilot=body.get("autopilot") is True)
         if len(parts) == 4:
             fid, action = parts[2], parts[3]
             if action == "approve":

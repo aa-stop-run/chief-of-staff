@@ -170,7 +170,7 @@ Se não houver achados escreve «Nenhum.»
 Termina com [DONE]."""
 
 BUILD_RESUME = """## Fase 3: implementação (continuação)
-O worktree desta implementação já existe em "{work}" (ramo feat/{fid}): entra nele e continua lá. NÃO o voltes a criar nem
+O worktree desta implementação já existe em "{work}" (ramo feat/{fid}): trabalha lá com `cd "{work}"` ou caminhos absolutos. NÃO uses a ferramenta EnterWorktree (pede licença ao utilizador e um worker em segundo plano não a pode dar, ficaria bloqueado). NÃO o voltes a criar nem
 faças checkout na pasta principal do repo. Spec: {spec}. Plano: {plan}.
 Usa `superpowers:test-driven-development` (teste falhado primeiro) e termina com `superpowers:verification-before-completion`;
 NÃO faças commits (o pipeline comita depois da revisão) nem push; não executes ações irreversíveis nem em sistemas partilhados
@@ -199,3 +199,17 @@ CHANGES_BLOCK = ("\n\n## Alterações pedidas pelo utilizador\n{feedback}\n"
                  "Se o utilizador fez perguntas ou tem dúvidas, responde-lhes de forma direta numa secção "
                  "«## Respostas às tuas dúvidas», dá as questões respondidas como decididas e deixa em "
                  "«## Perguntas em aberto» só o que ainda falta (no mesmo formato, com opções).")
+
+# Acrescentado ao prompt de todas as fases (features._task, validação do plano e «Perguntar ao worker»): o cartão mostra o artefacto
+# tal como está, por isso o artefacto é curto e feito de tópicos. O que o worker seguinte precisa por extenso vai para um ficheiro ao lado.
+BRIEF = """
+
+## Como escrever (o utilizador lê isto num cartão pequeno)
+- Só tópicos: sem parágrafos de prosa, sem introdução, sem resumo final, e sem repetir o pedido do utilizador nem estas instruções.
+- Uma linha por tópico, no máximo 25 palavras; subtópicos só quando trazem um facto (um caminho, um comando, um número).
+- Mantém todas as secções, títulos, tabelas e linhas fixas que esta fase pede, exatamente como pedido: são lidos pelo servidor.
+  Tabelas só onde a fase pede uma.
+- Tamanho: aponta para 40 linhas, nunca mais de 80 (perguntas incluídas). Diz cada coisa uma vez.
+- Material longo (saída de comandos, código, detalhe passo a passo de que o worker seguinte precisa, logs) NÃO vai no artefacto:
+  escreve-o num ficheiro ao lado chamado `<nome do artefacto>-details.md` e aponta para ele com um tópico. Nunca coles segredos em nenhum dos dois.
+- A tua mensagem final no chat: [DONE], [BLOCKED] ou [QUESTION] e no máximo 5 tópicos curtos."""

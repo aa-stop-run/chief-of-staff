@@ -9,6 +9,7 @@ import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import atomicio
 import prompts
 import prompts_kinds
 import prompts_pt
@@ -29,7 +30,8 @@ MAX_QUESTION, MAX_QA_CONTEXT = 2000, 3000   # characters; how much of an earlier
 ARCHIVE_EVENTS = {"spec": ("spec archived", "spec archiving failed"), "plan": ("plan archived", "plan archiving failed"),
                   "analysis": ("analysis archived", "analysis archiving failed")}
 PLAN_REVIEW = "plan-review.md"   # independent plan validation (a sub-step of the plan phase)
-MAX_PLAN_FIXES = 2               # automatic rounds plan -> validation -> plan fix
+MAX_PLAN_FIXES = 1               # automatic rounds plan -> validation -> plan fix (one: a validator always finds something)
+AUTOPILOT_STAGES = ("spec", "plan")   # what «run until the review» may approve by itself; never the last phase, never ship/release
 MAX_LIMIT_RESUMES = 3            # how many times a request's phase is restarted after a usage limit
 LIMIT_GRACE_S = 180              # after a limit resets, wait this long for Claude Code to continue by itself before restarting
 MAX_QUESTIONS, MAX_OPTIONS, MAX_Q_TITLE, MAX_Q_TEXT, MAX_Q_OPTION = 20, 8, 120, 1500, 300
@@ -224,9 +226,7 @@ class Features:
 
     def _save(self, fs: list) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
-        tmp = self._file.with_suffix(".tmp")
-        tmp.write_text(json.dumps(fs, ensure_ascii=False, indent=1), encoding="utf-8")
-        tmp.replace(self._file)
+        atomicio.write_text(self._file, json.dumps(fs, ensure_ascii=False, indent=1))
 
     def _dir(self, fid: str) -> Path:
         return self.root / "features" / fid
@@ -339,6 +339,28 @@ class Features:
                 self._after_plancheck(fs, f)
             else:
                 self._begin_plancheck(fs, f)
+        elif f["stage"] == "spec":
+            self._autopilot(fs, f)
+
+    # ---- «run until the review»: the user's choice, per request, to skip the approval clicks that carry no risk ----
+    def _autopilot(self, fs: list, f: dict, validated: bool = True) -> None:
+        """Approve a finished spec or plan by itself when the request asked for it. Stops (the user decides, as always) when the
+        worker left questions, when the plan was not validated, at the last phase and for every publish or production request."""
+        stages = prompts_kinds.KIND_STAGES[f.get("kind", "feature")]
+        if (not f.get("autopilot") or f.get("kind") in ("ship", "release") or f["stage"] not in AUTOPILOT_STAGES
+                or f["status"] != AWAITING or stages.index(f["stage"]) + 1 >= len(stages)):
+            return
+        if not validated:
+            self._log(f, "autopilot stopped", f["stage"], "the plan was not validated: read it and decide")
+            return
+        if self.questions(f["id"]) != []:        # open questions, or no readable questions file: only the user can answer
+            self._log(f, "autopilot stopped", f["stage"], "the worker left questions for you")
+            return
+        self._log(f, "approved automatically", f["stage"], "run until the review")
+        try:
+            self._approve(fs, f)
+        except FeatureError as e:
+            self._log(f, "autopilot stopped", f["stage"], str(e))
 
     # ---- independent plan validation: plan -> validator -> (plan fixes -> validator)* -> user ----
     @staticmethod
@@ -367,7 +389,7 @@ class Features:
         if extra:
             base = base.replace(P.OUT_MARKER, extra + "\n" + P.OUT_MARKER, 1)
         task = base.format(title=f["title"], fid=f["id"], project=f["project"], desc=f["desc"],
-                           spec=self._spec_ref(f, d), plan=d / ARTIFACT["plan"], out=old)
+                           spec=self._spec_ref(f, d), plan=d / ARTIFACT["plan"], out=old) + P.BRIEF
         try:
             w = self._spawn(f, "plan-validation", task, [str(d)], f"{_slug(f['title'])[:30].strip('-')}-validate-plan")
         except Exception as e:
@@ -384,15 +406,19 @@ class Features:
 
     def _after_plancheck(self, fs: list, f: dict) -> None:
         path = self._dir(f["id"]) / PLAN_REVIEW
-        verdict, _ = parse_review(path.read_text(encoding="utf-8", errors="replace") if path.is_file() else "")
+        verdict, counts = parse_review(path.read_text(encoding="utf-8", errors="replace") if path.is_file() else "")
         pv = self._pv(f)
+        if verdict == "blocked" and not (counts["CRITICAL"] or counts["HIGH"]) and (counts["MEDIUM"] or counts["LOW"]):
+            verdict = "reserves"             # only minor findings: they inform the user, they do not send the plan back
         if verdict in ("approved", "reserves"):
             pv["checking"] = False
             self._log(f, "plan validated", "plan", "approved" if verdict == "approved" else "with reservations")
+            self._autopilot(fs, f)
         elif verdict == "blocked":
             pv["checking"] = False
             if pv["fixes"] >= MAX_PLAN_FIXES:
                 self._log(f, "plan fixes limit", "plan", f"{MAX_PLAN_FIXES} rounds without approval: it is up to you")
+                self._autopilot(fs, f, validated=False)
                 return
             pv["fixes"] += 1
             self._log(f, "plan fixes", "plan", "the validator blocked the plan")
@@ -404,6 +430,7 @@ class Features:
         elif pv["retries"] >= MAX_REVIEW_RETRIES:
             pv["checking"] = False
             self._log(f, "validation without verdict", "plan", "could not read a verdict: read the plan and decide")
+            self._autopilot(fs, f, validated=False)
         else:
             pv["retries"] += 1
             self._log(f, "validation repeated", "plan", "no recognisable verdict")
@@ -561,7 +588,7 @@ class Features:
             title=f["title"], kind=f.get("kind", "feature"), fid=f["id"], project=f["project"], desc=f["desc"],
             read_only=prompts_qa.READ_ONLY[lang], files="\n".join(files) or prompts_qa.NO_FILES[lang],
             history=history, question=question, out=self._answer_file(f["id"], n))
-        return text + ("" if self._has_vault else P.NO_VAULT_NOTE)
+        return text + P.BRIEF + ("" if self._has_vault else P.NO_VAULT_NOTE)
 
     def ask(self, fid: str, question: str) -> dict:
         """Launches a read-only worker that answers a question about this request. Any kind, any phase, any status."""
@@ -589,7 +616,8 @@ class Features:
             return entry
 
     # ---- actions ----
-    def create(self, project: str, title: str, desc: str, model, lang: str = "en", kind: str = "feature") -> dict:
+    def create(self, project: str, title: str, desc: str, model, lang: str = "en", kind: str = "feature",
+               autopilot: bool = False) -> dict:
         title, desc = (title or "").strip(), (desc or "").strip()
         if not project:
             raise FeatureError("missing project")
@@ -610,6 +638,8 @@ class Features:
             f = {"id": fid, "title": title, "desc": desc, "project": project, "model": model or "",
                  "lang": lang or "en", "kind": kind, "stage": prompts_kinds.KIND_STAGES[kind][0], "status": WORKING, "worker_id": "", "worker_name": "",
                  "created": _now(), "history": [], "rev": {s: 0 for s in STAGES}, "auto": {"fixes": 0, "retries": 0}}
+            if autopilot and kind not in ("ship", "release"):
+                f["autopilot"] = True
             self._dir(fid).mkdir(parents=True, exist_ok=True)
             self._start(fs, f, "")
             fs.append(f)
@@ -621,6 +651,14 @@ class Features:
             fs = self._load()
             f = self._get(fs, fid)
             self._need(f, AWAITING)
+            self._approve(fs, f, by_user=True)
+            self._save(fs)
+            return f
+
+    def _approve(self, fs: list, f: dict, by_user: bool = False) -> None:
+        """Check the phase's gates and move the request on. `by_user`: the click (the automatic approval logs its own event)."""
+        fid = f["id"]
+        if True:   # (kept as a block so the gates below read as before)
             if f.get("kind") == "ship" and f["stage"] == "build":         # the click authorises the reported commands: they must be sane
                 path = self._dir(fid) / ARTIFACT["build"]
                 gate = ship_gate(path.read_text(encoding="utf-8", errors="replace") if path.is_file() else "")
@@ -646,7 +684,8 @@ class Features:
                         raise FeatureError("the regression report has no readable POSITIVE or NEGATIVE verdict: run the tests again")
                     if gate == "mismatch":
                         raise FeatureError("the commit that was tested is not the planned candidate: run the tests again")
-            self._log(f, "approved", f["stage"])
+            if by_user:
+                self._log(f, "approved", f["stage"])
             self._publish(f, f["stage"])
             stages = prompts_kinds.KIND_STAGES[f.get("kind", "feature")]
             nxt = stages.index(f["stage"]) + 1
@@ -657,8 +696,6 @@ class Features:
             else:
                 f["stage"] = stages[nxt]
                 self._start(fs, f, "")
-            self._save(fs)
-            return f
 
     def request_fixes(self, fid: str, comment: str = "", selected: bool = False) -> dict:
         """After the review: send the findings back to the implementation worker (which continues in the same worktree)."""
@@ -711,9 +748,20 @@ class Features:
             if f.get("pv", {}).get("checking"):
                 self._start_plancheck(fs, f)
             else:
-                self._start(fs, f, "")
+                self._start(fs, f, self._pending_feedback(f))
             self._save(fs)
             return f
+
+    @staticmethod
+    def _pending_feedback(f: dict) -> str:
+        """The changes the user asked for in the round that failed, so that trying again does not lose them: the last request for
+        changes or fixes, looking back over the launches and failures that followed it and stopping at anything else."""
+        for h in reversed(f.get("history", [])):
+            if h["event"] in ("changes requested", "fixes requested"):
+                return h.get("note", "") or ""
+            if h["event"] not in ("worker launched", "failed", "worker still active"):
+                break
+        return ""
 
     def cancel(self, fid: str) -> dict:
         with self._lock:
@@ -884,6 +932,7 @@ class Features:
             template += "\n" + extra
         text += template.format(fid=f["id"], spec=self._spec_ref(f, d), plan=d / ARTIFACT["plan"],
                                 report=d / ARTIFACT["build"], work=d / "work")
+        text += P.BRIEF
         if not self._has_vault:
             text += P.NO_VAULT_NOTE
         if feedback:

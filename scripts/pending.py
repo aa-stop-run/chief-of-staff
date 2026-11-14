@@ -9,6 +9,8 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+import atomicio
+
 STATES = ("awaiting", "blocked", "running", "optional")
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
 MAX_TITLE, MAX_TEXT = 140, 1200
@@ -35,9 +37,7 @@ class Pending:
 
     def _save(self, items: list) -> None:
         self.root.mkdir(parents=True, exist_ok=True)
-        tmp = self._file.with_suffix(".tmp")
-        tmp.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8")
-        tmp.replace(self._file)
+        atomicio.write_text(self._file, json.dumps(items, ensure_ascii=False, indent=1))
 
     def list(self) -> list:
         with self._lock:

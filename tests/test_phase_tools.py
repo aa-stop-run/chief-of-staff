@@ -54,10 +54,14 @@ def test_invalid_rules_are_dropped_and_the_list_is_capped(cfg):
 
 def test_the_command_line_keeps_the_prompt_out_of_the_variadic_options():
     _, cmd, prompt = chief.build_command(P, "task", allow=["Bash(git push -u:*)", "Bash(gh pr create:*)"], deny=["Bash(git push*--force*)"])
-    assert "--allowedTools=Bash(git push -u:*),Bash(gh pr create:*)" in cmd and "--disallowedTools=Bash(git push*--force*)" in cmd
+    deny = next(c for c in cmd if c.startswith("--disallowedTools=")).split("=", 1)[1].split(",")
+    assert "--allowedTools=Bash(git push -u:*),Bash(gh pr create:*)" in cmd and deny[0] == "Bash(git push*--force*)"
+    assert chief.NO_PUSH not in deny and all(d in deny for d in chief.FIXED_DENY)     # it was allowed one push, nothing more
     assert cmd[-2:] == ["--", prompt] and cmd.index("--") > cmd.index("--permission-mode")
     _, plain, prompt = chief.build_command(P, "task")
-    assert "--" not in plain and plain[-1] == prompt and not any(c.startswith("--allowedTools") for c in plain)
+    assert plain[-2:] == ["--", prompt] and not any(c.startswith("--allowedTools") for c in plain)
+    denied = next(c for c in plain if c.startswith("--disallowedTools=")).split("=", 1)[1].split(",")
+    assert chief.NO_PUSH in denied and all(d in denied for d in chief.FIXED_DENY)     # every worker: no push, whatever its phase
 
 
 def test_features_pass_the_rules_of_the_phase_they_launch(tmp_path):

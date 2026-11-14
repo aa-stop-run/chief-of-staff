@@ -235,6 +235,9 @@ dialog label{display:grid;gap:6px;font:500 12.5px var(--font-ui);color:var(--mut
 dialog input,dialog select,dialog textarea{background:var(--bg);color:var(--ink);border:1px solid var(--line-2);border-radius:var(--rs);
   padding:9px 11px;font:14px var(--font-ui)}
 dialog textarea{min-height:110px;resize:vertical}
+dialog label.nfauto{display:flex;gap:9px;align-items:flex-start;line-height:1.45;cursor:pointer}
+dialog label.nfauto input{width:auto;margin-top:2px;flex:none}
+dialog label.nfauto[hidden]{display:none}
 dialog input:focus,dialog select:focus,dialog textarea:focus{outline:none;border-color:var(--acc)}
 dialog .note{font-size:12px;color:var(--mute);margin:0}
 dialog .end{display:flex;justify-content:flex-end;gap:8px}
@@ -505,6 +508,7 @@ a.plink:active{color:var(--acc);filter:brightness(1.15)}
   <label>Title<input id="nfTitle" maxlength="120" required placeholder="e.g. login with 2FA"></label>
   <label>What you want<textarea id="nfDesc" maxlength="4000" required placeholder="Describe what the feature should do and why."></textarea></label>
   <label>Model<select id="nfModel"><option value="">Default</option></select></label>
+  <label class="nfauto" id="nfAutoRow"><input type="checkbox" id="nfAuto"><span data-i18n>Run until the review: approve the spec and the plan by itself when the worker leaves no questions and the plan is validated. Accepting the implementation stays yours.</span></label>
   <p class="note" id="nfNote"></p>
   <div class="end"><button class="btn" type="button" id="nfCancel">Cancel</button><button class="btn pri" id="nfGo" type="submit">Launch spec</button></div>
 </form></dialog>
@@ -759,6 +763,10 @@ const PT = {
   "By project":"Por projeto",
   "A + means some models have no known price and are counted in tokens only.":"Um + quer dizer que alguns modelos não têm preço conhecido e contam só em tokens.",
   "Session ended: {d} active, about {c}.":"Sessão terminada: {d} ativos, cerca de {c}.",
+  "Run until the review: approve the spec and the plan by itself when the worker leaves no questions and the plan is validated. Accepting the implementation stays yours.":"Seguir até à revisão: aprova sozinho a spec e o plano quando o worker não deixa perguntas e o plano está validado. Aceitar a implementação continua a ser contigo.",
+  "Worker waiting for you":"Worker à tua espera",
+  "Request failed":"Pedido falhado",
+  "the worker stopped without the result":"o worker parou sem o resultado",
   "Demo mode: sample data and simulated workers. Nothing here runs a real worker or touches your projects.":"Modo de demonstração: dados de exemplo e workers simulados. Nada aqui lança workers a sério nem toca nos teus projetos.",
   "Done@status":"Concluída",
   "Cancelled":"Cancelada",
@@ -900,6 +908,8 @@ const PT = {
   "failed":"falhou",
   "worker still active":"worker ainda ativo",
   "approved":"aprovado",
+  "approved automatically":"aprovado automaticamente",
+  "autopilot stopped":"seguimento automático parou",
   "changes requested":"alterações pedidas",
   "fixes requested":"correções pedidas",
   "automatic fixes":"correções automáticas",
@@ -1220,9 +1230,13 @@ function swapHtml(el,html){
   el.innerHTML=html;
   if(keep){const n=el.querySelector(keep);if(n)n.focus();}
 }
+// what needs the user now and would otherwise sit unnoticed: a worker stuck on a prompt, a request whose worker failed
+function alertBanner(list){
+  return (list||[]).map(a=>`<p class="banner">${a.kind==="blocked"?tt("Worker waiting for you"):tt("Request failed")}: <b>${esc(cap(a.project))}</b> · ${esc(a.title)} — ${esc(a.kind==="blocked"?(a.detail||""):tt("the worker stopped without the result"))} (${Math.max(1,Math.round((a.for_s||0)/60))} min)</p>`).join("");
+}
 // GET with the token and the language; null when the token is stale (the page reloads itself)
 async function getJson(path){
-  const r=await fetch(path+(path.includes("?")?"&":"?")+"t="+T,{headers:{"X-Lang":LANG}});
+  const r=await fetch(path,{headers:{"X-Lang":LANG,"X-Token":T}});
   if(r.status===403){reloadForNewToken();return null;}
   const data=await r.json().catch(()=>({error:tt("Invalid response")}));
   return {ok:r.ok,status:r.status,data};
@@ -1456,7 +1470,7 @@ function render(){
   const waiting=(S.features||[]).filter(f=>f.status==="awaiting").length;
   $("apNote").hidden=!S.vault;
   $("banner").innerHTML=(S.demo?`<p class="banner demo">${tt("Demo mode: sample data and simulated workers. Nothing here runs a real worker or touches your projects.")}</p>`:"")
-    +limitBanner(S.limits)
+    +limitBanner(S.limits)+alertBanner(S.alerts)
     +(S.claude_ok===false?`<p class="banner">${tt("I cannot talk to <b>claude</b> (agents). Worker status may be out of date.")}</p>`:"");
   const act=S.workers.filter(w=>["working","running"].includes(w.state)).length;
   const parados=S.workers.filter(w=>["blocked","idle","waiting"].includes(w.state)).length;
@@ -2226,7 +2240,7 @@ $("newBtn").addEventListener("click",()=>openNewRequest());
 // ---------- settings ----------
 let SET=null,moving="";
 async function loadSettings(){
-  try{const r=await fetch("/api/settings?t="+T);if(!r.ok)throw new Error(tt("Error"));SET=await r.json();renderSettings();}
+  try{const r=await fetch("/api/settings",{headers:{"X-Token":T}});if(!r.ok)throw new Error(tt("Error"));SET=await r.json();renderSettings();}
   catch(err){toast(err.message,true);}
 }
 function renderSettings(){
@@ -2350,7 +2364,7 @@ function renderCosts(){
   $("costBody").innerHTML=h;
 }
 async function loadCosts(){
-  try{const r=await fetch("/api/costs?t="+T);if(!r.ok)throw new Error(tt("Error"));COST=await r.json();renderCosts();}
+  try{const r=await fetch("/api/costs",{headers:{"X-Token":T}});if(!r.ok)throw new Error(tt("Error"));COST=await r.json();renderCosts();}
   catch(e){$("costBody").innerHTML=`<p class="cnote">${esc(e.message)}</p>`;}
 }
 function openCosts(){$("costD").showModal();loadCosts();}
@@ -2409,13 +2423,14 @@ const NF={
   ship:["This launches a worker that prepares the <b>commit</b> locally and writes what would be published (branch, remote, commits, PR text). Nothing is pushed until you approve here.","Prepare commit"],
   release:["This launches a read-only worker that writes the <b>release plan</b>. Then an independent worker runs the regression tests, and only a POSITIVE verdict plus your approval lets a worker carry out the promotion.","Launch release plan"]};
 function nfSync(){const k=NF[$("nfKind").value]?$("nfKind").value:"feature";
-  $("nfNote").innerHTML=tt(NF[k][0]);$("nfGo").textContent=tt(NF[k][1]);}
+  $("nfNote").innerHTML=tt(NF[k][0]);$("nfGo").textContent=tt(NF[k][1]);
+  const noAuto=k==="ship"||k==="release";$("nfAutoRow").hidden=noAuto;if(noAuto)$("nfAuto").checked=false;}
 $("nfKind").addEventListener("change",nfSync);
 $("newForm").addEventListener("reset",()=>setTimeout(nfSync,0));
 $("nfCancel").addEventListener("click",()=>$("newF").close());
 $("newForm").addEventListener("submit",async e=>{
   e.preventDefault();const go=$("nfGo");go.disabled=true;go.textContent=tt("Launching…");
-  try{await api("/api/features",{project:$("nfProject").value,title:$("nfTitle").value,desc:$("nfDesc").value,model:$("nfModel").value,kind:$("nfKind").value});
+  try{await api("/api/features",{project:$("nfProject").value,title:$("nfTitle").value,desc:$("nfDesc").value,model:$("nfModel").value,kind:$("nfKind").value,autopilot:$("nfAuto").checked});
     $("newF").close();$("newForm").reset();toast(tt("Request created: worker launched."));featHtml="";
     if(nfFromProposal){try{await api(`/api/proposals/${encodeURIComponent(nfFromProposal)}/dismiss`,{});}
       catch(_){toast(tt("Request created, but the suggestion could not be dismissed: dismiss it yourself so it is not created twice."),true);}nfFromProposal="";propHtml="";}
@@ -2517,7 +2532,7 @@ function reloadForNewToken(){
 }
 let UI_V="";
 async function load(){
-  try{const r=await fetch("/api/state?t="+T);
+  try{const r=await fetch("/api/state",{headers:{"X-Token":T}});
     if(r.status===403){reloadForNewToken();return;}
     if(r.ok){S=await r.json();
       // the server changes “version” when index.html changes: reload so old code (and buttons that do nothing) is not kept
