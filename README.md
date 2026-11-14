@@ -86,7 +86,7 @@ Every card shows its own estimated cost in a small pill next to its title. The p
 
 <p align="center"><img src="docs/img/costs.png" alt="The sessions and costs dialog: active time, estimated cost, by model and by project" width="440">&nbsp;&nbsp;<img src="docs/img/costs-past-sessions.png" alt="Past sessions with their frozen totals" width="440"></p>
 
-You start a request from **+ New request**, choosing its kind (feature, bug fix, maintenance, analysis, or **publish**), the project and, if you want, the model. **⚙ Settings** manages your project folders, each project's category, the vault and the hosts the Chief may clone from:
+You start a request from **+ New request**, choosing its kind (feature, bug fix, maintenance, analysis, **publish** or **production release**), the project and, if you want, the model. Tick **Run until the review** to skip the approval clicks that carry no risk: the Chief then approves the spec and the plan by itself when the worker left no questions and the validator did not block the plan. Accepting the implementation is always your click, and publish and release requests never run this way. **⚙ Settings** manages your project folders, each project's category, the vault and the hosts the Chief may clone from:
 
 **Publish (commit, push, pull request).** A *publish* request has two phases. The first prepares the commit **locally** in the project's repo (only the files you named, on a new branch if needed) and writes a report with the branch, the remote, the commits, the proposed PR text and the exact commands it would run. Nothing is pushed. Only when you click **Approve and publish** does the second phase run those commands (`git push -u <remote> <branch>` and, if asked, `gh pr create`): never a force-push, never another branch or remote, never a login, never a merge.
 
@@ -97,6 +97,11 @@ You start a request from **+ New request**, choosing its kind (feature, bug fix,
 <p align="center"><img src="docs/img/new-request.png" alt="The new request dialog" width="420">&nbsp;&nbsp;<img src="docs/img/settings.png" alt="Settings" width="460"></p>
 
 **Projects** lists every project with its category, branch and uncommitted changes, open requests, fixes waiting, and estimated cost. Sort by **Needs attention** (the default) or **Name**, and the search box filters by name. Click one to open its page: a header with a one-sentence description, the branch, changes and last commit, then **Needs attention** (review findings and blocked to-dos, each review finding with a **Create fix request** button that opens the new-request dialog as a bug fix with the finding filled in), its **requests**, an **overview and architecture** (from the vault note or the README), its **documents** (README, `CLAUDE.md`, `ARCHITECTURE.md`, `docs/specs|plans|analyses`, opened in a dialog), its **tools** (commands and the names of the Claude Code skills, agents and MCP servers it configures), **costs**, and its **workers and to-dos**. Each block says where its data came from and disappears when it has nothing to show. Project names elsewhere in the dashboard link to the page.
+
+<p align="center"><img src="docs/img/projects.png" alt="The Projects tab: every project with its branch, changes, open requests and cost" width="860"></p>
+<p align="center"><img src="docs/img/project-page.png" alt="One project's page: what needs attention, its requests, overview, tools and costs" width="860"></p>
+
+**Alerts.** When a worker has been stuck on a permission prompt or a question for three minutes, or a request's worker stopped without its result, a banner at the top says which one and what it is waiting for. The same line is printed once in the server's terminal, so you see it with the dashboard closed.
 
 (Every image here comes from `--demo`; see [Regenerating the screenshots](#regenerating-the-screenshots).)
 
@@ -128,9 +133,11 @@ The Chief is a small local web server plus a set of scripts. It does not run mod
 <p align="center"><img src="docs/img/pipeline.svg" alt="Spec, plan, plan validation, implementation, review, commit and merge, with your approval at each gate" width="900"></p>
 
 1. **Spec.** A worker reads the code and your request and writes the spec, with its doubts as questions that have options and a recommendation. You answer them in the page and approve, or ask for changes (the same phase runs again with your comment).
-2. **Plan.** A worker writes the plan, tests first. **Before you see it**, an independent validator checks coverage of the spec, that the files and commands it names exist, the order of the steps, scope and the tests section. If it blocks the plan, the findings go back to the planner automatically (up to 2 rounds).
+2. **Plan.** A worker writes the plan, tests first. **Before you see it**, an independent validator checks coverage of the spec, that the files and commands it names exist, the order of the steps, scope and the tests section. If it finds a critical or high problem, the findings go back to the planner automatically, once; minor findings do not send the plan back, they arrive with it for you to fix or accept.
 3. **Implementation**, in its own `git worktree` (branch `feat/<id>`, kept in your data folder, never in your checkout). The worker runs the project's **whole** test suite *before* touching anything (the baseline), writes tests first, runs it again at the end, and leaves the work **uncommitted**.
 4. **Review.** A fresh worker reads the uncommitted diff, runs the tests and the linter, and checks each acceptance criterion. If it **blocks**, the findings go back to the implementer (up to 3 rounds). The Chief refuses to commit unless the reviewer's own test numbers match the implementer's. Only then is the work committed, locally. You accept it and **the merge is yours**.
+
+Workers write for a small card: every artifact is bullets only, 80 lines at most, with the sections the Chief reads kept as they are. Long material (command output, step-by-step detail for the next worker) goes to a `<artifact>-details.md` file next to it, which the card does not show.
 
 Every report must say what was actually executed and verified (`EXECUTED AND VERIFIED`, `PARTIALLY EXECUTED` or `NOT EXECUTED`); a report that ran nothing cannot be approved.
 
@@ -247,8 +254,10 @@ The folder and key names follow `vault_language` (`en` by default, or `pt`):
 
 ## Safety
 
-- The dashboard listens on `127.0.0.1` only. Writes need the per-start token, the dashboard's own `Origin` and a small JSON body.
+- The dashboard listens on `127.0.0.1` only. Every call carries the per-start token in a header; writes also need the dashboard's own `Origin` and a small JSON body.
 - The Chief never pushes and never changes a remote. Commits happen only in a request's own worktree, and only after an independent review passed.
+- "Do not push" is a rule, not only a sentence in the prompt: every worker is launched with deny rules for `git push`, forced or deleting pushes, remote changes, `gh pr merge` and `gh auth`. Only the publication phase of a publish request, after your click, is allowed its one `git push -u`. Configuration cannot remove these rules.
+- The pipeline's commit refuses files that look like secrets (`.env*`, private keys, `credentials.json`, `secrets.json`): nothing is committed and the card names the files.
 - Workers are told not to delete what they did not create, not to touch secrets (`.env*`, keys, tokens) and not to run irreversible or production actions; those are written as steps for you instead.
 - The Chief never reads or stores credentials and never logs in to GitHub for you; cloning uses the login your git already has.
 - The project pages read only files inside the project's folder, and only the documents the Chief lists (README, `CLAUDE.md`, `ARCHITECTURE.md`, `docs/specs|plans|analyses`). `.env*`, keys, tokens, secrets files, `settings.local.json` and `CLAUDE.local.md` are never read, and links that leave the project folder are refused. Text is redacted (secrets, private IP addresses, e-mails) before it leaves the server; the Tools block shows names only, never values. Vault `[[wikilinks]]` render as plain text, or as a link when they name a project.
@@ -264,7 +273,7 @@ English is the source language of the code, the prompts and the dashboard; Portu
 ## Development
 
 ```bash
-python -m pytest tests                  # about 20 seconds; runs against a throw-away data folder
+python -m pytest tests                  # a few minutes (it starts real demo servers); runs against a throw-away data folder
 ```
 
 The tests never read or write your real data: `tests/conftest.py` points the Chief at a temporary folder before anything is imported.

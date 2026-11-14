@@ -127,6 +127,19 @@ async function main() {
     await page.eval(`(() => { const d = document.querySelector("#costBody details.cl"); if (d) d.open = true; document.querySelector("#pastSessions").scrollIntoView(); })()`);
     await sleep(400);
     await page.shot("costs-past-sessions.png", await page.rect(`document.querySelector("#costD")`, 0));
+    await page.eval(`document.querySelector("#costD").close()`);
+    // 12-13. the Projects tab: the list, then one project's page (as much of it as fits a tall screen)
+    await page.eval(`location.hash = "#/projects"`);
+    await page.waitFor(`!document.querySelector("#projectsView").hidden && document.querySelector("#projectsView").textContent.includes("Storefront")`);
+    await sleep(900);
+    await page.eval(`scrollTo(0, 0)`);
+    const tall = async (sel, max) => { const r = await page.rect(sel, 0); return { x: 0, y: 0, width: WIDTH, height: Math.min(max, r.y + r.height + 24) }; };
+    await page.shot("projects.png", await tall(`document.querySelector("#projectsView")`, 1000));
+    await page.eval(`location.hash = "#/project/Storefront"`);
+    await page.waitFor(`!document.querySelector("#projectView").hidden && document.querySelector("#projectView").textContent.length > 400`);
+    await sleep(900);
+    await page.eval(`scrollTo(0, 0)`);
+    await page.shot("project-page.png", await tall(`document.querySelector("#projectView")`, 1500));
     ws.close();
   } finally {
     cleanup();

@@ -13,3 +13,10 @@ CLAUDE.local.md
 .superpowers/
 
 docs/superpowers/
+
+# working notes and the archive of this repo's own requests (personal, not part of the app)
+docs/next-session/
+docs/specs/
+docs/plans/
+docs/analyses/
+.claude/worktrees/
