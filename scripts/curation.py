@@ -9,6 +9,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import atomicio
+
 QUIET_S = 600            # the inbox must be "calm" (no new draft) for 10 min: a worker may still be writing
 GAP_S = 1800             # minimum interval between curations
 TIMEOUT_S = 2 * 3600     # a stuck curator is abandoned
@@ -76,14 +78,11 @@ class Curator:
             s = json.loads(self.state_path.read_text(encoding="utf-8"))
         except Exception:
             s = {}
-        return {"running": False, "worker_id": "", "started": 0.0, "drafts_before": 0, "attempts": 0,
+        return {"running": False, "worker_id": "", "started": 0.0, "drafts_before": 0, "draft_names": None, "attempts": 0,
                 "finished_at": 0.0, "last": None, "paused_until": 0.0, "paused_kind": "session", **s}
 
     def _save(self, s: dict) -> None:
-        self.state_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.state_path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(s, ensure_ascii=False, indent=1), encoding="utf-8")
-        tmp.replace(self.state_path)
+        atomicio.write_text(self.state_path, json.dumps(s, ensure_ascii=False, indent=1))
 
     def drafts(self) -> list:
         inbox = self.vault / "inbox"
@@ -191,7 +190,8 @@ class Curator:
             w = self._launch(curator_prompt(self.vault, ds, self._schema))
         except Exception as e:  # noqa: BLE001
             return self._fail(s, f"could not launch the curator: {e}")
-        s.update(running=True, worker_id=w["id"], started=self._now(), drafts_before=len(ds), paused_until=0.0)
+        s.update(running=True, worker_id=w["id"], started=self._now(), drafts_before=len(ds), draft_names=[d.name for d in ds],
+                 paused_until=0.0)
         self._save(s)
 
     def _fail(self, s: dict, why: str) -> None:
@@ -215,8 +215,11 @@ class Curator:
         return self._finish(s, "")
 
     def _finish(self, s: dict, note: str) -> None:
-        before, after = s["drafts_before"], len(self.drafts())
-        handled = max(0, before - after)
+        left = {d.name for d in self.drafts()}
+        before, after = s["drafts_before"], len(left)
+        given = s.get("draft_names")
+        # the drafts this run was given and that are gone; drafts that arrived meanwhile are the next run's (older state: by count)
+        handled = sum(1 for n in given if n not in left) if isinstance(given, list) else max(0, before - after)
         noun = "draft handled" if handled == 1 else "drafts handled"
         ok, info = self._commit(self.vault, f"automatic curation (Chief): {handled} {noun}, {after} left")
         try:

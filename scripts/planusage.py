@@ -15,6 +15,8 @@ import threading
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import atomicio
+
 STATUS_FILE = "plan_usage.json"
 WARN_AT, HIGH_AT, LIMIT_AT = 70.0, 90.0, 100.0
 WINDOWS = ("five_hour", "seven_day")
@@ -53,11 +55,7 @@ def record_statusline(payload, path, now: datetime | None = None):
         if isinstance(w, dict) and isinstance(w.get("used_percentage"), (int, float)):
             resets = w.get("resets_at")
             out[key] = {"used_percentage": float(w["used_percentage"]), "resets_at": int(resets) if isinstance(resets, (int, float)) else None}
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(".tmp")
-    tmp.write_text(json.dumps(out, indent=1), encoding="utf-8")
-    tmp.replace(path)
+    atomicio.write_text(path, json.dumps(out, indent=1))      # several Claude Code sessions run the status line at once
     return out
 
 

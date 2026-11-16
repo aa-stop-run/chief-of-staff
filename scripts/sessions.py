@@ -93,6 +93,45 @@ def scan(projects: list, project: str = "", limit: int = 3, since_days: int = 0,
     return out
 
 
+LIVE_S = 600      # a session written to this recently is probably still open: it is not «left unfinished» yet
+
+
+def candidates(report: list, known_sessions, worker_ids, now: datetime | None = None, live_s: int = LIVE_S) -> list:
+    """The sessions of a `scan` that could become to-do cards: not the Chief's own workers (their logs sit in the same folders),
+    not sessions that already have a card (dismissed ones included) and not sessions still in use (written to in the last
+    `live_s` seconds). Sessions with unfinished to-dos lead; each group newest first."""
+    known, workers = set(known_sessions), tuple(w for w in worker_ids if w)
+    recent = ((now or datetime.now()) - timedelta(seconds=live_s)).isoformat(timespec="minutes")
+    out = []
+    for r in report:
+        for s in r["sessions"]:
+            if not r["project"] or s["id"] in known or (workers and s["id"].startswith(workers)) or not s["first"] or s["modified"] > recent:
+                continue
+            out.append({"project": r["project"], "session": s["id"], "modified": s["modified"], "messages": s["messages"],
+                        "first": s["first"], "last": s["last_assistant"][:240], "open_todos": len(s["open_todos"])})
+    newest = sorted(out, key=lambda c: c["modified"], reverse=True)
+    return sorted(newest, key=lambda c: c["open_todos"] == 0)      # stable: unfinished to-dos first, each group newest first
+
+
+def todo_from_session(s: dict) -> dict:
+    """The card a session becomes: what was asked, how it ended, and its unfinished to-dos as what is missing."""
+    missing = "; ".join(t["content"] for t in s["open_todos"][:8])
+    return {"title": (s["first"] or "Session")[:140], "status": "awaiting", "summary": s["last_assistant"][:1200],
+            "missing": missing[:1200], "date": s["modified"][:10]}
+
+
+def find_session(projects: list, project: str, session_id: str):
+    """The summary of one session of one project, or None. The file is looked up by its exact name inside that project's folder."""
+    if not re.fullmatch(r"[0-9a-f-]{8,40}", session_id or ""):
+        return None
+    p = next((x for x in projects if x["name"] == project), None)
+    f = SESSIONS_DIR / encode_path(p["path"]) / f"{session_id}.jsonl" if p else None
+    if f is None or not f.is_file():        # Claude Code keeps the folder's own letter case; the scan compares lowercase
+        folder = next((d for d in SESSIONS_DIR.iterdir() if p and d.name.lower() == encode_path(p["path"])), None) if SESSIONS_DIR.is_dir() else None
+        f = folder / f"{session_id}.jsonl" if folder else None
+    return summarize(f) if f is not None and f.is_file() else None
+
+
 def _print(report: list) -> None:
     for r in report:
         print(f"\n=== {r['project'] or '(no project) ' + r['folder']}  {r['path'] or ''}")

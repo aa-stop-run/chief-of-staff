@@ -19,6 +19,8 @@ import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import atomicio
+
 PRICES_AS_OF = "2026-11-08"
 PRICES_SOURCE = "https://platform.claude.com/docs/en/about-claude/pricing"
 LONG_PROMPT_TOKENS = 100_000          # Haiku 5.5 charges more for a request whose prompt is longer than this
@@ -195,10 +197,7 @@ class Ledger:
             return {}
 
     def _save(self, workers: dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"version": 1, "workers": workers}, ensure_ascii=False, indent=1), encoding="utf-8")
-        tmp.replace(self.path)
+        atomicio.write_text(self.path, json.dumps({"version": 1, "workers": workers}, ensure_ascii=False, indent=1))
 
     def refresh(self, workers: list, overrides: dict | None = None) -> int:
         """Measure every worker whose transcript is new or changed (or priced with other prices). Returns how many were updated."""
@@ -214,7 +213,8 @@ class Ledger:
                 old = ledger.get(w["id"])
                 request = w.get("request") or request_from_task(w.get("task", ""))
                 same = old and old.get("size") == st.st_size and old.get("mtime") == st.st_mtime_ns and old.get("sig") == sig
-                if same and old.get("session") == w.get("session") and old.get("request") == request:
+                if (same and old.get("session") == w.get("session", "") and old.get("request") == request
+                        and old.get("project") == w.get("project", "")):
                     continue
                 s = old if same else {**summarize(path, overrides), "size": st.st_size, "mtime": st.st_mtime_ns, "sig": sig}
                 ledger[w["id"]] = {**s, "project": w.get("project", ""), "session": w.get("session", ""), "request": request,

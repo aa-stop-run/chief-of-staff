@@ -8,6 +8,8 @@ import threading
 import time
 from pathlib import Path
 
+import atomicio
+
 RETRY_S = 60             # project not yet trusted by claude: retry every minute
 WAIT_TRUST_MAX_S = 24 * 3600
 START_GRACE_S = 60       # the worker just started: it may not be in claude's list yet
@@ -53,10 +55,7 @@ class Onboarding:
             return []
 
     def _save(self, items: list) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8")
-        tmp.replace(self.path)
+        atomicio.write_text(self.path, json.dumps(items, ensure_ascii=False, indent=1))
 
     def pending(self) -> list:
         with self._lock:

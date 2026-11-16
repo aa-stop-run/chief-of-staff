@@ -207,6 +207,16 @@ dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line-2);b
 dialog::backdrop{background:rgba(0,0,0,.6);backdrop-filter:blur(3px)}
 dialog form{display:grid;gap:12px;padding:20px}
 dialog.wide{width:min(1040px,calc(100vw - 28px));max-height:calc(100vh - 40px);overflow:auto}
+.wait{font:600 11.5px var(--font-ui);color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent);padding:2px 8px;border-radius:99px;white-space:nowrap}
+.cnote2{margin:8px 0 0;font-size:12.5px;color:var(--mute)}.cnote2 b{color:var(--ink)}.cnote2.warn{color:var(--warn)}
+.lastmsg{margin:8px 0 0;padding:8px 12px;border-left:3px solid var(--bad);background:color-mix(in srgb,var(--bad) 6%,transparent);border-radius:0 var(--rs) var(--rs) 0;font-size:12.5px;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
+.lastmsg b{color:var(--bad);font-weight:600}
+.finish{margin:12px 0 0;padding:10px 14px;border:1px solid var(--line);border-radius:var(--rs);background:var(--panel-2);font-size:13px}
+.finish p{margin:0}.finish .acts{margin-top:10px}.finish .cmds{display:block;margin:6px 0;font:12px var(--font-mono)}.finish .cmds .cp{display:block;padding:2px 0}
+.kindsw{margin:8px 0 0;font-size:12px;color:var(--mute)}.kindsw select{font:inherit;margin-left:6px}
+.scanrow{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}.scanrow>div{flex:1;min-width:0}
+.scanrow h4{margin:0 0 2px;font-size:13.5px}.scanrow p{margin:2px 0 0;font-size:12.5px;color:var(--mute);overflow-wrap:anywhere}
+.doc-ok{color:var(--ok)}.doc-warn{color:var(--warn)}.doc-fail{color:var(--bad)}.doclist{list-style:none;margin:8px 0 0;padding:0;font-size:13px}.doclist li{padding:3px 0}.doclist small{display:block;color:var(--mute);margin-left:22px}
 .fcost{font:600 11.5px var(--font-ui);color:var(--acc);background:color-mix(in srgb,var(--acc) 10%,transparent);padding:2px 8px;border-radius:99px;white-space:nowrap;cursor:help}
 .meter{position:relative;display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:99px;background:var(--panel);border:1px solid var(--line);font-size:12px;color:var(--mute);cursor:pointer;font-family:inherit}
 .meter i{display:block;width:46px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}.meter i b{display:block;height:100%;background:var(--ok,var(--acc));border-radius:3px}
@@ -481,6 +491,7 @@ a.plink:active{color:var(--acc);filter:brightness(1.15)}
       <button class="x" id="clear" type="button" aria-label="Clear filter">×</button>
     </label>
     <button class="btn" id="addProjBtn" type="button" title="Add a folder or repo that is already on disk">+ Add project</button>
+    <button class="btn tog" id="notifBtn" type="button" aria-pressed="false" title="Show a browser notification when a request starts waiting for you and this tab is in the background">Notify me</button>
     <button class="btn" id="setBtn" type="button" title="Vault, project folders, categories and git connection">⚙ Settings</button>
     <div class="seg" id="langSw" role="group" aria-label="Language"><button type="button" data-l="pt">PT</button><button type="button" data-l="en">EN</button></div>
     <span class="curinfo" id="curInfo"></span>
@@ -492,7 +503,7 @@ a.plink:active{color:var(--acc);filter:brightness(1.15)}
   <div class="fhead"><h2>Requests <em id="nFeat"></em></h2><button class="btn pri" id="newBtn" type="button">+ New request</button></div>
   <div class="feats" id="feats"></div>
   <div id="propsWrap" hidden><h2>Suggested by workers <em id="nProp"></em></h2><div class="pends" id="props"></div></div>
-  <h2>Session to-dos <em id="nPend"></em></h2>
+  <div class="fhead"><h2>Session to-dos <em id="nPend"></em></h2><button class="btn" id="scanBtn" type="button" title="Look for recent Claude Code sessions of your projects that have no to-do card yet">Scan sessions</button></div>
   <div class="pfilt" id="pfilt"></div>
   <div class="pends" id="pends"></div>
   <div id="featsDone"></div>
@@ -528,6 +539,15 @@ a.plink:active{color:var(--acc);filter:brightness(1.15)}
   <div class="shead"><h3>Settings</h3><button class="btn" id="setClose" type="button">Close</button></div>
   <datalist id="domList"></datalist>
   <div id="setBody"></div>
+  <h4>Environment</h4>
+  <p class="note">Checks what the Chief needs on this machine: Python, git, Claude Code with background sessions, optional tools and the configuration. It only reads.</p>
+  <div class="end"><button class="btn" id="doctorBtn" type="button">Check environment</button></div>
+  <ul class="doclist" id="doctorBody"></ul>
+</div></dialog>
+<dialog id="scanD" class="wide"><div class="sbody">
+  <div class="shead"><h3>Sessions without a to-do</h3><button class="btn" id="scanClose" type="button">Close</button></div>
+  <p class="note">Claude Code sessions of your projects from the last 14 days that have no card yet. Adding one creates a to-do card with how the session ended; nothing is launched.</p>
+  <div id="scanBody"></div>
 </div></dialog>
 <dialog id="costD" class="wide"><div class="sbody">
   <div class="shead"><h3>Sessions and costs</h3><button class="btn" id="costClose" type="button">Close</button></div>
@@ -1032,7 +1052,57 @@ const PT = {
   "To-do dismissed.":"Pendente dispensado.",
   "Copied ✓":"Copiado ✓",
   "The server was restarted. Reload the page (F5).":"O servidor foi reiniciado. Recarrega a página (F5).",
-  "No connection to the server":"Sem ligação ao servidor"
+  "No connection to the server":"Sem ligação ao servidor",
+  "Copy":"Copiar",
+  "Notify me":"Avisar-me",
+  "Show a browser notification when a request starts waiting for you and this tab is in the background":"Mostra uma notificação do browser quando um pedido fica à tua espera e este separador está em segundo plano",
+  "Notifications are blocked for this page in the browser.":"As notificações estão bloqueadas para esta página no browser.",
+  "Notifications on: you are told when a request starts waiting for you.":"Notificações ligadas: és avisado quando um pedido fica à tua espera.",
+  "Notifications off.":"Notificações desligadas.",
+  "Waiting for you: {t}":"À tua espera: {t}",
+  "waiting {t}":"à espera há {t}",
+  "How long this request has been waiting for your decision":"Há quanto tempo este pedido espera pela tua decisão",
+  "{f} file(s), +{a} −{r}":"{f} ficheiro(s), +{a} −{r}",
+  "Change under review: {d} (not committed yet).":"Alteração em revisão: {d} (ainda por comitar).",
+  "Change in the worktree: {d} (committed by the pipeline).":"Alteração no worktree: {d} (comitada pelo pipeline).",
+  "This plan has <b>{n} steps</b> (more than {max}). Large builds tend not to pass the review in one go: consider asking the planner to keep the first self-contained part and leave the rest as follow-up requests.":"Este plano tem <b>{n} passos</b> (mais de {max}). Implementações grandes tendem a não passar a revisão de uma vez: considera pedir ao planeador que fique com a primeira parte autónoma e deixe o resto para pedidos seguintes.",
+  "Follows: {t}":"Dá seguimento a: {t}",
+  "The worker's last words":"As últimas palavras do worker",
+  "The worker was cut off before finishing. Its last message":"O worker foi interrompido antes de acabar. A sua última mensagem",
+  "Create follow-up request":"Criar pedido seguinte",
+  "Follows the request “{title}” ({id}).":"Dá seguimento ao pedido «{title}» ({id}).",
+  "✓ {br} is merged into {into}. Its worktree and the branch can be removed.":"✓ {br} está integrado em {into}. O worktree e o ramo podem ser removidos.",
+  "Remove worktree and branch":"Remover worktree e ramo",
+  "The cancelled work is still on disk: its worktree and the branch {br}.":"O trabalho cancelado continua no disco: o worktree e o ramo {br}.",
+  "{n} uncommitted file(s).":"{n} ficheiro(s) por comitar.",
+  "Discard the work":"Deitar fora o trabalho",
+  "{br} is not merged into {into} yet. To merge it (the Chief never merges or pushes):":"{br} ainda não está integrado em {into}. Para o integrar (o Chief nunca faz merge nem push):",
+  "After merging, come back here to remove the worktree and the branch.":"Depois do merge, volta aqui para remover o worktree e o ramo.",
+  "Remove the worktree (keep the branch)":"Remover o worktree (manter o ramo)",
+  "This request left a worktree whose work was never committed.":"Este pedido deixou um worktree cujo trabalho nunca foi comitado.",
+  "This deletes the worktree with its uncommitted work and the branch.":"Isto apaga o worktree, com o trabalho por comitar, e o ramo.",
+  "Click again to confirm.":"Clica outra vez para confirmar.",
+  "Cleaned up.":"Limpo.",
+  "Wrong type of request?":"O tipo de pedido está errado?",
+  "Change to…":"Mudar para…",
+  "Type changed: the first phase starts again.":"Tipo mudado: a primeira fase recomeça.",
+  "Your 5-hour allowance is at {p}%: this phase will probably be paused midway.":"A tua quota de 5 horas vai em {p}%: esta fase vai provavelmente ser pausada a meio.",
+  "Estimated cost of this request so far: {c}":"Custo estimado deste pedido até agora: {c}",
+  "Scan sessions":"Procurar sessões",
+  "Look for recent Claude Code sessions of your projects that have no to-do card yet":"Procura sessões recentes do Claude Code dos teus projetos que ainda não têm cartão",
+  "Sessions without a to-do":"Sessões sem pendente",
+  "Claude Code sessions of your projects from the last 14 days that have no card yet. Adding one creates a to-do card with how the session ended; nothing is launched.":"Sessões do Claude Code dos teus projetos nos últimos 14 dias que ainda não têm cartão. Adicionar uma cria um pendente com o estado em que a sessão ficou; nada é lançado.",
+  "Reading the sessions…":"A ler as sessões…",
+  "No recent session without a card.":"Nenhuma sessão recente sem cartão.",
+  "{n} unfinished to-do(s)":"{n} tarefa(s) por acabar",
+  "Ended with: {t}":"Acabou com: {t}",
+  "Add as to-do":"Adicionar como pendente",
+  "To-do added.":"Pendente adicionado.",
+  "Environment":"Ambiente",
+  "Checks what the Chief needs on this machine: Python, git, Claude Code with background sessions, optional tools and the configuration. It only reads.":"Verifica o que o Chief precisa nesta máquina: Python, git, Claude Code com sessões em segundo plano, ferramentas opcionais e a configuração. Só lê.",
+  "Check environment":"Verificar ambiente",
+  "Checking…":"A verificar…",
+  "Could not run the check.":"Não foi possível correr a verificação."
 };
 let LANG="en";
 try{const q=new URLSearchParams(location.search).get("lang"),sv=localStorage.getItem("lang");
@@ -1076,7 +1146,7 @@ const F={q:""};
 const $=id=>document.getElementById(id);
 const dom=p=>p.domain||"other";
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const cp=t=>`<button type="button" class="cp" data-cp="${esc(t)}" title="Copiar">${esc(t)}</button>`;
+const cp=t=>`<button type="button" class="cp" data-cp="${esc(t)}" title="${esc(tt("Copy"))}">${esc(t)}</button>`;
 
 // <routes>
 // the URL hash picks the view: "" / #q=<text> = Today, #/projects = the list, #/project/<name> = one project
@@ -1181,6 +1251,37 @@ function daysAgo(date,now,t){
   return d<=0?t("today",{}):d===1?t("yesterday",{}):t("{n} days ago",{n:d});
 }
 // </routes>
+// <review>
+// may the "/" shortcut take the key? never while the user is typing in a field
+const slashFocuses=(key,tag,editable)=>key==="/"&&!editable&&!["INPUT","TEXTAREA","SELECT"].includes(String(tag||"").toUpperCase());
+// when a card started waiting for the user: its last history entry (the phase finishing, or what the pipeline said after it)
+const waitingSince=f=>f&&f.history&&f.history.length?f.history[f.history.length-1].at:"";
+// seconds a card has waited at `now` (ms); 0 when unknown
+const waitedS=(f,now)=>{const t=Date.parse(waitingSince(f));return isNaN(t)?0:Math.max(0,Math.round((now-t)/1000));};
+// open cards in the order they need the user: to decide (longest wait first), then failed, then working; a new array, stable
+const NEED_RANK={awaiting:0,failed:1,working:2};
+const sortOpen=(fs,now)=>fs.map((f,i)=>[f,i]).sort((a,b)=>{
+  const ra=NEED_RANK[a[0].status]??3,rb=NEED_RANK[b[0].status]??3;
+  if(ra!==rb)return ra-rb;
+  if(ra===0){const d=waitedS(b[0],now)-waitedS(a[0],now);if(d)return d;}
+  return a[1]-b[1];}).map(x=>x[0]);
+// how many things need the user: cards to decide, failed cards and workers stuck on a prompt
+const needsYou=s=>(s.features||[]).filter(f=>f.status==="awaiting"||f.status==="failed").length+(s.alerts||[]).filter(a=>a.kind==="blocked").length;
+const pageTitle=n=>(n?`(${n}) `:"")+"Chief of Staff";
+// a card waiting on a phase is one thing to be told about once: its key, and the cards whose key is new
+const waitKey=f=>f.id+"|"+f.stage;
+const newlyWaiting=(fs,before)=>fs.filter(f=>f.status==="awaiting"&&!before.has(waitKey(f)));
+// "6 file(s), +214 −37"
+const diffText=(d,t)=>t("{f} file(s), +{a} −{r}",{f:d.files,a:d.insertions,r:d.deletions});
+// is the 5-hour allowance nearly used (and still running)? then a new phase would probably be paused midway
+const planNearlyUsed=p=>{const w=p&&p.connected&&p.windows&&p.windows.five_hour;return !!(w&&!w.expired&&w.percent>=90);};
+// what «Create follow-up request» puts in the new-request dialog: an analysis leads to a feature, a feature or a fix to its own kind
+const followUp=(f,t)=>({project:f.project,kind:["fix","maintenance"].includes(f.kind)?f.kind:"feature",title:"",
+  desc:t("Follows the request “{title}” ({id}).",{title:f.title,id:f.id})+"\n\n",parent:f.id});
+// may this request still change kind? only on its first phase, waiting or failed, and never a publish or a release
+const canChangeKind=(f,stages)=>{const k=stages[f.kind]?f.kind:"feature";
+  return !["ship","release"].includes(k)&&f.stage===stages[k][0]&&["awaiting","failed"].includes(f.status);};
+// </review>
 let ROUTE={view:"today",q:""};
 function readHash(){
   ROUTE=parseRoute(location.hash);
@@ -1483,6 +1584,7 @@ function render(){
     (S.session?`<button class="stat sess" id="sessBtn" type="button" title="${esc(tt("Work session: active time and estimated AI cost. Click for the details."))}"><strong>${esc(fmtDuration(S.session.active_s))}</strong><span>${tt("Session")}</span><em>${esc(fmtMoney(S.session.cost_usd))}${S.session.unpriced?"+":""}</em></button>`:"");
 
   renderFeatures(fts,filtering);
+  noteWaiting();
   renderPending(pds,filtering);
   renderProposals((S.proposals||[]).filter(x=>filtering?names.has(x.project):true));
   $("nWork").textContent=ws.filter(w=>["working","running","blocked","idle","waiting"].includes(w.state)).length;
@@ -1566,7 +1668,7 @@ function statusLine(f){
   }
   const m={working:shipLine&&f.status==="working"?shipLine:working,
     awaiting:shipLine&&f.status==="awaiting"?shipLine:`${awaiting} ${attach}`,
-    failed:tt("{l}: the worker finished without writing the result{w}. Check {logs} or try again.",{l,w,logs:`<span class="path">claude logs ${esc(f.worker_id)}</span>`}),
+    failed:tt("{l}: the worker finished without writing the result{w}. Check {logs} or try again.",{l,w,logs:`<span class="path">claude logs ${esc(f.worker_id)}</span>`})+lastWords(f),
     done:f.kind==="release"?tt("Done. See the regression report and the promotion result above."):f.kind==="ship"?tt("Done. See the report and the publication result above."):f.kind==="analysis"?(S.vault?tt("Analysis done. The report was archived in the project and in the vault."):tt("Analysis done. The report was archived in the project.")):(()=>{const ex=parseExecution(f.artifacts.build);
       return ex==="done"?tt("Done. The branch {br} is in the repo; the merge and the push are yours.",{br:`<b class="path">feat/${esc(f.id)}</b>`})
         :tt("Done in the pipeline, but <b>the report does not confirm verified execution</b> ({ex}): check the report before calling it finished.",{ex:EXEC[ex][0].toLowerCase()});})(),
@@ -2070,11 +2172,41 @@ function patchQa(root,f){
   const b=box.querySelector('[data-act="ask"]'),nb=n.querySelector('[data-act="ask"]');
   if(b&&nb)b.disabled=nb.disabled;
 }
+// ---- what the review of 2026-11-14 added to a card ----
+const lastWords=f=>f.last_message&&f.last_message.text?`</p><p class="lastmsg"><b>${esc(f.last_message.mark?tt("The worker's last words"):tt("The worker was cut off before finishing. Its last message"))}:</b> ${esc(f.last_message.text)}`:"";
+const waitChip=f=>f.status==="awaiting"&&waitedS(f,Date.now())>=60?`<span class="wait" title="${esc(tt("How long this request has been waiting for your decision"))}">${esc(tt("waiting {t}",{t:fmtDuration(waitedS(f,Date.now()))}))}</span>`:"";
+const parentLine=f=>f.parent_title?`<p class="cnote2">${esc(tt("Follows: {t}",{t:f.parent_title}))}</p>`:"";
+const sizeNote=f=>f.stage==="plan"&&f.status==="awaiting"&&f.plan_tasks&&f.plan_tasks.n>f.plan_tasks.max?`<p class="cnote2 warn">${tt("This plan has <b>{n} steps</b> (more than {max}). Large builds tend not to pass the review in one go: consider asking the planner to keep the first self-contained part and leave the rest as follow-up requests.",{n:+f.plan_tasks.n,max:+f.plan_tasks.max})}</p>`:"";
+const diffLine=f=>f.diff&&!["done","cancelled"].includes(f.status)?`<p class="cnote2">${esc(tt(f.diff.committed?"Change in the worktree: {d} (committed by the pipeline).":"Change under review: {d} (not committed yet).",{d:diffText(f.diff,tt)}))}</p>`:"";
+function kindSwitch(f){
+  if(!canChangeKind(f,KIND_STG))return "";
+  const k=KIND_STG[f.kind]?f.kind:"feature";
+  const opts=["feature","fix","maintenance","analysis"].filter(x=>x!==k).map(x=>`<option value="${x}">${esc(KIND_LABEL[x])}</option>`).join("");
+  return `<p class="kindsw"><label>${tt("Wrong type of request?")}<select data-kindsel="${esc(f.id)}"><option value="">${tt("Change to…")}</option>${opts}</select></label></p>`;
+}
+function finishHtml(f){
+  if(!["done","cancelled"].includes(f.status))return "";
+  const id=esc(f.id),x=f.finish;
+  const follow=f.status==="done"?`<button class="btn" data-act="followup" data-id="${id}" type="button">${tt("Create follow-up request")}</button>`:"";
+  if(!x)return follow?`<div class="acts">${follow}</div>`:"";
+  const br=`<b class="path">${esc(x.branch)}</b>`,into=`<b>${esc(x.into||"?")}</b>`;
+  const dirty=x.dirty?" "+tt("{n} uncommitted file(s).",{n:+x.dirty}):"";
+  const discard=`<button class="btn ghost" data-act="cleanup" data-force="1" data-id="${id}" type="button">${tt("Discard the work")}</button>`;
+  let body,btn;
+  if(x.merged){body=tt("✓ {br} is merged into {into}. Its worktree and the branch can be removed.",{br,into});
+    btn=`<button class="btn pri" data-act="cleanup" data-id="${id}" type="button">${tt("Remove worktree and branch")}</button>`;}
+  else if(f.status==="cancelled"){body=tt("The cancelled work is still on disk: its worktree and the branch {br}.",{br})+dirty;btn=discard;}
+  else if(x.exists&&x.committed){
+    body=tt("{br} is not merged into {into} yet. To merge it (the Chief never merges or pushes):",{br,into})+`<span class="cmds">${(x.commands||[]).map(c=>cp(c)).join("")}</span>`+tt("After merging, come back here to remove the worktree and the branch.");
+    btn=x.worktree&&!x.dirty?`<button class="btn" data-act="cleanup" data-id="${id}" type="button">${tt("Remove the worktree (keep the branch)")}</button>`:"";}
+  else{body=tt("This request left a worktree whose work was never committed.")+dirty;btn=discard;}
+  return `<div class="finish"><p>${body}</p><div class="acts">${btn}${follow}</div></div>`;
+}
 function featCard(f){
   const hist=f.history.map(h=>`<li>${esc(ago(h.at,Date.now(),tt))} · ${esc(h.stage)} · ${esc(up1(tt(h.event)))}${h.note?" — "+esc(h.note):""}</li>`).join("");
   return `<article class="feat s-${esc(f.status)}" data-fid="${esc(f.id)}"><div class="ftop"><h3>${esc(f.title)}</h3>${projLink(f.project)}<span class="kind">${esc(KIND_LABEL[f.kind]||KIND_LABEL.feature)}</span>${costChip(f)}${(()=>{const pr=S.projects.find(q=>q.name===f.project),d=pr?dom(pr):"other";return `<span class="dom d-${esc(d)}">${esc(cap(d))}</span>`;})()}
-    <span class="fst">${esc(ST_LABEL[f.status]||f.status)}</span></div>
-    <p class="fdesc">${esc(f.desc)}</p>${stepper(f)}${statusLine(f)}${pausedNote(f)}${threadHtml(f)}${artifacts(f)}${actions(f)}${qaHtml(f)}
+    ${waitChip(f)}<span class="fst">${esc(ST_LABEL[f.status]||f.status)}</span></div>
+    <p class="fdesc">${esc(f.desc)}</p>${parentLine(f)}${stepper(f)}${statusLine(f)}${pausedNote(f)}${sizeNote(f)}${diffLine(f)}${threadHtml(f)}${artifacts(f)}${kindSwitch(f)}${finishHtml(f)}${actions(f)}${qaHtml(f)}
     <details class="hist"><summary>${tt("History")}</summary><ul>${hist}</ul></details></article>`;
 }
 let featHtml="";
@@ -2114,7 +2246,7 @@ function syncAround(host,cards,typing){
 let cardHtml={};      // what each open card was last drawn from
 function renderFeatures(fs,filtering){
   lastFs=fs;lastFiltering=filtering;
-  const open=fs.filter(f=>!CLOSED.includes(f.status)),closed=fs.filter(f=>CLOSED.includes(f.status));
+  const open=sortOpen(fs.filter(f=>!CLOSED.includes(f.status)),Date.now()),closed=fs.filter(f=>CLOSED.includes(f.status));   // what needs you first, the longest wait on top
   $("nFeat").textContent=open.length;
   const cards=open.map(f=>[f,featCard(f)]);
   const html=cards.map(c=>c[1]).join("")||`<div class="empty">${filtering?tt("No request in progress for this filter."):tt("Nothing in progress. Create one with “+ New request”.")}</div>`;
@@ -2185,45 +2317,67 @@ $("feats").addEventListener("keydown",e=>{
     const b=e.target.closest(".decide").querySelector('[data-act="revise"]');if(b&&!b.disabled)b.click();
   }
 });
+// A risky click asks for a second one instead of opening the browser's own dialog (which blocks the page): the first click says
+// what will happen, the second (within 5 s, on the same button for the same reason) does it. A redraw in between changes nothing.
+let armedKey="",armedT;
+function armed(b,msg){
+  const key=[b.dataset.act||b.dataset.sact||b.id,b.dataset.id||b.dataset.name||"",msg].join("|");
+  if(armedKey===key){armedKey="";clearTimeout(armedT);return true;}
+  armedKey=key;clearTimeout(armedT);armedT=setTimeout(()=>{armedKey="";},5000);
+  toast(msg+" "+tt("Click again to confirm."),true);return false;
+}
 async function featClick(e){
   const b=e.target.closest("[data-act]");if(!b)return;
   const id=b.dataset.id,act=b.dataset.act;
-  if(act==="cancel"&&!confirm(tt("Cancel this feature? The running worker will be stopped (its conversation is kept).")))return;
+  if(act==="followup"){const src=(S.features||[]).find(x=>x.id===id);if(src)openNewRequest(followUp(src,tt));return;}
+  if(act==="cancel"&&!armed(b,tt("Cancel this feature? The running worker will be stopped (its conversation is kept).")))return;
   const body={};
   const u=fui(id);
+  if(act==="cleanup"){body.force=b.dataset.force==="1";if(body.force&&!armed(b,tt("This deletes the worktree with its uncommitted work and the branch.")))return;}
   if(act==="rerun"){body.comment=tt("Run the regression tests again from scratch and report a new verdict.");}
   if(act==="revise"){
     const ff=S.features.find(x=>x.id===id)||{artifacts:{}},pf=ff.stage==="plan"?parseFindings(ff.artifacts.planreview):[];
     body.comment=pf.length?[compileAnswers(u.qs||[],u.qa,"",ff.lang),compileFixes(pf,u.fx,u.comment,ff.lang)].filter(Boolean).join("\n\n").trim():compileAnswers(u.qs||[],u.qa,u.comment,ff.lang);
     if(!body.comment||(pf.length&&!planFixCount(ff)&&!decideState(id).any)){toast(tt("Answer a question, mark findings to fix, or write a note."),true);return;}}
-  if(act==="approve"&&b.dataset.verdict==="blocked"&&!confirm(tt("The reviewer BLOCKED this implementation. Accept anyway?")))return;
   if(act==="fix"){
     const fe=S.features.find(x=>x.id===id)||{artifacts:{}},fds=parseFindings(fe.artifacts.review);
     const ans=u.qs&&u.qs.length?compileAnswers(u.qs,u.qa,"",fe.lang):"";
     if(fds.length){body.selected=true;body.comment=[ans,compileFixes(fds,u.fx,u.comment,fe.lang)].filter(Boolean).join("\n\n").trim();}
     else body.comment=(u.qs&&u.qs.length?compileAnswers(u.qs,u.qa,u.comment,fe.lang):u.comment).trim();
   }
-  if(act==="approve"&&b.dataset.fixing==="1"&&!confirm(tt("You marked findings to fix and are about to accept without fixing them. Accept anyway?")))return;
-  if(act==="approve"){const st=decideState(id);if(st.total>st.n&&!confirm(tt("There are still {n} unanswered question(s). Approve anyway?",{n:st.total-st.n})))return;}
+  if(act==="approve"){                          // everything worth a second look goes into one confirmation
+    const st=decideState(id),why=[],fa=(S.features||[]).find(x=>x.id===id)||{},lastStage=(KIND_STG[fa.kind]||KIND_STG.feature).slice(-1)[0]===fa.stage;
+    if(b.dataset.verdict==="blocked")why.push(tt("The reviewer BLOCKED this implementation. Accept anyway?"));
+    if(b.dataset.fixing==="1")why.push(tt("You marked findings to fix and are about to accept without fixing them. Accept anyway?"));
+    if(st.total>st.n)why.push(tt("There are still {n} unanswered question(s). Approve anyway?",{n:st.total-st.n}));
+    if(!lastStage&&planNearlyUsed(S.plan))why.push(tt("Your 5-hour allowance is at {p}%: this phase will probably be paused midway.",{p:Math.round(S.plan.windows.five_hour.percent)})
+      +(fa.cost&&fa.cost.cost_usd?" "+tt("Estimated cost of this request so far: {c}",{c:"≈ "+fmtMoney(fa.cost.cost_usd)}):""));
+    if(why.length&&!armed(b,why.join(" ")))return;}
   if(act==="ask"){body.question=(u.ask||"").trim();if(!body.question){toast(tt("Write a question first."),true);return;}}
   document.querySelectorAll(`#feats [data-id="${id}"].btn,#featsDone [data-id="${id}"].btn`).forEach(x=>x.disabled=true);
   try{await api(`/api/features/${encodeURIComponent(id)}/${act==="rerun"?"revise":act}`,body);
     if(act==="revise"){u.comment="";u.qa={};u.fx={};}
     if(act==="fix"){u.comment="";u.qa={};u.fx={};}
     if(act==="ask"){u.ask="";u.askOpen=true;}
-    toast(tt({fix:"Fixes sent to the implementation worker.",approve:"Approved: next worker launched.",revise:"Changes sent to the worker.",rerun:"Regression launched again.",retry:"Worker relaunched.",cancel:"Cancelled.",ask:"Question sent: the answer appears here."}[act]));
+    toast(tt({fix:"Fixes sent to the implementation worker.",approve:"Approved: next worker launched.",revise:"Changes sent to the worker.",rerun:"Regression launched again.",retry:"Worker relaunched.",cancel:"Cancelled.",ask:"Question sent: the answer appears here.",cleanup:"Cleaned up."}[act]));
   }catch(err){toast(err.message,true);}
   featHtml="";doneHtml="";await load();
   if(act==="ask"){const ta=document.getElementById("ask-"+id);if(ta)ta.focus();}
 }
 $("feats").addEventListener("click",featClick);
-$("featsDone").addEventListener("click",e=>{if(e.target.closest("[data-act='ask']"))featClick(e);});
+$("featsDone").addEventListener("click",e=>{if(e.target.closest("[data-act='ask'],[data-act='cleanup'],[data-act='followup']"))featClick(e);});
+$("feats").addEventListener("change",async e=>{
+  const s=e.target.closest("select[data-kindsel]");if(!s||!s.value)return;
+  try{await api(`/api/features/${encodeURIComponent(s.dataset.kindsel)}/kind`,{kind:s.value});toast(tt("Type changed: the first phase starts again."));}
+  catch(err){toast(err.message,true);}
+  featHtml="";await load();
+});
 // the new-request dialog; `pre` ({project,kind,title,desc}) pre-fills it, e.g. «Create fix request» on a project page
 let nfPrefilled=false;
-let nfFromProposal="";
+let nfFromProposal="",nfParent="";
 function openNewRequest(pre){
   if(!S)return;
-  nfFromProposal=pre&&pre.proposal||"";
+  nfFromProposal=pre&&pre.proposal||"";nfParent=pre&&pre.parent||"";
   if(nfPrefilled&&!pre)$("newForm").reset();   // a pre-filled draft that was cancelled does not leak into a plain new request
   $("nfProject").innerHTML=S.projects.map(p=>`<option value="${esc(p.name)}">${esc(cap(p.name))}</option>`).join("");
   $("nfModel").innerHTML=`<option value="">${esc(tt("Default"))}</option>`+(S.models||[]).map(m=>`<option value="${esc(m)}">${esc(up1(m))}</option>`).join("");
@@ -2234,7 +2388,7 @@ function openNewRequest(pre){
     if(only.length===1)$("nfProject").value=only[0].name;
   }
   nfPrefilled=!!pre;
-  nfSync();$("newF").showModal();(pre?$("nfDesc"):$("nfTitle")).focus();
+  nfSync();$("newF").showModal();(pre&&pre.title?$("nfDesc"):$("nfTitle")).focus();
 }
 $("newBtn").addEventListener("click",()=>openNewRequest());
 // ---------- settings ----------
@@ -2388,7 +2542,7 @@ $("setBody").addEventListener("click",e=>{
   const act=b.dataset.sact,name=b.dataset.name;
   if(act==="move"){moving=name;renderSettings();return;}
   if(act==="move-ok"){const v=b.parentElement.querySelector(".smv").value;moving="";setAct("extra_move",{name,path:v},tt("Folder updated."));return;}
-  if(act==="remove"){if(confirm(tt("Take “{n}” off the list? The folder is not deleted from disk.",{n:name})))setAct("project_remove",{name},tt("Project removed from the list."));return;}
+  if(act==="remove"){if(armed(b,tt("Take “{n}” off the list? The folder is not deleted from disk.",{n:name})))setAct("project_remove",{name},tt("Project removed from the list."));return;}
   if(act==="vault"){setAct("vault",{path:$("sVault").value});return;}
   if(act==="root-add"){setAct("root_add",{path:$("sRoot").value},tt("Folder added."));return;}
   if(act==="root-rm"){setAct("root_remove",{path:b.dataset.path},tt("Folder taken off the list."));return;}
@@ -2430,8 +2584,8 @@ $("newForm").addEventListener("reset",()=>setTimeout(nfSync,0));
 $("nfCancel").addEventListener("click",()=>$("newF").close());
 $("newForm").addEventListener("submit",async e=>{
   e.preventDefault();const go=$("nfGo");go.disabled=true;go.textContent=tt("Launching…");
-  try{await api("/api/features",{project:$("nfProject").value,title:$("nfTitle").value,desc:$("nfDesc").value,model:$("nfModel").value,kind:$("nfKind").value,autopilot:$("nfAuto").checked});
-    $("newF").close();$("newForm").reset();toast(tt("Request created: worker launched."));featHtml="";
+  try{await api("/api/features",{project:$("nfProject").value,title:$("nfTitle").value,desc:$("nfDesc").value,model:$("nfModel").value,kind:$("nfKind").value,autopilot:$("nfAuto").checked,parent:nfParent});
+    nfParent="";$("newF").close();$("newForm").reset();toast(tt("Request created: worker launched."));featHtml="";
     if(nfFromProposal){try{await api(`/api/proposals/${encodeURIComponent(nfFromProposal)}/dismiss`,{});}
       catch(_){toast(tt("Request created, but the suggestion could not be dismissed: dismiss it yourself so it is not created twice."),true);}nfFromProposal="";propHtml="";}
     await load();
@@ -2520,7 +2674,8 @@ document.addEventListener("click",async e=>{
   try{await navigator.clipboard.writeText(b.dataset.cp);const o=b.textContent;b.textContent=tt("Copied ✓");setTimeout(()=>b.textContent=o,1200);}catch(_){}
 });
 document.addEventListener("keydown",e=>{
-  if(e.key==="/"&&document.activeElement!==$("q")){e.preventDefault();$("q").focus();}
+  const at=document.activeElement||{};
+  if(slashFocuses(e.key,at.tagName,at.isContentEditable)&&!document.querySelector("dialog[open]")){e.preventDefault();$("q").focus();}
   if(e.key==="Escape"&&F.q){F.q="";$("q").value="";update();}
 });
 // the server generates a new token on every start: an old tab reloads itself (at most once every 10 s)
@@ -2530,11 +2685,65 @@ function reloadForNewToken(){
   try{sessionStorage.setItem("reloaded",String(Date.now()));}catch(_){}
   location.reload();
 }
-let UI_V="";
+// ---- the tab says how many things need you; a notification says when a new one arrives while the tab is in the background ----
+let NOTIFY=false,waitSeen=null;
+try{NOTIFY=localStorage.getItem("notify")==="1";}catch(_){}
+function syncNotify(){const on=NOTIFY&&"Notification" in window&&Notification.permission==="granted";$("notifBtn").setAttribute("aria-pressed",String(on));$("notifBtn").hidden=!("Notification" in window);}
+$("notifBtn").addEventListener("click",async()=>{
+  if(!("Notification" in window))return;
+  if($("notifBtn").getAttribute("aria-pressed")==="true"){NOTIFY=false;toast(tt("Notifications off."));}
+  else{const perm=Notification.permission==="default"?await Notification.requestPermission():Notification.permission;
+    if(perm!=="granted"){toast(tt("Notifications are blocked for this page in the browser."),true);return;}
+    NOTIFY=true;toast(tt("Notifications on: you are told when a request starts waiting for you."));}
+  try{localStorage.setItem("notify",NOTIFY?"1":"0");}catch(_){}
+  syncNotify();
+});
+function noteWaiting(){
+  const fs=S.features||[];
+  if(waitSeen&&NOTIFY&&document.hidden&&"Notification" in window&&Notification.permission==="granted"){
+    for(const f of newlyWaiting(fs,waitSeen)){
+      try{new Notification(tt("Waiting for you: {t}",{t:f.title}),{body:cap(f.project)+" · "+((stg(f).find(s=>s[0]===f.stage)||[])[1]||""),tag:f.id});}catch(_){}}
+  }
+  waitSeen=new Set(fs.filter(f=>f.status==="awaiting").map(waitKey));
+  document.title=pageTitle(needsYou(S));
+}
+// ---- recent sessions that have no to-do card yet ----
+let scanRows=[];
+function renderScan(){
+  $("scanBody").innerHTML=scanRows.length?scanRows.map((s,i)=>`<div class="scanrow"><div><h4>${esc(s.first)}</h4>
+    <p>${esc(cap(s.project))} · ${esc(ago(s.modified,Date.now(),tt))}${s.open_todos?" · "+esc(tt("{n} unfinished to-do(s)",{n:s.open_todos})):""}</p>
+    ${s.last?`<p>${esc(tt("Ended with: {t}",{t:s.last}))}</p>`:""}</div>
+    <button class="btn" data-scan="${i}" type="button">${tt("Add as to-do")}</button></div>`).join(""):`<div class="empty">${tt("No recent session without a card.")}</div>`;
+}
+$("scanBtn").addEventListener("click",async()=>{
+  $("scanBody").innerHTML=`<div class="empty">${tt("Reading the sessions…")}</div>`;$("scanD").showModal();
+  try{scanRows=(await api("/api/pending/scan",{})).sessions||[];renderScan();}
+  catch(err){$("scanBody").innerHTML=`<div class="empty">${esc(err.message)}</div>`;}
+});
+$("scanClose").addEventListener("click",()=>$("scanD").close());
+$("scanBody").addEventListener("click",async e=>{
+  const b=e.target.closest("[data-scan]");if(!b)return;
+  const s=scanRows[+b.dataset.scan];if(!s)return;
+  b.disabled=true;
+  try{await api("/api/pending/add",{project:s.project,session:s.session});scanRows=scanRows.filter(x=>x!==s);renderScan();toast(tt("To-do added."));await load();}
+  catch(err){toast(err.message,true);b.disabled=false;}
+});
+// ---- the environment check, inside Settings ----
+$("doctorBtn").addEventListener("click",async()=>{
+  $("doctorBody").innerHTML=`<li>${tt("Checking…")}</li>`;
+  const r=await getJson("/api/doctor").catch(()=>null);
+  if(!r||!r.ok){$("doctorBody").innerHTML=`<li class="doc-fail">${tt("Could not run the check.")}</li>`;return;}
+  const mark={ok:"✓",warn:"–",fail:"✗"};
+  $("doctorBody").innerHTML=(r.data.checks||[]).map(c=>`<li><span class="doc-${esc(c.level)}">${mark[c.level]||"?"}</span> <b>${esc(c.name)}</b>: ${esc(c.detail)}${c.hint?`<small>${esc(c.hint)}</small>`:""}</li>`).join("");
+});
+let UI_V="",FH="";
 async function load(){
-  try{const r=await fetch("/api/state",{headers:{"X-Token":T}});
+  // the cards are most of the answer: the page says which version it has, and the server leaves them out while they are the same
+  try{const r=await fetch("/api/state"+(FH?"?fh="+encodeURIComponent(FH):""),{headers:{"X-Token":T}});
     if(r.status===403){reloadForNewToken();return;}
-    if(r.ok){S=await r.json();
+    if(r.ok){const prev=S;S=await r.json();
+      if(S.features===null)S.features=(prev&&prev.features)||[];
+      FH=S.features_hash||"";
       // the server changes “version” when index.html changes: reload so old code (and buttons that do nothing) is not kept
       if(UI_V&&S.ui&&S.ui!==UI_V&&!(document.activeElement&&document.activeElement.matches&&document.activeElement.matches("textarea,input[type=search]")))location.reload();
       UI_V=UI_V||S.ui;render();if(ROUTE.view==="projects")refreshProjects();else if(ROUTE.view==="project")refreshProject();}}
@@ -2546,6 +2755,7 @@ document.querySelectorAll("#langSw button").forEach(b=>b.addEventListener("click
   const u=new URL(location.href);u.searchParams.delete("lang");location.href=u.toString();
 }));
 applyStatic();
+syncNotify();
 readHash();$("q").value=F.q;showView();load();setInterval(load,8000);
 </script>
 </body>

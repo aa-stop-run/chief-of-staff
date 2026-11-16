@@ -43,6 +43,11 @@ class Pending:
         with self._lock:
             return [i for i in self._load() if not i.get("dismissed")]
 
+    def every(self) -> list:
+        """Dismissed cards included: a session that was dismissed is not offered again."""
+        with self._lock:
+            return self._load()
+
     def add(self, project: str, title: str, status: str, summary: str, missing: str, session: str, date: str) -> dict:
         project, title = (project or "").strip(), (title or "").strip()
         summary, missing = (summary or "").strip(), (missing or "").strip()
@@ -55,7 +60,7 @@ class Pending:
         if len(summary) > MAX_TEXT or len(missing) > MAX_TEXT:
             raise PendingError(f"text too long (max. {MAX_TEXT} characters)")
         pid = "p-" + hashlib.sha1(f"{project}|{session}|{title}".encode("utf-8")).hexdigest()[:10]
-        with self._lock:
+        with self._lock, atomicio.locked(self._file):       # `pending.py add` in a terminal and the server both write this file
             items = self._load()
             for i in items:
                 if i["id"] == pid:
@@ -77,7 +82,7 @@ class Pending:
     def dismiss(self, pid: str) -> dict:
         if not isinstance(pid, str) or not ID_RE.match(pid):
             raise PendingError("invalid id")
-        with self._lock:
+        with self._lock, atomicio.locked(self._file):
             items = self._load()
             for i in items:
                 if i["id"] == pid:

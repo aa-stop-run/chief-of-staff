@@ -1,11 +1,14 @@
 """The Chief's feature pipeline: spec -> plan -> implementation -> review, with human approval between phases.
 
 Each phase is a worker (`claude --bg`) that writes an artifact in <root>/features/<id>/.
-State is kept in <root>/features.json. Nothing advances by itself: every step is an explicit approval.
+State is kept in <root>/features.json. The user approves every phase; what runs by itself is what informs that decision (the
+plan validation, the independent review and its fix rounds) and, only when the request asked for it, the approval of a spec or
+a plan that left no questions («run until the review»). The last phase is always the user's.
 """
 import json
 import re
 import threading
+import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -32,6 +35,7 @@ ARCHIVE_EVENTS = {"spec": ("spec archived", "spec archiving failed"), "plan": ("
 PLAN_REVIEW = "plan-review.md"   # independent plan validation (a sub-step of the plan phase)
 MAX_PLAN_FIXES = 1               # automatic rounds plan -> validation -> plan fix (one: a validator always finds something)
 AUTOPILOT_STAGES = ("spec", "plan")   # what «run until the review» may approve by itself; never the last phase, never ship/release
+MAX_PLAN_TASKS = 12              # above this many ordered steps the planner plans a first part and the validator proposes a split
 MAX_LIMIT_RESUMES = 3            # how many times a request's phase is restarted after a usage limit
 LIMIT_GRACE_S = 180              # after a limit resets, wait this long for Claude Code to continue by itself before restarting
 MAX_QUESTIONS, MAX_OPTIONS, MAX_Q_TITLE, MAX_Q_TEXT, MAX_Q_OPTION = 20, 8, 120, 1500, 300
@@ -185,13 +189,53 @@ def _now() -> str:
 
 
 def _slug(s: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")[:40] or "feature"
+    plain = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")      # «correção» -> «correcao»
+    return re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-")[:40] or "feature"
+
+
+COMMIT_TYPES = {"fix": "fix", "maintenance": "chore"}        # conventional-commit type per kind of request; anything else is «feat»
+
+
+def commit_message(f: dict, verdict: str) -> str:
+    """The message of the pipeline's commit: the conventional type follows the kind of request."""
+    kind = COMMIT_TYPES.get(f.get("kind", "feature"), "feat")
+    return f"{kind}: {f['title']}\n\nRequest {f['id']}. Independent review: {verdict}."
+
+
+_TASKS = re.compile(r"^\W*(?:TASKS|TAREFAS)\s*:\s*(\d{1,4})\b", re.I | re.M)
+
+
+def plan_tasks(plan: str):
+    """How many ordered steps a plan says it has (its «TASKS: <n>» line), or None if it does not say."""
+    m = _TASKS.search(plan or "")
+    return int(m.group(1)) if m else None
+
+
+def _same_path(a, b) -> bool:
+    norm = lambda x: str(x or "").replace("\\", "/").rstrip("/").lower()   # noqa: E731
+    return bool(a) and norm(a) == norm(b)
+
+
+def open_requests(feats: list, project: str) -> int:
+    """How many requests of a project are still open (not finished and not cancelled)."""
+    return sum(1 for f in feats if f.get("project") == project and f.get("status") not in (DONE, CANCELLED))
+
+
+def request_from_todo(item: dict, missing_label: str) -> tuple:
+    """(title, description) of the request a session to-do becomes. A to-do's title may be longer than a request's, and it may
+    have no summary: the title is cut and the description falls back to the title, so the request can always be created."""
+    title = " ".join(str(item.get("title") or "").split())
+    if len(title) > MAX_TITLE:
+        title = title[:MAX_TITLE - 1].rstrip() + "…"
+    summary, missing = str(item.get("summary") or "").strip(), str(item.get("missing") or "").strip()
+    desc = summary + (f"\n\n{missing_label}: {missing}" if missing else "") if summary else (f"{missing_label}: {missing}" if missing else "")
+    return title, (desc or title)[:MAX_DESC]
 
 
 class Features:
     def __init__(self, root, launcher, is_active, grace_s: int = 0, is_busy=None, on_release=None,
                  auto_review: bool = False, committer=None, publisher=None, note_lang: str = "English", has_vault: bool = True,
-                 session=None, on_launch=None, limit=None, route=None, tools=None):
+                 session=None, on_launch=None, limit=None, route=None, tools=None, live_known=None, cleaner=None):
         """is_active: the worker session exists; is_busy: it is really working (defaults to is_active).
 
         A worker may finish the phase and keep the session open waiting for input: active, but not busy."""
@@ -211,6 +255,8 @@ class Features:
         self._route = route              # route(phase, request_model) -> (model, effort): which model and effort a phase runs with
         self._on_launch = on_launch      # on_launch(worker_id, request=, phase=): lets the cost of a worker be attributed to a request
         self._limit = limit              # limit(worker_id) -> the usage-limit notice stopping that worker, or None
+        self._live_known = live_known or (lambda: True)   # False while the host cannot ask Claude Code for its sessions
+        self._cleaner = cleaner          # cleaner(project_path, worktree, branch, force) -> (ok, info): removes what a request left in git
         self._lock = threading.RLock()
 
     # ---- persistence ----
@@ -255,6 +301,8 @@ class Features:
                 changed = True
             if f["status"] not in (WORKING, FAILED) or (f["status"] == WORKING and self._recent(f)):
                 continue
+            if f["status"] == FAILED and not self._live_known():
+                continue            # the sessions cannot be listed right now: «active» would be a guess, and the request would flip
             new = self._settle(f)
             if new != f["status"]:
                 f["status"] = new
@@ -311,7 +359,7 @@ class Features:
                     if f.get("pv", {}).get("checking"):
                         self._start_plancheck(fs, f)
                     else:
-                        self._start(fs, f, "")
+                        self._start(fs, f, self._pending_feedback(f))
                     restarted.append(f["id"])
                 except FeatureError as e:
                     f["status"] = FAILED
@@ -388,6 +436,7 @@ class Features:
         extra = prompts_kinds.EXTRA.get((lang, kind, "plancheck"))
         if extra:
             base = base.replace(P.OUT_MARKER, extra + "\n" + P.OUT_MARKER, 1)
+        base = base.replace(P.OUT_MARKER, P.PLANCHECK_SIZE.replace("{max}", str(MAX_PLAN_TASKS)) + "\n" + P.OUT_MARKER, 1)
         task = base.format(title=f["title"], fid=f["id"], project=f["project"], desc=f["desc"],
                            spec=self._spec_ref(f, d), plan=d / ARTIFACT["plan"], out=old) + P.BRIEF
         try:
@@ -456,6 +505,9 @@ class Features:
             if gate == "missing":                            # review without the “Tests” section with the real result: it is repeated
                 verdict, why = "unknown", "the review has no “Tests” section with the full-suite result"
         if verdict in ("approved", "reserves"):
+            if not self._tests_compared(f):
+                self._log(f, "tests not compared", "review",
+                          "the report has no «FINAL RESULT» line: the reviewer's numbers were not compared with the implementer's")
             self._commit(f, verdict)
         elif verdict == "blocked":
             if auto["fixes"] >= MAX_AUTO_FIXES:
@@ -486,15 +538,23 @@ class Features:
         read = lambda name: (d / name).read_text(encoding="utf-8", errors="replace") if (d / name).is_file() else ""  # noqa: E731
         return review_tests_gate(read(ARTIFACT["build"]), read(ARTIFACT["review"]))
 
+    def _tests_compared(self, f: dict) -> bool:
+        """Did the gate really compare two results? Not when there is code, the reviewer gave numbers and the report gave none."""
+        d = self._dir(f["id"])
+        if not (d / "work").is_dir():
+            return True
+        read = lambda name: (d / name).read_text(encoding="utf-8", errors="replace") if (d / name).is_file() else ""  # noqa: E731
+        state, got = parse_tests(read(ARTIFACT["review"]))
+        return state == "notests" or "reviewer" not in got or "final" in parse_tests(read(ARTIFACT["build"]))[1]
+
     def _commit(self, f: dict, verdict: str) -> None:
         """The commit only happens here, after a review that passes (the implementer leaves the work uncommitted)."""
         work = self._dir(f["id"]) / "work"
         if not self._committer or not work.is_dir():
             self._log(f, "nothing to commit", "review", "no code worktree")
             return
-        message = f"feat: {f['title']}\n\nFeature {f['id']}. Independent review: {verdict}."
         try:
-            ok, info = self._committer(work, message)
+            ok, info = self._committer(work, commit_message(f, verdict))
         except Exception as e:  # noqa: BLE001 - the commit is an extra: it never brings the feature down
             ok, info = False, str(e)
         self._log(f, "committed" if ok else "commit failed", "review", info)
@@ -617,7 +677,9 @@ class Features:
 
     # ---- actions ----
     def create(self, project: str, title: str, desc: str, model, lang: str = "en", kind: str = "feature",
-               autopilot: bool = False) -> dict:
+               autopilot: bool = False, path: str = "", parent: str = "") -> dict:
+        """`path`: the project's folder, kept so the request still finds its project if the project's name changes.
+        `parent`: the id of the request this one follows (a part split from a plan, the fix an analysis asked for)."""
         title, desc = (title or "").strip(), (desc or "").strip()
         if not project:
             raise FeatureError("missing project")
@@ -634,12 +696,18 @@ class Features:
         kind = kind or "feature"
         with self._lock:
             fs = self._load()
+            if parent and not any(x["id"] == parent for x in fs):
+                raise FeatureError("the request this one follows was not found")
             fid = f"{_slug(title)}-{datetime.now():%y%m%d%H%M%S}"
             f = {"id": fid, "title": title, "desc": desc, "project": project, "model": model or "",
                  "lang": lang or "en", "kind": kind, "stage": prompts_kinds.KIND_STAGES[kind][0], "status": WORKING, "worker_id": "", "worker_name": "",
                  "created": _now(), "history": [], "rev": {s: 0 for s in STAGES}, "auto": {"fixes": 0, "retries": 0}}
             if autopilot and kind not in ("ship", "release"):
                 f["autopilot"] = True
+            if path:
+                f["path"] = str(path)
+            if parent:
+                f["parent"] = parent
             self._dir(fid).mkdir(parents=True, exist_ok=True)
             self._start(fs, f, "")
             fs.append(f)
@@ -658,44 +726,47 @@ class Features:
     def _approve(self, fs: list, f: dict, by_user: bool = False) -> None:
         """Check the phase's gates and move the request on. `by_user`: the click (the automatic approval logs its own event)."""
         fid = f["id"]
-        if True:   # (kept as a block so the gates below read as before)
-            if f.get("kind") == "ship" and f["stage"] == "build":         # the click authorises the reported commands: they must be sane
-                path = self._dir(fid) / ARTIFACT["build"]
-                gate = ship_gate(path.read_text(encoding="utf-8", errors="replace") if path.is_file() else "")
+        read = lambda a: (self._dir(fid) / ARTIFACT[a]).read_text(encoding="utf-8", errors="replace") if (self._dir(fid) / ARTIFACT[a]).is_file() else ""  # noqa: E731
+        if f.get("kind") == "ship" and f["stage"] == "build":         # the click authorises the reported commands: they must be sane
+            gate = ship_gate(read("build"))
+            if gate == "missing":
+                raise FeatureError("the report has no “Ready to publish” section: ask for changes so the worker writes it")
+            if gate == "notexecuted":
+                raise FeatureError("the report says the commit was not made: ask for changes or cancel")
+            if gate == "badpush":
+                raise FeatureError("the report's push command is not allowed: only “git push -u <remote name> <branch>” on a branch that is not main or master")
+        if f.get("kind") == "release":
+            if f["stage"] == "plan":
+                gate = release_plan_gate(read("plan"))
                 if gate == "missing":
-                    raise FeatureError("the report has no “Ready to publish” section: ask for changes so the worker writes it")
-                if gate == "notexecuted":
-                    raise FeatureError("the report says the commit was not made: ask for changes or cancel")
-                if gate == "badpush":
-                    raise FeatureError("the report's push command is not allowed: only “git push -u <remote name> <branch>” on a branch that is not main or master")
-            if f.get("kind") == "release":
-                read = lambda a: (self._dir(fid) / ARTIFACT[a]).read_text(encoding="utf-8", errors="replace") if (self._dir(fid) / ARTIFACT[a]).is_file() else ""  # noqa: E731
-                if f["stage"] == "plan":
-                    gate = release_plan_gate(read("plan"))
-                    if gate == "missing":
-                        raise FeatureError("the promotion plan lacks a required section (Candidate, Regression tests, Promotion steps, Post-checks, Rollback): ask for changes")
-                    if gate == "nosha":
-                        raise FeatureError("the promotion plan has no “Candidate commit: <sha>” line: ask for changes")
-                elif f["stage"] == "build":
-                    gate = release_gate(read("plan"), read("build"))
-                    if gate == "negative":
-                        raise FeatureError("the regression verdict is NEGATIVE: the promotion cannot be approved; run the tests again or cancel")
-                    if gate == "unknown":
-                        raise FeatureError("the regression report has no readable POSITIVE or NEGATIVE verdict: run the tests again")
-                    if gate == "mismatch":
-                        raise FeatureError("the commit that was tested is not the planned candidate: run the tests again")
-            if by_user:
-                self._log(f, "approved", f["stage"])
-            self._publish(f, f["stage"])
-            stages = prompts_kinds.KIND_STAGES[f.get("kind", "feature")]
-            nxt = stages.index(f["stage"]) + 1
-            if nxt >= len(stages):
-                f["status"] = DONE
-                f["closed"] = self._closed()
-                self._release(f["worker_id"])
-            else:
-                f["stage"] = stages[nxt]
-                self._start(fs, f, "")
+                    raise FeatureError("the promotion plan lacks a required section (Candidate, Regression tests, Promotion steps, Post-checks, Rollback): ask for changes")
+                if gate == "nosha":
+                    raise FeatureError("the promotion plan has no “Candidate commit: <sha>” line: ask for changes")
+            elif f["stage"] == "build":
+                gate = release_gate(read("plan"), read("build"))
+                if gate == "negative":
+                    raise FeatureError("the regression verdict is NEGATIVE: the promotion cannot be approved; run the tests again or cancel")
+                if gate == "unknown":
+                    raise FeatureError("the regression report has no readable POSITIVE or NEGATIVE verdict: run the tests again")
+                if gate == "mismatch":
+                    raise FeatureError("the commit that was tested is not the planned candidate: run the tests again")
+        if by_user:
+            self._log(f, "approved", f["stage"])
+        self._publish(f, f["stage"])
+        stages = prompts_kinds.KIND_STAGES[f.get("kind", "feature")]
+        nxt = stages.index(f["stage"]) + 1
+        if nxt >= len(stages):
+            f["status"] = DONE
+            f["closed"] = self._closed()
+            self._release(f["worker_id"])
+            return
+        approved = f["stage"]
+        f["stage"] = stages[nxt]
+        try:
+            self._start(fs, f, "")
+        except FeatureError:
+            f["stage"] = approved        # the next phase did not start: the request waits on the approved one, never on a phase without its artifact
+            raise
 
     def request_fixes(self, fid: str, comment: str = "", selected: bool = False) -> dict:
         """After the review: send the findings back to the implementation worker (which continues in the same worktree)."""
@@ -754,8 +825,13 @@ class Features:
 
     @staticmethod
     def _pending_feedback(f: dict) -> str:
-        """The changes the user asked for in the round that failed, so that trying again does not lose them: the last request for
-        changes or fixes, looking back over the launches and failures that followed it and stopping at anything else."""
+        """What the phase that is running (or failed, or was stopped by a usage limit) was told to change, so that starting it
+        again does not lose it: the feedback kept by `_start` (the user's comment, or the pointer to the review's findings).
+        Requests from before that was kept fall back to the history: the last request for changes or fixes, looking back over
+        the launches and failures that followed it and stopping at anything else."""
+        kept = f.get("feedback")
+        if isinstance(kept, dict):
+            return kept.get("text", "") if kept.get("stage") == f.get("stage") else ""
         for h in reversed(f.get("history", [])):
             if h["event"] in ("changes requested", "fixes requested"):
                 return h.get("note", "") or ""
@@ -778,6 +854,74 @@ class Features:
                     self._release(e["worker_id"])
             self._save(fs)
             self._release(f["worker_id"])
+            return f
+
+    # ---- a request and its project: the name may change (a vault note is created or renamed), the folder is what identifies it ----
+    def reconcile(self, projects: list) -> int:
+        """Keep every request attached to its project. A request remembers the project's folder: when a project with that
+        folder now has another name, the request follows it; a request from before folders were kept learns its folder from
+        the project that still has its name. Returns how many requests changed."""
+        by_name = {p["name"]: p for p in projects}
+        changed = 0
+        with self._lock:
+            fs = self._load()
+            for f in fs:
+                if f.get("path"):
+                    now = next((p for p in projects if _same_path(p.get("path"), f["path"])), None)
+                    if now and now["name"] != f["project"]:
+                        self._log(f, "project renamed", f["stage"], f"{f['project']} -> {now['name']}")
+                        f["project"] = now["name"]
+                        changed += 1
+                elif f["project"] in by_name and by_name[f["project"]].get("path"):
+                    f["path"] = str(by_name[f["project"]]["path"])
+                    changed += 1
+            if changed:
+                self._save(fs)
+        return changed
+
+    # ---- changing what kind of request this is, before its first phase is approved ----
+    def set_kind(self, fid: str, kind: str) -> dict:
+        """Turn a request into another kind (a feature that is really a bug fix, an analysis that should be a feature). Only
+        while it is on its first phase and waiting or failed: nothing approved is thrown away. The first phase of the new kind
+        starts again. Publishing and release requests are never converted, in either direction."""
+        with self._lock:
+            fs = self._load()
+            f = self._get(fs, fid)
+            old = f.get("kind", "feature")
+            if kind not in KINDS or kind in ("ship", "release") or old in ("ship", "release"):
+                raise FeatureError("this kind of request cannot be converted")
+            if kind == old:
+                raise FeatureError("the request already is of that kind")
+            if f["status"] not in (AWAITING, FAILED) or f["stage"] != prompts_kinds.KIND_STAGES[old][0]:
+                raise FeatureError("the kind can only be changed while the request waits on its first phase")
+            first = prompts_kinds.KIND_STAGES[kind][0]
+            self._log(f, "kind changed", f["stage"], f"{old} -> {kind}")
+            f.update(kind=kind, stage=first)
+            f.pop("pv", None)
+            try:
+                self._start(fs, f, "")
+            except FeatureError:
+                f.update(kind=old, stage=prompts_kinds.KIND_STAGES[old][0])
+                raise
+            self._save(fs)
+            return f
+
+    # ---- after the end: the worktree and the branch a request left in the project's repo ----
+    def cleanup(self, fid: str, force: bool = False) -> dict:
+        """Remove a finished or cancelled request's worktree and branch. Without `force` git refuses uncommitted work and an
+        unmerged branch (and says so); `force` is the user's choice to throw the work away."""
+        with self._lock:
+            fs = self._load()
+            f = self._get(fs, fid)
+            if f["status"] not in (DONE, CANCELLED):
+                raise FeatureError("only a finished or cancelled request can be cleaned up")
+            if not self._cleaner or not f.get("path"):
+                raise FeatureError("this request's project folder is not known: remove the worktree by hand")
+            ok, info = self._cleaner(f["path"], self._dir(fid) / "work", f"feat/{fid}", bool(force))
+            self._log(f, "cleaned up" if ok else "clean-up failed", f["stage"], info)
+            self._save(fs)
+            if not ok:
+                raise FeatureError(info)
             return f
 
     # ---- archive of the approved specs and plans ----
@@ -850,7 +994,10 @@ class Features:
         # user to answer next to the verdict (archiving them would leave the verification panel with no answer boxes).
         keep_q = f.get("kind") == "analysis" and stage == "review" and not feedback
         if old_q.is_file() and not keep_q:  # the previous round's questions are archived; the new worker writes its own
-            moved_q = d / f"questions.{stage}.v{f['rev'].get(stage, 0) + (0 if moved else 1)}.json"
+            n = f["rev"].get(stage, 0) + (0 if moved else 1)
+            while (d / f"questions.{stage}.v{n}.json").exists():       # never over an archive that is already there
+                n += 1
+            moved_q = d / f"questions.{stage}.v{n}.json"
             old_q.replace(moved_q)
         try:
             w = self._spawn(f, stage, self._task(f, feedback), [str(d)], f"{_slug(f['title'])[:30].strip('-')}-{stage}")
@@ -863,6 +1010,7 @@ class Features:
         self._tag(w, f, stage)
         previous = f["worker_id"]
         f.update(status=WORKING, worker_id=w["id"], worker_name=w.get("name", ""))
+        f["feedback"] = {"stage": stage, "text": feedback}     # what this run was told to change: a retry or a resume repeats it
         if "pv" in f:
             f["pv"]["checking"] = False
         if previous and previous != w["id"]:
@@ -883,7 +1031,10 @@ class Features:
             extra["allow"] = list(allow)
         if deny:
             extra["deny"] = list(deny)
-        return self._launch(f["project"], task, model or None, extra_dirs, label=label, **extra)
+        try:
+            return self._launch(f["project"], task, model or None, extra_dirs, label=label, **extra)
+        except SystemExit as e:           # a launcher must never end the server's thread: it is a failed launch like any other
+            raise RuntimeError(str(e) or "the launcher exited") from e
 
     def _tag(self, w: dict, f: dict, phase: str) -> None:
         """Tell the host which request and phase a freshly launched worker is for. Never fails the feature."""
@@ -932,6 +1083,8 @@ class Features:
             template += "\n" + extra
         text += template.format(fid=f["id"], spec=self._spec_ref(f, d), plan=d / ARTIFACT["plan"],
                                 report=d / ARTIFACT["build"], work=d / "work")
+        if stage == "plan" and kind != "release":          # a release plan is a checklist, not a build to be sized
+            text += P.PLAN_SIZE.replace("{max}", str(MAX_PLAN_TASKS))
         text += P.BRIEF
         if not self._has_vault:
             text += P.NO_VAULT_NOTE

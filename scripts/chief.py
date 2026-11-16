@@ -10,6 +10,11 @@
   python scripts/chief.py status [project]
   python scripts/chief.py dispatch <project> --task "..." [--dry-run] [--model M]
   python scripts/chief.py workers
+  python scripts/chief.py requests [--all]        # the pipeline's requests (asks the running dashboard server)
+  python scripts/chief.py approve <request>       # approve the phase a request is waiting on
+  python scripts/chief.py revise <request> --comment "..."
+  python scripts/chief.py ask <request> "question"
+  python scripts/chief.py cancel <request>
 """
 import argparse
 import json
@@ -19,16 +24,20 @@ import shutil
 import subprocess
 import sys
 import threading
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import atomicio
+import control
+import finish
 import home
 import migrations
 import planusage
 import report
 import usage
+import workerlog
 import worksession
 
 ROOT = home.APP_ROOT                  # the application's folder: code only
@@ -108,7 +117,9 @@ Rules (mandatory):
 
 
 def slug(s):
-    return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+    """Lowercase letters, digits and hyphens; accented letters keep their base letter («configuráveis» -> «configuraveis»)."""
+    plain = unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode("ascii")
+    return re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-")
 
 
 def norm(p):
@@ -133,6 +144,8 @@ def hubs():
 def load_projects():
     paths = []
     for r in CFG["roots"]:
+        if not Path(r).is_dir():          # an unplugged drive or a renamed folder: its projects are not there, the others are
+            continue
         for d in sorted(Path(r).iterdir()):
             if d.is_dir() and d.name not in CFG["ignore"]:
                 paths.append(d)
@@ -143,8 +156,9 @@ def load_projects():
         n = norm(p)
         hub = next((h for h in hs if n == h["local"] or h["local"].startswith(n + "/") or n.startswith(h["local"] + "/")), None)
         name = hub["name"] if hub else p.name
-        domain = (CFG.get("domains") or {}).get(name) or (hub["domain"] if hub else "")
-        projs.append({"name": name, "slug": slug(name), "path": str(p), "domain": domain,
+        hub_domain = hub["domain"] if hub else ""
+        domain = (CFG.get("domains") or {}).get(name) or hub_domain
+        projs.append({"name": name, "slug": slug(name), "path": str(p), "domain": domain, "hub_domain": hub_domain,
                       "hub": hub["file"] if hub else None})
     return visible_projects(projs, CFG.get("hide_domains", []))
 
@@ -163,7 +177,8 @@ def _covered_paths():
     """Folders that already are projects: direct children of the roots (minus ignored ones) and the extras."""
     out = []
     for r in CFG["roots"]:
-        out += [norm(d) for d in Path(r).iterdir() if d.is_dir() and d.name not in CFG["ignore"]]
+        if Path(r).is_dir():
+            out += [norm(d) for d in Path(r).iterdir() if d.is_dir() and d.name not in CFG["ignore"]]
     return out + [norm(x) for x in CFG["extras"]]
 
 
@@ -206,10 +221,7 @@ def check_new_project_path(raw) -> Path:
 def _write_config(cfg: dict) -> None:
     """projects.json (in the home) with one key per line, LF line endings, written atomically."""
     body = ",\n".join(f"  {json.dumps(k)}: {json.dumps(v, ensure_ascii=False)}" for k, v in cfg.items())
-    HOME.mkdir(parents=True, exist_ok=True)
-    tmp = HOME / "projects.json.tmp"
-    tmp.write_text("{\n" + body + "\n}\n", encoding="utf-8", newline="\n")
-    tmp.replace(home.config_path(HOME))
+    atomicio.write_text(home.config_path(HOME), "{\n" + body + "\n}\n")
 
 
 def draft_header(project: str, day: str) -> str:
@@ -403,13 +415,26 @@ def add_project(raw, domain=None) -> dict:
     return p
 
 
-def find(name, projs):
+class ProjectNotFound(LookupError):
+    """No project, or more than one, answers to a name."""
+
+
+def lookup(name, projs):
+    """The one project a name means (its name, its folder name, or a unique part of either). Raises ProjectNotFound."""
     s = slug(name)
     exact = [p for p in projs if p["slug"] == s or slug(Path(p["path"]).name) == s]
     cand = exact or [p for p in projs if s in p["slug"] or s in slug(Path(p["path"]).name)]
     if len(cand) != 1:
-        sys.exit(f"project '{name}' " + ("is ambiguous: " + ", ".join(p["name"] for p in cand) if cand else "not found"))
+        raise ProjectNotFound(f"project '{name}' " + ("is ambiguous: " + ", ".join(p["name"] for p in cand) if cand else "not found"))
     return cand[0]
+
+
+def find(name, projs):
+    """`lookup` for the command line: an unknown project ends the command. Code that a server runs uses `lookup`."""
+    try:
+        return lookup(name, projs)
+    except ProjectNotFound as e:
+        sys.exit(str(e))
 
 
 def git(path, *args):
@@ -487,8 +512,8 @@ def full_state(live_list=None, with_git=True):
             infos = list(pool.map(lambda q: git_info(q["path"]), projs))
         for p, info in zip(projs, infos):
             p.update(info)
-        p["inbox"] = sum(1 for n in notes if slug(p["name"]) in slug(n.stem))
-        p["workers"] = sum(1 for w in workers if w["project"] == p["name"] and w["state"] in ACTIVE)
+            p["inbox"] = sum(1 for n in notes if slug(p["name"]) in slug(n.stem))
+            p["workers"] = sum(1 for w in workers if w["project"] == p["name"] and w["state"] in ACTIVE)
     return {"projects": projs, "workers": workers[::-1][:500], "inbox": sorted(n.name for n in notes)[::-1],
             "updated": datetime.now().strftime("%H:%M:%S")}
 
@@ -582,6 +607,45 @@ def worker_limit(worker_id: str):
     """The usage-limit notice currently stopping a worker (read from the end of its Claude Code log), or None."""
     w = next((x for x in load_workers() if x.get("id") == worker_id), None)
     return _NOTICES.notice(usage.find_transcript(worker_id, w.get("cwd", ""))) if w else None
+
+
+_LAST_WORDS = workerlog.LastMessages()
+
+
+def worker_last_message(worker_id: str):
+    """{mark, text} of the last thing a worker said ([DONE], [BLOCKED], [QUESTION] or cut off), from the end of its log; None if unknown."""
+    w = next((x for x in load_workers() if x.get("id") == worker_id), None)
+    return _LAST_WORDS.get(usage.find_transcript(worker_id, w.get("cwd", ""))) if w else None
+
+
+def request_finish(project_path, work, request_id: str) -> dict:
+    """What a finished request left in the project's repo, and the commands that merge it (shown to the user, never run)."""
+    st = finish.status(project_path, work, finish.branch_of(request_id))
+    return {**st, "commands": finish.merge_commands(project_path, st["branch"], st["into"]) if st["exists"] and not st["merged"] else []}
+
+
+def request_diff(work):
+    return finish.diff_summary(work)
+
+
+def cleanup_request(project_path, work, branch: str, force: bool = False) -> tuple:
+    return finish.remove(project_path, work, branch, force)
+
+
+def reconcile_workers(projects: list) -> int:
+    """A worker is filed under its project's name; when the project is renamed (its vault note is created or renamed), the
+    workers launched in that folder follow it, so the project's history and costs stay together. Returns how many changed."""
+    by_path = {norm(p["path"]): p["name"] for p in projects if p.get("path")}
+    with _LAUNCH_LOCK, atomicio.locked(STATE / "workers.json"):
+        workers, changed = load_workers(), 0
+        for w in workers:
+            name = by_path.get(norm(w["cwd"])) if w.get("cwd") and w.get("project") != CURATION_PROJECT else None
+            if name and name != w.get("project"):
+                w["project"] = name
+                changed += 1
+        if changed:
+            _save_workers(workers)
+    return changed
 
 
 def plan_view() -> dict:
@@ -699,7 +763,7 @@ def cmd_status(a):
     for p in st["projects"]:
         if only and p["slug"] != only:
             continue
-        g = f"{p['branch']} ±{p['dirty']} {p['last_date']} {p['last_msg']}" if p["git"] else "sem git"
+        g = f"{p['branch']} ±{p['dirty']} {p['last_date']} {p['last_msg']}" if p["git"] else "no git"
         print(f"{p['name']:30} {g}  | inbox {p['inbox']} | workers {p['workers']}")
 
 
@@ -741,7 +805,7 @@ def launch_worker(project, task, model=None, extra_dirs=(), mode="auto", label=N
 
 
 def _launch_worker_locked(project, task, model, extra_dirs, mode, label=None, effort=None, allow=(), deny=()):
-    p = find(project, load_projects())
+    p = lookup(project, load_projects())
     if not task.strip():
         raise ValueError("empty task")
     name, cmd, _ = build_command(p, task, mode, model, extra_dirs, label, effort, allow, deny)
@@ -794,12 +858,31 @@ def cmd_dispatch(a):
         return
     try:
         w = launch_worker(a.project, a.task, a.model, mode=a.mode)
-    except (ValueError, RuntimeError) as e:
+    except (ValueError, RuntimeError, LookupError) as e:
         sys.exit(str(e))
     print(f"{w['name']} started · {w['id']} · view: claude attach {w['id']}")
 
 
 SESSION_RE = re.compile(r"^[0-9a-f-]{8,40}$")
+
+
+LINUX_TERMINALS = (("x-terminal-emulator", "-e"), ("gnome-terminal", "--"), ("konsole", "-e"), ("xfce4-terminal", "-x"), ("xterm", "-e"))
+
+
+def terminal_command(platform: str, cwd: str, session_id: str, which=shutil.which) -> tuple:
+    """(command, needs a new console) that opens a terminal window resuming a session: Windows gives the process its own console,
+    macOS asks Terminal through AppleScript, elsewhere the first terminal program found is used. (None, False) if there is none."""
+    resume = ["claude", "--resume", session_id]
+    if platform.startswith("win"):
+        return resume, True
+    if platform == "darwin":
+        folder = cwd.replace("\\", "\\\\").replace('"', '\\"')
+        script = f'tell application "Terminal" to do script "cd \\"{folder}\\" && claude --resume {session_id}"'
+        return ["osascript", "-e", script], False
+    for name, flag in LINUX_TERMINALS:
+        if which(name):
+            return [name, flag, *resume], False
+    return None, False
 
 
 def open_session(project, session_id):
@@ -809,9 +892,11 @@ def open_session(project, session_id):
     p = next((q for q in load_projects() if q["name"] == project), None)
     if p is None:
         raise ValueError("unknown project")
+    cmd, new_console = terminal_command(sys.platform, p["path"], session_id)
+    if cmd is None:
+        raise RuntimeError(f"no terminal program found: run `claude --resume {session_id}` in {p['path']}")
     try:
-        subprocess.Popen(["claude", "--resume", session_id], cwd=p["path"],
-                         creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+        subprocess.Popen(cmd, cwd=p["path"], creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0) if new_console else 0)
     except OSError as e:
         raise RuntimeError(f"could not open the terminal: {e}") from e
 
@@ -914,7 +999,7 @@ def commit_worktree(path, message):
             return False, "git add failed"
         if not run("status", "--porcelain").stdout.strip():
             return True, "no changes to commit"
-        bad = secret_paths(run("diff", "--cached", "--name-only").stdout.split("\n"))
+        bad = secret_paths(run("diff", "--cached", "--name-only", "-z").stdout.split("\0"))   # -z: git quotes non-ASCII paths otherwise
         if bad:                                   # nothing is committed: the user looks at the worktree and decides
             run("reset", "-q")
             return False, "not committed: these look like secrets: " + ", ".join(bad[:5]) + (" …" if len(bad) > 5 else "")
@@ -941,7 +1026,61 @@ def stop_worker(worker_id):
 def cmd_workers(_):
     live = {s["id"]: s for s in sessions()}
     for w in load_workers():
-        print(f"{w['name']:34} {w['id']} {live.get(w['id'], {}).get('state', 'terminado'):10} {w['task'][:60]!r}")
+        state = session_state(live[w["id"]]) if w["id"] in live else "finished"
+        print(f"{w['name']:34} {w['id']} {state:10} {w['task'][:60]!r}")
+
+
+REQUEST_STATUS = {"working": "working", "awaiting": "TO DECIDE", "failed": "FAILED", "done": "done", "cancelled": "cancelled"}
+
+
+def _requests(include_closed: bool = False) -> list:
+    """The requests as the running server shows them; without a server, what the state file says (read-only, possibly stale)."""
+    try:
+        feats = control.call(STATE, "GET", "/api/state")["features"]
+    except control.ControlError:
+        feats = _read_features()[::-1]
+    return [f for f in feats if include_closed or f.get("status") not in ("done", "cancelled")]
+
+
+def cmd_requests(a):
+    rows = _requests(a.all)
+    if not control.read(STATE):
+        print("(the dashboard server is not running: this is the last saved state)")
+    for f in rows:
+        cost = f.get("cost") or {}
+        money = f"  ~{report.money(cost['cost_usd'])}" if cost.get("cost_usd") else ""
+        print(f"{f['id']:52} {f.get('kind', 'feature'):11} {f['stage']:6} {REQUEST_STATUS.get(f['status'], f['status']):10} {f['project']}{money}")
+        print(f"    {f['title']}")
+    if not rows:
+        print("no open requests" if not a.all else "no requests")
+
+
+def _act(a, action: str, body: dict | None = None) -> dict:
+    try:
+        f = control.find_request(_requests(include_closed=action == "ask"), a.request)
+        return control.call(STATE, "POST", f"/api/features/{f['id']}/{action}", body)
+    except control.ControlError as e:
+        sys.exit(str(e))
+
+
+def cmd_approve(a):
+    f = _act(a, "approve")
+    print(f"approved: {f['id']} is now {f['status']} on {f['stage']}")
+
+
+def cmd_revise(a):
+    f = _act(a, "revise", {"comment": a.comment})
+    print(f"changes sent: {f['id']} is {f['status']} on {f['stage']}")
+
+
+def cmd_ask(a):
+    e = _act(a, "ask", {"question": a.question})
+    print(f"question {e['n']} sent to {e.get('worker_name') or e['worker_id']}: the answer appears on the card and in `chief.py requests`")
+
+
+def cmd_cancel(a):
+    f = _act(a, "cancel")
+    print(f"cancelled: {f['id']}")
 
 
 def main():
@@ -972,6 +1111,22 @@ def main():
     d.add_argument("--dry-run", action="store_true")
     d.set_defaults(f=cmd_dispatch)
     sp.add_parser("workers").set_defaults(f=cmd_workers)
+    r = sp.add_parser("requests", help="the pipeline's requests and what each is waiting for")
+    r.add_argument("--all", action="store_true", help="include finished and cancelled requests")
+    r.set_defaults(f=cmd_requests)
+    for name, fn, text in (("approve", cmd_approve, "approve the phase a request is waiting on (the same gates as the dashboard)"),
+                           ("cancel", cmd_cancel, "cancel a request")):
+        c = sp.add_parser(name, help=text)
+        c.add_argument("request", help="the request's id, the start of it, or part of its title")
+        c.set_defaults(f=fn)
+    rv = sp.add_parser("revise", help="ask for changes to the phase a request is waiting on")
+    rv.add_argument("request")
+    rv.add_argument("--comment", required=True)
+    rv.set_defaults(f=cmd_revise)
+    q = sp.add_parser("ask", help="ask a read-only worker a question about a request")
+    q.add_argument("request")
+    q.add_argument("question")
+    q.set_defaults(f=cmd_ask)
     a = ap.parse_args()
     if a.cmd == "statusline":            # runs on every status line refresh: no start-up work, and it must never fail
         return cmd_statusline(a)

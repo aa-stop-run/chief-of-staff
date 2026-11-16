@@ -8,11 +8,12 @@ turns it into a request (the new-request dialog opens already filled in). State 
 """
 import hashlib
 import json
-import os
 import re
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
+
+import atomicio
 
 KINDS = ("feature", "fix", "maintenance", "analysis", "ship")
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
@@ -58,9 +59,7 @@ class Proposals:
         self.root.mkdir(parents=True, exist_ok=True)
         cutoff = (datetime.now() - timedelta(days=KEEP_DISMISSED_DAYS)).isoformat(timespec="seconds")
         items = [i for i in items if not (i.get("dismissed") and (i.get("dismissed_at") or i.get("created", "")) < cutoff)]
-        tmp = self._file.with_name(f"proposals.{os.getpid()}.{threading.get_ident()}.tmp")    # one name per writer: two processes never share it
-        tmp.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8")
-        tmp.replace(self._file)
+        atomicio.write_text(self._file, json.dumps(items, ensure_ascii=False, indent=1))
 
     def list(self) -> list:
         with self._lock:
@@ -77,7 +76,7 @@ class Proposals:
         if not desc or len(desc) > MAX_DESC:
             raise ProposalError(f"description required (max. {MAX_DESC} characters)")
         pid = "s-" + hashlib.sha1(f"{project}|{kind}|{title}".encode("utf-8")).hexdigest()[:10]
-        with self._lock:
+        with self._lock, atomicio.locked(self._file):       # a worker's `proposals.py add` and the server both write this file
             items = self._load(strict=True)
             open_ = [i for i in items if not i.get("dismissed")]
             for i in open_:
@@ -106,7 +105,7 @@ class Proposals:
     def dismiss(self, pid: str) -> dict:
         if not isinstance(pid, str) or not ID_RE.match(pid):
             raise ProposalError("invalid id")
-        with self._lock:
+        with self._lock, atomicio.locked(self._file):
             items = self._load()
             for i in items:
                 if i["id"] == pid and not i.get("dismissed"):

@@ -10,6 +10,7 @@ Usage: python app/server.py [--port 8780] [--home <data folder>] [--demo]
 """
 import argparse
 import atexit
+import hashlib
 import json
 import os
 import secrets
@@ -26,8 +27,10 @@ from urllib.parse import parse_qs, urlparse
 
 APP = Path(__file__).resolve().parent
 sys.path.insert(0, str(APP.parent / "scripts"))
-if "--home" in sys.argv[:-1]:        # must be known before `chief` reads the configuration
-    os.environ["CHIEF_HOME"] = sys.argv[sys.argv.index("--home") + 1]
+sys.path.insert(0, str(APP))
+import launchargs  # noqa: E402
+if launchargs.home_arg(sys.argv):    # must be known before `chief` reads the configuration (`--home X` and `--home=X`)
+    os.environ["CHIEF_HOME"] = launchargs.home_arg(sys.argv)
 DEMO = "--demo" in sys.argv
 if DEMO:                              # the data folder must exist before `chief` reads its configuration
     import demo  # noqa: E402
@@ -35,11 +38,14 @@ if DEMO:                              # the data folder must exist before `chief
     atexit.register(shutil.rmtree, _DEMO_DIR, True)
     os.environ["CHIEF_HOME"] = str(demo.seed(_DEMO_DIR))
 import chief  # noqa: E402
+import control  # noqa: E402
+import features  # noqa: E402
 import home  # noqa: E402
+import sessions  # noqa: E402
 import settings  # noqa: E402
 from alerts import Alerts  # noqa: E402
 from curation import CurationError, Curator  # noqa: E402
-from features import FeatureError, Features  # noqa: E402
+from features import FeatureError, Features, open_requests, request_from_todo  # noqa: E402
 from i18n import request_lang, translate  # noqa: E402
 from onboarding import Onboarding  # noqa: E402
 from pending import Pending, PendingError  # noqa: E402
@@ -78,7 +84,9 @@ LEDGER = usage.Ledger(chief.STATE / "usage.json")  # what each worker cost, meas
 FEATURES = Features(chief.STATE, chief.launch_worker, _is_active, grace_s=GRACE_S, is_busy=_is_busy,
                     on_release=chief.stop_worker, auto_review=True, committer=chief.commit_worktree,
                     publisher=chief.archive_doc, note_lang=chief.SCHEMA["name"],
-                    has_vault=chief.vault_enabled(), session=SESSIONS.current_id, on_launch=chief.tag_worker, limit=chief.worker_limit, route=chief.route, tools=chief.tools_for)
+                    has_vault=chief.vault_enabled(), session=SESSIONS.current_id, on_launch=chief.tag_worker, limit=chief.worker_limit,
+                    route=chief.route, tools=chief.tools_for, live_known=lambda: _live["map"] is not None,
+                    cleaner=lambda *a: chief.cleanup_request(*a))
 TICK_S = 10
 PENDING = Pending(chief.STATE)
 ALERTS = Alerts()                           # a worker stuck on a prompt or a failed request, once it has lasted a few minutes
@@ -234,6 +242,53 @@ def project_page(p: dict) -> dict:
     return page
 
 
+CARD_FACTS = projectpage.TtlCache(ttl_s=30)      # git facts of a card (what it left behind, the size of its change): 30 s is fresh enough
+CLOSED = ("done", "cancelled")
+
+
+def _card_extras(f: dict, titles: dict) -> dict:
+    """What a card shows beyond the request itself: the size its plan declares, why its worker failed, the size of the change
+    under review, and, once it is closed, what it left in the project's repo. Each is left out when there is nothing to say."""
+    out = {}
+    work = chief.STATE / "features" / f["id"] / "work"
+    n = features.plan_tasks((f.get("artifacts") or {}).get("plan", ""))
+    if n is not None:
+        out["plan_tasks"] = {"n": n, "max": features.MAX_PLAN_TASKS}
+    if f.get("parent") in titles:
+        out["parent_title"] = titles[f["parent"]]
+    if f["status"] == "failed" and f.get("worker_id"):
+        said = chief.worker_last_message(f["worker_id"])
+        if said:
+            out["last_message"] = said
+    committed = any(h["event"] == "committed" for h in f["history"])
+    if f["status"] in CLOSED and f.get("path") and (work.is_dir() or committed):
+        fin = CARD_FACTS.get(("finish", f["id"]), lambda: chief.request_finish(f["path"], work, f["id"]))
+        if fin["worktree"] or fin["exists"]:
+            out["finish"] = {**fin, "merged": bool(fin["merged"] and committed), "committed": committed}
+    if f["status"] not in CLOSED and f["stage"] in ("build", "review") and (work.is_dir() or DEMO):
+        diff = CARD_FACTS.get(("diff", f["id"]), lambda: chief.request_diff(work))
+        if diff:
+            out["diff"] = diff
+    return out
+
+
+def _scan_sessions() -> list:
+    """Recent Claude Code sessions that have no to-do card yet (the demo reads no real session)."""
+    if DEMO:
+        return []
+    known = {i.get("session") for i in PENDING.every() if i.get("session")}
+    return sessions.candidates(sessions.scan(chief.load_projects(), limit=4, since_days=14), known,
+                               [w.get("id") for w in chief.load_workers()])[:40]
+
+
+def _add_todo(project: str, session_id: str) -> dict:
+    """A to-do card from one session. The text comes from the session's own log, read here: nothing the page sends is stored."""
+    s = None if DEMO else sessions.find_session(chief.load_projects(), project, session_id)
+    if s is None:
+        raise PendingError("session not found")
+    return PENDING.add(project, session=session_id, **sessions.todo_from_session(s))
+
+
 def _end_session() -> dict:
     """Freeze the open session's totals into its record and open a fresh one."""
     _measure_costs()
@@ -248,14 +303,23 @@ def _build_state_uncached() -> dict:
     _live["map"] = None if sess is None else {s["id"]: chief.session_state(s) for s in sess}
     state = chief.full_state(sess or [], with_git=False)
     request_costs = usage.request_costs(LEDGER.load())      # a request's cost is all its workers', across phases and work sessions
-    feats = [{**f, "worker_state": (_live["map"] or {}).get(f["worker_id"], ""), "cost": request_costs.get(f["id"]),
-              "artifacts": FEATURES.artifacts(f["id"]), "questions": FEATURES.questions(f["id"]),
-              "qa": FEATURES.qa_of(f)} for f in FEATURES.list()]
+    every = FEATURES.list()
     visible = {p["name"] for p in state["projects"]}  # projects in hidden domains appear nowhere
     cur = SESSIONS.current_id()
-    in_scope = [f for f in feats[::-1] if f["project"] in visible and _in_scope(f, cur)]
+    # artifacts, questions and answers are read only for the requests the dashboard shows, not for every request ever made
+    in_scope = [{**f, "worker_state": (_live["map"] or {}).get(f["worker_id"], ""), "cost": request_costs.get(f["id"]),
+                 "artifacts": FEATURES.artifacts(f["id"]), "questions": FEATURES.questions(f["id"]), "qa": FEATURES.qa_of(f)}
+                for f in every[::-1] if f["project"] in visible and _in_scope(f, cur)]
+    titles = {f["id"]: f["title"] for f in every}
+    for f in in_scope:
+        try:
+            f.update(_card_extras(f, titles))
+        except Exception:  # noqa: BLE001 - these are extras: a git or log problem never hides the card
+            traceback.print_exc(file=sys.stderr)
     state["features"] = in_scope
-    state["earlier_closed"] = sum(1 for f in feats if f["project"] in visible and not _in_scope(f, cur))
+    # the page sends this back: while the cards are the same, the next answer leaves them out (they are most of the payload)
+    state["features_hash"] = hashlib.sha1(json.dumps(in_scope, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
+    state["earlier_closed"] = sum(1 for f in every if f["project"] in visible and not _in_scope(f, cur))
     # the workers' history is this session's: workers still running are always shown, finished ones only if launched in this session
     state["workers"] = [w for w in state["workers"] if w["project"] in visible and (w.get("state") in chief.ACTIVE or w.get("session") == cur)]
     state["pending"] = [x for x in PENDING.list() if x["project"] in visible]
@@ -319,7 +383,14 @@ class Handler(BaseHTTPRequestHandler):
         if u.path == "/api/state":
             if not _token_ok(parse_qs(u.query), self.headers):
                 return self._send(403, b"token", "text/plain")
-            return self._json(200, build_state())
+            state, have = build_state(), parse_qs(u.query).get("fh", [""])[0]
+            if have and have == state.get("features_hash"):
+                state = {**state, "features": None}      # unchanged since the page last asked: it keeps the cards it has
+            return self._json(200, state)
+        if u.path == "/api/doctor":
+            if not _token_ok(parse_qs(u.query), self.headers):
+                return self._send(403, b"token", "text/plain")
+            return self._json(200, {"checks": chief.doctor_checks()})
         if u.path == "/api/costs":
             if not _token_ok(parse_qs(u.query), self.headers):
                 return self._send(403, b"token", "text/plain")
@@ -398,10 +469,11 @@ class Handler(BaseHTTPRequestHandler):
                 raise PendingError(str(e)) from e
             return {"ok": True}
         if action == "feature":
-            label = "Falta" if self._lang == "pt" else "Missing"
-            missing = f"\n\n{label}: {item['missing']}" if item["missing"] else ""
-            desc = item["summary"] + missing
-            f = FEATURES.create(item["project"], item["title"], desc, None, lang=self._lang)
+            if item["project"] not in {p["name"] for p in chief.load_projects()}:
+                raise PendingError("unknown project")
+            title, desc = request_from_todo(item, "Falta" if self._lang == "pt" else "Missing")
+            path = next(p["path"] for p in chief.load_projects() if p["name"] == item["project"])
+            f = FEATURES.create(item["project"], title, desc, None, lang=self._lang, path=path)
             PENDING.dismiss(pid)
             return f
         raise PendingError("unknown action")
@@ -421,6 +493,9 @@ class Handler(BaseHTTPRequestHandler):
         if action == "ignore_remove":
             return settings.set_ignored(name, False)
         if action == "project_remove":
+            n = open_requests(FEATURES.list(), name)
+            if n:              # a request must not outlive its project: its next phase could not be launched
+                raise FeatureError(f"this project has {n} open request(s): finish or cancel them first")
             return settings.remove_project(name)
         if action == "extra_move":
             return settings.move_extra(name, path)
@@ -467,17 +542,22 @@ class Handler(BaseHTTPRequestHandler):
             return {"ok": True}
         if parts[:2] == ["api", "proposals"] and len(parts) == 4 and parts[3] == "dismiss":
             return PROPOSALS.dismiss(parts[2])            # accepting needs no call: the dashboard opens the new-request dialog and then dismisses
+        if parts == ["api", "pending", "scan"]:
+            return {"sessions": _scan_sessions()}
+        if parts == ["api", "pending", "add"]:
+            return _add_todo(str(body.get("project", "")), str(body.get("session", "")))
         if parts[:2] == ["api", "pending"] and len(parts) == 4:
             return self._pending_action(parts[2], parts[3])
         if parts[:2] != ["api", "features"]:
             raise FeatureError("unknown route")
         if len(parts) == 2:
-            names = {p["name"] for p in chief.load_projects()}
-            if body.get("project") not in names:
+            paths = {p["name"]: p["path"] for p in chief.load_projects()}
+            if body.get("project") not in paths:
                 raise FeatureError("unknown project")
             return FEATURES.create(body["project"], str(body.get("title", "")), str(body.get("desc", "")),
                                    body.get("model") or None, lang=self._lang, kind=str(body.get("kind") or "feature"),
-                                   autopilot=body.get("autopilot") is True)
+                                   autopilot=body.get("autopilot") is True, path=paths[body["project"]],
+                                   parent=str(body.get("parent") or ""))
         if len(parts) == 4:
             fid, action = parts[2], parts[3]
             if action == "approve":
@@ -492,7 +572,22 @@ class Handler(BaseHTTPRequestHandler):
                 return FEATURES.retry(fid)
             if action == "cancel":
                 return FEATURES.cancel(fid)
+            if action == "kind":
+                return FEATURES.set_kind(fid, str(body.get("kind", "")))
+            if action == "cleanup":
+                global CARD_FACTS
+                try:
+                    return FEATURES.cleanup(fid, force=body.get("force") is True)
+                finally:
+                    CARD_FACTS = projectpage.TtlCache(ttl_s=30)        # what the card says about git is out of date now
         raise FeatureError("unknown route")
+
+
+def _reconcile() -> None:
+    """Requests and workers follow their project when its name changes (a vault note was created or renamed)."""
+    projects = chief.load_projects()
+    if FEATURES.reconcile(projects) + (0 if DEMO else chief.reconcile_workers(projects)):
+        invalidate_cache()
 
 
 COST_EVERY = 6                     # the costs are measured every 6th tick (a minute): reading the logs is the expensive part
@@ -509,12 +604,13 @@ def _ticker() -> None:
                 FEATURES.auto_resume()
             ticks["n"] += 1
             if ticks["n"] % COST_EVERY == 0:
+                _reconcile()
                 _measure_costs()
             build_state()
             if not DEMO and chief.vault_enabled():
                 ONBOARD.tick()
                 CURATOR.tick()
-        except Exception:  # noqa: BLE001 - the ticker must never die
+        except (Exception, SystemExit):  # noqa: BLE001 - the ticker must never die (a library that calls sys.exit included)
             traceback.print_exc(file=sys.stderr)
 
 
@@ -532,9 +628,12 @@ def main() -> None:
     try:
         SESSIONS.ensure()             # a session is always open while the server runs
         FEATURES.publish_approved()   # specs and plans approved before the archive existed (once per document)
+        _reconcile()                  # requests from before a project's folder was kept learn it now
     except Exception:  # noqa: BLE001 - archiving is an extra: it never prevents startup
         traceback.print_exc(file=sys.stderr)
     srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    control.announce(chief.STATE, PORT, TOKEN)      # lets `chief.py requests | approve | ask` find this server
+    atexit.register(control.withdraw, chief.STATE)
     print(f"Chief of Staff at http://127.0.0.1:{PORT}  (Ctrl+C to stop)\nData folder: {chief.HOME}"
           + ("\nDEMO MODE: sample data, simulated workers; the folder is deleted on exit." if DEMO else ""))
     threading.Thread(target=_ticker, daemon=True).start()

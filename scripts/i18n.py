@@ -101,6 +101,16 @@ PAIRS = [
     ("extracting the project's information into the vault", "a extrair a informação do projeto para o vault"),
     ("to extract the information into the vault, open claude once in {0} and accept the folder trust: the extraction then starts by itself", "para extrair a informação para o vault, abre o claude uma vez em {0} e aceita a confiança na pasta: a extração arranca sozinha"),
     ("could not launch the extraction into the vault ({0})", "não consegui lançar a extração para o vault ({0})"),
+    # requests and their projects, kinds, clean-up
+    ("this project has {0} open request(s): finish or cancel them first", "este projeto tem {0} pedido(s) em aberto: conclui-os ou cancela-os primeiro"),
+    ("the request this one follows was not found", "o pedido a que este dá seguimento não foi encontrado"),
+    ("this kind of request cannot be converted", "este tipo de pedido não pode ser convertido"),
+    ("the request already is of that kind", "o pedido já é desse tipo"),
+    ("the kind can only be changed while the request waits on its first phase", "o tipo só pode ser mudado enquanto o pedido espera na primeira fase"),
+    ("only a finished or cancelled request can be cleaned up", "só se pode limpar um pedido concluído ou cancelado"),
+    ("this request's project folder is not known: remove the worktree by hand", "não se conhece a pasta do projeto deste pedido: remove o worktree à mão"),
+    ("the worktree was not removed: {0}", "o worktree não foi removido: {0}"),
+    ("session not found", "sessão não encontrada"),
 ]
 
 

@@ -186,6 +186,14 @@ outra pessoa ou de acesso que não tens). Se não correste nada que prove o resu
 passos «para executares» é um runbook, não uma implementação. Só termina com [DONE] se o estado for EXECUTADO E VERIFICADO;
 caso contrário termina com [BLOCKED] e diz o que falta. Se o projeto não é um repositório git, não há worktree: diz-o no relatório."""
 
+# O tamanho que um plano pode ter antes de dever ser partido (ver prompts.PLAN_SIZE).
+PLAN_SIZE = ("\nTamanho: depois dos passos ordenados escreve a linha «TASKS: <número de passos ordenados>». Se o trabalho precisar de "
+             "mais de {max} passos, ou de uma implementação que não se revê de uma vez, NÃO planeies tudo: planeia a primeira parte "
+             "autónoma e lista o resto em «## Pedidos seguintes» (uma linha cada: um título e o que cobre), para que cada parte seja "
+             "implementada e revista por si.")
+PLANCHECK_SIZE = ("8. Tamanho: o plano tem uma linha «TASKS: <n>». Mais de {max} passos, ou partes que não se verificam de forma "
+                  "independente, é um achado MEDIUM com o título «tamanho» que propõe como partir o trabalho em pedidos separados.")
+
 FEEDBACK_SELECTED = ("A revisão independente (ficheiro {review}) apontou achados e o utilizador decidiu um a um. Corrige SÓ os "
                      "achados listados em «Achados a corrigir»; os «aceites» foram aceites como estão e não lhes tocas. "
                      "Mantém os testes a passar.")

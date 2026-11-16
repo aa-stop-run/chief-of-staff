@@ -19,6 +19,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import chief  # noqa: E402
 
 
+SERVER_TESTS = ("test_demo.py", "test_demo_server.py", "test_project_routes.py", "test_review_server.py")   # they start real demo servers
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "slow: starts a demo server (deselect with -m \"not slow\" for a fast run)")
+
+
+def pytest_collection_modifyitems(items):
+    for item in items:
+        if item.path.name in SERVER_TESTS:
+            item.add_marker(pytest.mark.slow)
+
+
 @pytest.fixture(autouse=True)
 def isolated_chief(monkeypatch, tmp_path):
     """Every test gets its own empty data folder and English vault conventions."""

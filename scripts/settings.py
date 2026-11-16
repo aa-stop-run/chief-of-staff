@@ -304,7 +304,7 @@ def snapshot() -> dict:
     rows = []
     for p, g in zip(projs, remotes):
         over = domains.get(p["name"], "")
-        rows.append({"name": p["name"], "path": p["path"], "domain": over or p["domain"], "from_vault": p["domain"],
+        rows.append({"name": p["name"], "path": p["path"], "domain": over or p["domain"], "from_vault": p.get("hub_domain", ""),
                      "custom": bool(over), "kind": "extra" if chief.norm(p["path"]) in extras else "root", "hub": bool(p["hub"]), **g})
     known = sorted({r["domain"] for r in rows if r["domain"]} | {h["domain"] for h in chief.hubs() if h["domain"]})
     return {"vault": chief.CFG.get("vault") or "", "roots": list(chief.CFG["roots"]), "ignore": list(chief.CFG["ignore"]),

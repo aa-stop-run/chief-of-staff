@@ -17,6 +17,8 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+import atomicio
+
 HEARTBEAT_MAX_S = 60            # a longer gap between two heartbeats means the server was down: that time is not counted
 STALE_AFTER_S = 12 * 3600       # a session whose server has been gone this long is closed at its last heartbeat
 LEGACY_ID = "ws-legacy"         # everything recorded before sessions existed
@@ -41,10 +43,7 @@ class WorkSessions:
             return []
 
     def _save(self, sessions: list) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"sessions": sessions}, ensure_ascii=False, indent=1), encoding="utf-8")
-        tmp.replace(self.path)
+        atomicio.write_text(self.path, json.dumps({"sessions": sessions}, ensure_ascii=False, indent=1))
 
     @staticmethod
     def _open(sessions: list):
@@ -83,7 +82,7 @@ class WorkSessions:
 
     def ensure(self) -> dict:
         """Called when the server starts: close a stale session, and open one if none is open. Returns the open session."""
-        with self._lock:
+        with self._lock, atomicio.locked(self.path):   # the server's heartbeat and `chief.py session end` both write
             sessions = self._load()
             cur = self._open(sessions)
             if cur and (self._now() - datetime.fromisoformat(cur["last_seen"])).total_seconds() > STALE_AFTER_S:
@@ -96,7 +95,7 @@ class WorkSessions:
 
     def heartbeat(self):
         """Count the time since the last heartbeat (at most HEARTBEAT_MAX_S) as active time. Returns the open session."""
-        with self._lock:
+        with self._lock, atomicio.locked(self.path):   # the server's heartbeat and `chief.py session end` both write
             sessions = self._load()
             cur = self._open(sessions)
             if cur is None:
@@ -112,6 +111,7 @@ class WorkSessions:
         """Close the open session, freeze its totals into the record, and open a fresh one. Returns {ended, current}."""
         with self._lock:
             self.heartbeat()
+        with self._lock, atomicio.locked(self.path):
             sessions = self._load()
             cur = self._open(sessions)
             if cur is None:
@@ -123,7 +123,7 @@ class WorkSessions:
 
     def add_legacy(self, started: str, ended: str) -> dict:
         """The placeholder session that owns everything recorded before sessions existed (used by the data migration)."""
-        with self._lock:
+        with self._lock, atomicio.locked(self.path):   # the server's heartbeat and `chief.py session end` both write
             sessions = self._load()
             old = next((s for s in sessions if s["id"] == LEGACY_ID), None)
             if old:

@@ -185,6 +185,15 @@ make the implementation fail or come out wrong; MEDIUM = ambiguity or risk; LOW 
 If there are no findings write "None."
 End with [DONE]."""
 
+# How big a plan may be before it should be split: a build that is too large does not converge (its review keeps finding what
+# was left undone). The planner counts its steps; the validator proposes the split. features.MAX_PLAN_TASKS is the number.
+PLAN_SIZE = ("\nSize: after the ordered steps write the line \"TASKS: <number of ordered steps>\". If the work needs more than "
+             "{max} steps, or a build that cannot be reviewed in one sitting, do NOT plan all of it: plan the first self-contained "
+             "part and list the rest under \"## Follow-up requests\" (one line each: a title and what it covers), so that each "
+             "part is implemented and reviewed on its own.")
+PLANCHECK_SIZE = ("8. Size: the plan has a \"TASKS: <n>\" line. More than {max} steps, or parts that cannot be verified "
+                  "independently, is a MEDIUM finding titled \"size\" that proposes how to split the work into separate requests.")
+
 FEEDBACK_SELECTED = ("The independent review (file {review}) raised findings and the user decided on them one by one. Fix ONLY the "
                      "findings listed under “Findings to fix”; the “accepted” ones were accepted as they are and you must not touch "
                      "them. Keep the tests passing.")

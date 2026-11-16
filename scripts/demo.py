@@ -497,7 +497,8 @@ def seed(base: Path, now: datetime | None = None) -> Path:
 
 
 # ---------------------------------------------------------------- the simulated machine
-PATCHED_CHIEF = ("worker_limit", "sessions_checked", "launch_worker", "stop_worker", "commit_worktree", "open_session", "launch_curator", "clone_project")
+PATCHED_CHIEF = ("worker_limit", "sessions_checked", "launch_worker", "stop_worker", "commit_worktree", "open_session", "launch_curator", "clone_project",
+                 "worker_last_message", "request_finish", "request_diff", "cleanup_request")
 PATCHED_SETTINGS = ("github_status", "plan_connection", "connect_plan", "disconnect_plan")
 
 
@@ -525,7 +526,7 @@ class Runtime:
         return [{"id": i, "state": s, "kind": "background", "name": i} for i, s in self.live.items()]
 
     def launch_worker(self, project, task, model=None, extra_dirs=(), mode="auto", label=None, effort=None, allow=(), deny=()):
-        p = self.chief.find(project, self.chief.load_projects())
+        p = (getattr(self.chief, "lookup", None) or self.chief.find)(project, self.chief.load_projects())
         if not task.strip():
             raise ValueError("empty task")
         wid = "demo" + secrets.token_hex(3)
@@ -546,6 +547,24 @@ class Runtime:
     @staticmethod
     def commit_worktree(path, message):
         return True, "demo000"
+
+    @staticmethod
+    def worker_last_message(worker_id):          # no real Claude Code log is read
+        return {"mark": "BLOCKED", "text": "[BLOCKED] (demo) The worker stopped before writing its result."}
+
+    @staticmethod
+    def request_finish(project_path, work, request_id):     # no real git is run
+        branch = f"feat/{request_id}"
+        return {"branch": branch, "exists": True, "merged": False, "into": "main", "worktree": True, "dirty": 0,
+                "commands": [f'git -C "{project_path}" switch main', f'git -C "{project_path}" merge --no-ff {branch}']}
+
+    @staticmethod
+    def request_diff(work):
+        return {"files": 6, "insertions": 214, "deletions": 37, "untracked": 0, "committed": True}
+
+    @staticmethod
+    def cleanup_request(project_path, work, branch, force=False):
+        return True, f"(demo) worktree removed; branch {branch} deleted"
 
     @staticmethod
     def open_session(project, session_id):

@@ -11,12 +11,13 @@ REPLACE_TRIES, REPLACE_WAIT_S = 20, 0.05     # Windows refuses a replace while a
 LOCK_WAIT_S, LOCK_STALE_S = 10.0, 30.0       # how long to wait for the lock; a lock older than this was left by a dead process
 
 
-def write_text(path, text: str) -> None:
-    """Replace `path` with `text` atomically. Readers see the old file or the new one, never half of it."""
+def write_text(path, text: str, newline: str | None = "\n") -> None:
+    """Replace `path` with `text` atomically. Readers see the old file or the new one, never half of it. Line endings are LF on
+    every system unless the caller asks otherwise, so a state file is the same bytes wherever it was written."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
-    tmp.write_text(text, encoding="utf-8")
+    tmp.write_text(text, encoding="utf-8", newline=newline)
     for attempt in range(REPLACE_TRIES):
         try:
             tmp.replace(path)

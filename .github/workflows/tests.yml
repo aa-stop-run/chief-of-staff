@@ -1,0 +1,28 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    # Windows is the platform the suite is developed and verified on; add other systems here once it has been run on them.
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: python -m pip install pytest
+      - name: Fast tests (no demo server)
+        run: python -m pytest tests -q -m "not slow"
+      - name: Tests that start a demo server
+        run: python -m pytest tests -q -m slow

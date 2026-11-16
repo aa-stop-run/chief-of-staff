@@ -150,6 +150,12 @@ Every report must say what was actually executed and verified (`EXECUTED AND VER
 
 Approved specs and plans are also copied into the project (`docs/specs/`, `docs/plans/`), uncommitted and never overwriting anything.
 
+**After you accept.** The merge is yours, and the card helps you finish: it shows the exact commands to merge `feat/<id>`, notices when the branch is merged, and then offers to remove the worktree and the branch. Git itself refuses to remove uncommitted work or an unmerged branch; throwing work away is a separate, explicit action on cancelled requests. **Create follow-up request** starts the next part with a link to the one it follows.
+
+**Plans have a size.** The planner counts its steps; above 12 it plans the first self-contained part and lists the rest as follow-up requests, and the validator says so when it does not. Large builds rarely pass a review in one go.
+
+**From the terminal.** While the dashboard server runs, `python scripts/chief.py requests` lists what is waiting, and `approve`, `revise`, `ask` and `cancel` act on a request through the same API as the page, so the same gates apply.
+
 Every card, of any kind and in any phase, has an **Ask the worker** box. A question launches a read-only worker that reads the request's documents and the work and answers right under the card, with evidence. It never changes the request or moves it to the next phase: approving, asking for changes and cancelling stay on the card's own buttons. Its cost counts towards the request.
 
 ---
@@ -274,6 +280,7 @@ English is the source language of the code, the prompts and the dashboard; Portu
 
 ```bash
 python -m pytest tests                  # a few minutes (it starts real demo servers); runs against a throw-away data folder
+python -m pytest tests -m "not slow"    # under two minutes: everything except the tests that start a demo server
 ```
 
 The tests never read or write your real data: `tests/conftest.py` points the Chief at a temporary folder before anything is imported.
