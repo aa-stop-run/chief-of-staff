@@ -141,6 +141,12 @@ def project_detail(p: dict, git: dict, vault_note: Path | None, feats: list, art
     for k in ("branch", "last_msg"):    # commit subjects and branch names can carry a pasted secret
         if isinstance(header.get(k), str):
             header[k] = projectview.redact(header[k])
+    # the project's git remote, for the page's editable block (no credentials: settings.clean_remote strips them)
+    try:
+        import settings as _settings
+        header.update(_settings.git_remote(str(root)))
+    except Exception:    # noqa: BLE001 - a git trouble must never break the page
+        header.update({"remote": "", "host": "", "git": bool(has_git)})
     cache = cache or STATIC_CACHE
     try:
         ckey = (str(root.resolve()), str(vault_note) if vault_note else "")

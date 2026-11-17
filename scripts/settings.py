@@ -50,6 +50,31 @@ def set_domain(name: str, raw) -> dict:
     return {"name": name, "domain": dom or p["domain"]}
 
 
+# ---------------------------------------------------------------- each project's git remote
+def get_remote(name: str) -> dict:
+    """The project's git remote, for its page (read-only, no credentials in the shown URL)."""
+    p = _project(name)
+    return git_remote(p["path"])
+
+
+def set_remote(name: str, url) -> dict:
+    """Change the project's origin remote (the user's own repo; no credentials are stored or echoed).
+    An empty url removes it. This touches only the local git config of the project's folder, never the network."""
+    p = _project(name)
+    path = p["path"]
+    if not (Path(path) / ".git").exists():
+        raise ValueError("this project is not a git repository")
+    u = (url or "").strip()
+    if u:
+        if " " in u or "\x00" in u or len(u) > 400:
+            raise ValueError("give the full remote URL (https://host/owner/repo or git@host:owner/repo)")
+        _run(["git", "-C", path, "remote", "set-url", "origin", u], timeout=10)
+    else:
+        _run(["git", "-C", path, "remote", "remove", "origin"], timeout=10)
+    shown, host = clean_remote(_run(["git", "-C", path, "remote", "get-url", "origin"], timeout=4).strip())
+    return {"name": name, "remote": shown, "host": host, "git": True}
+
+
 # ---------------------------------------------------------------- vault and folders
 def _guard(path: Path) -> None:
     low = chief.norm(path)

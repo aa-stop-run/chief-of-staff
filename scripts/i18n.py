@@ -111,6 +111,8 @@ PAIRS = [
     ("this request's project folder is not known: remove the worktree by hand", "não se conhece a pasta do projeto deste pedido: remove o worktree à mão"),
     ("the worktree was not removed: {0}", "o worktree não foi removido: {0}"),
     ("session not found", "sessão não encontrada"),
+    ("this project is not a git repository", "este projeto não é um repositório git"),
+    ("give the full remote URL (https://host/owner/repo or git@host:owner/repo)", "indica a URL completa do remote (https://host/dono/repo ou git@host:dono/repo)"),
 ]
 
 
