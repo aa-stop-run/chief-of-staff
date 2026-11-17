@@ -260,3 +260,35 @@ def test_the_auto_resume_switch_is_saved_and_defaults_to_on(env):
     assert saved(root)["resume_after_limit"] is False and settings.snapshot()["plan"]["resume_after_limit"] is False
     settings.set_resume_after_limit(True)
     assert saved(root)["resume_after_limit"] is True
+
+
+def test_add_project_applies_the_optional_remote(env):
+    tmp, root, _, _ = env
+    repo = tmp / "NewProject" / "alfa"
+    repo.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    # set_remote uses `git remote set-url`, which requires an existing origin;
+    # add a placeholder so the set-url call succeeds.
+    subprocess.run(["git", "remote", "add", "origin", "https://placeholder.com/none"], cwd=repo, check=True)
+    p = chief.add_project(str(repo), domain="home", remote="https://github.com/acme/alfa")
+    assert p["name"] == "alfa"
+    assert settings.git_remote(str(repo)) == {"remote": "github.com/acme/alfa", "host": "github.com", "git": True}
+    assert "SECRET" not in json.dumps(settings.git_remote(str(repo)))
+
+
+def test_add_project_skips_remote_for_a_plain_folder(env):
+    tmp, root, _, _ = env
+    plain = tmp / "PlainProject" / "plain"
+    plain.mkdir(parents=True)
+    # a remote given for a non-git folder is skipped, not an error
+    p = chief.add_project(str(plain), remote="https://github.com/acme/plain")
+    assert p["name"] == "plain"
+
+
+def test_add_project_rejects_an_invalid_remote(env):
+    tmp, root, _, _ = env
+    repo = tmp / "BadRemote" / "alfa"
+    repo.mkdir(parents=True)
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    with pytest.raises(ValueError, match="give the full remote URL"):
+        chief.add_project(str(repo), remote="https://bad url")

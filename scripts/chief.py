@@ -398,8 +398,10 @@ def clone_project(raw, domain=None) -> dict:
     return p
 
 
-def add_project(raw, domain=None) -> dict:
-    """Add an existing folder to the projects (extras in projects.json) and leave a draft in the vault inbox."""
+def add_project(raw, domain=None, remote=None) -> dict:
+    """Add an existing folder to the projects (extras in projects.json) and leave a draft in the vault inbox.
+
+    A remote, if given and the folder is a git repo, is set as the origin (local git config only); a non-git folder skips it."""
     global CFG
     path = check_new_project_path(raw)
     domain = clean_domain(domain)
@@ -409,6 +411,12 @@ def add_project(raw, domain=None) -> dict:
     CFG = {**CFG, "extras": [*CFG["extras"], stored]}
     _draft_note(path, stored, DRAFT_TEXT["via_dashboard"])
     p = next(p for p in load_projects() if norm(p["path"]) == norm(path))
+    if remote:
+        import settings as _settings
+        if not (Path(path) / ".git").exists():
+            pass                                      # not a git repo: the remote is skipped, set later on the page
+        else:
+            _settings.set_remote(p["name"], remote)   # invalid URL still raises ValueError
     if domain:
         _store_domain(p["name"], domain)
         p = next(p for p in load_projects() if norm(p["path"]) == norm(path))
