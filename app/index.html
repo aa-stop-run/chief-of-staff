@@ -462,6 +462,17 @@ a.plink:active{color:var(--acc);filter:brightness(1.15)}
 .pjhist{margin-top:10px}.pjhist>summary{cursor:pointer;font-size:12px;color:var(--mute)}.pjhist>summary:hover{color:var(--ink)}.pjhist .pjws{margin-top:10px}
 .pjmiss{margin:40px 0;max-width:60ch}.pjmiss h1{margin:8px 0 6px;font:700 26px var(--font-display);letter-spacing:-.02em;overflow-wrap:anywhere}.pjmiss p{color:var(--mute)}
 .pjquiet{color:var(--mute);font-size:13px}
+.pjaboutrow{display:grid;gap:14px;margin-bottom:14px}
+.pjaboutrow>.pjaboutcell{min-width:0}
+.pjaboutcell{display:flex;flex-direction:column;gap:4px}
+.pjaboutcell label{font:600 12px var(--font-ui);color:var(--mute);margin-bottom:2px}
+.pjaboutcell input{flex:1;min-width:0}
+.pjaboutcell .m{margin:0 0 0}
+.pjdanger{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.pjdanger .m{margin:0}
+.btn.danger{color:var(--bad);border-color:color-mix(in srgb,var(--bad) 40%,var(--line));background:color-mix(in srgb,var(--bad) 7%,transparent)}
+.btn.danger:hover{background:color-mix(in srgb,var(--bad) 15%,transparent);border-color:var(--bad)}
+.btn.danger:active{background:color-mix(in srgb,var(--bad) 25%,transparent)}
 #docBody.md{padding:0 20px 20px;max-height:none}
 @media (max-width:920px){.pjgrid{grid-template-columns:minmax(0,1fr)}.pjside .pjbh h2{font:650 16.5px/1.2 var(--font-display);letter-spacing:-.01em;text-transform:none;color:var(--ink)}}
 @media (max-width:600px){
@@ -1109,7 +1120,15 @@ const PT = {
   "The category is a Chief setting: the vault is not changed. Leave it empty to use the vault's own.":"A categoria é uma definição do Chief: o vault não é alterado. Deixa vazio para usar a do vault.",
   "An empty value removes the remote. Only the local git config of the project is changed, never the network.":"Um valor vazio remove o remote. Só a configuração local de git do projeto é alterada, nunca a rede.",
   "Remote saved.":"Remote guardado.",
-  "The category and git remote live on each project's page. Removing takes the project off the list and never deletes the folder.":"A categoria e o remote git estão na página de cada projeto. Remover tira o projeto da lista e nunca apaga a pasta."
+  "The category and git remote live on each project's page. Removing takes the project off the list and never deletes the folder.":"A categoria e o remote git estão na página de cada projeto. Remover tira o projeto da lista e nunca apaga a pasta.",
+  "Folder":"Pasta",
+  "Move":"Mover",
+  "Change the folder this project points to. The folder must already exist.":"Muda a pasta que este projeto aponta. A pasta tem de existir já.",
+  "Folder updated.":"Pasta atualizada.",
+  "Remove from list":"Remover da lista",
+  "Removing takes the project off the list and never deletes the folder.":"Remover tira o projeto da lista e nunca apaga a pasta.",
+  "Remove this project from the list?":"Remover este projeto da lista?",
+  "Project removed from the list.":"Projeto removido da lista."
 };
 let LANG="en";
 try{const q=new URLSearchParams(location.search).get("lang"),sv=localStorage.getItem("lang");
@@ -1387,6 +1406,10 @@ function stageName(r){const s=stg(r).find(x=>x[0]===r.stage);return s?s[1]:cap(r
 function pjAbout(h){
   const d=h.domain||"";
   const remote=h.remote?esc(h.remote):(h.git?esc(tt("No remote")):esc(tt("Not a git repo")));
+  const moveBtn=h.kind==="extra"&&h.path?`<div class="pjaboutcell"><label for="abMove">${esc(tt("Folder"))}</label>
+    <div class="row"><input id="abMove" value="${esc(h.path)}" placeholder="D:/Projects/my-repo" maxlength="500" autocomplete="off" spellcheck="false">
+    <button class="btn sm" type="button" data-pjact="move">${esc(tt("Move"))}</button></div>
+    <p class="m">${esc(tt("Change the folder this project points to. The folder must already exist."))}</p></div>`:"";
   return `<section class="pjb pjabout" aria-labelledby="pj-about">
     <header class="pjbh"><h2 id="pj-about">${esc(tt("About"))}</h2><span class="pjsrc">${esc(tt("your Chief settings and the project's git remote"))}</span></header>
     <div class="pjaboutrow">
@@ -1398,7 +1421,13 @@ function pjAbout(h){
         <div class="row"><input id="abRemote" value="${remote}" placeholder="https://github.com/owner/repo" maxlength="400" autocomplete="off" spellcheck="false">
         <button class="btn sm" type="button" data-pjact="remote">${esc(tt("Save"))}</button></div>
         <p class="m">${esc(tt("An empty value removes the remote. Only the local git config of the project is changed, never the network."))}</p></div>
-    </div></section>`;
+    </div>
+    ${moveBtn?`<div class="pjaboutrow">${moveBtn}</div>`:""}
+    <div class="pjdanger">
+      <button class="btn sm danger" type="button" data-pjact="remove">${esc(tt("Remove from list"))}</button>
+      <p class="m">${esc(tt("Removing takes the project off the list and never deletes the folder."))}</p>
+    </div>
+  </section>`;
 }
 const STATUS_CHIP={awaiting:"acc",failed:"bad",working:"ok"};
 function pjHeader(h,ov){
@@ -1569,10 +1598,19 @@ $("projectView").addEventListener("click",e=>{
 });
 $("projectView").addEventListener("toggle",e=>{const k=e.target.dataset&&e.target.dataset.pjopen;if(k)PJ.open[k]=e.target.open;},true);
 async function saveAbout(name,what){
+  if(what==="remove"){
+    const b=$("projectView").querySelector('[data-pjact="remove"]');
+    if(!armed(b,tt("Remove this project from the list?")))return;
+    b.disabled=true;
+    try{await api("/api/settings/project_remove",{name});toast(tt("Project removed from the list."));location.hash="#/projects";}
+    catch(err){toast(err.message,true);b.disabled=false;}
+    return;
+  }
   const b=($("projectView").querySelector(`[data-pjact="${what}"]`));if(b)b.disabled=true;
   try{
-    if(what==="dom"){const r=await api("/api/settings/domain",{name,domain:$("abDom").value});toast(tt("Category saved."));}
-    else{const r=await api("/api/settings/remote_set",{name,remote:$("abRemote").value});toast(tt("Remote saved."));}
+    if(what==="dom"){await api("/api/settings/domain",{name,domain:$("abDom").value});toast(tt("Category saved."));}
+    else if(what==="move"){await api("/api/settings/extra_move",{name,path:$("abMove").value});toast(tt("Folder updated."));}
+    else{await api("/api/settings/remote_set",{name,remote:$("abRemote").value});toast(tt("Remote saved."));}
     await refreshProject();
   }catch(err){toast(err.message,true);}
   finally{const n=$("projectView").querySelector(`[data-pjact="${what}"]`);if(n)n.disabled=false;}
@@ -2426,7 +2464,7 @@ function openNewRequest(pre){
 }
 $("newBtn").addEventListener("click",()=>openNewRequest());
 // ---------- settings ----------
-let SET=null,moving="";
+let SET=null;
 async function loadSettings(){
   try{const r=await fetch("/api/settings",{headers:{"X-Token":T}});if(!r.ok)throw new Error(tt("Error"));SET=await r.json();renderSettings();}
   catch(err){toast(err.message,true);}
@@ -2435,13 +2473,6 @@ function renderSettings(){
   if(!SET)return;
   const g=SET.github;
   $("domList").innerHTML=SET.domains.map(d=>`<option value="${esc(cap(d))}">`).join("");
-  const rows=SET.projects.map(p=>{
-    const n=esc(p.name),shown=esc(cap(p.name));
-    const mv=moving===p.name
-      ?`<input class="smv" data-name="${n}" value="${esc(p.path)}" maxlength="400"><button class="btn sm" data-sact="move-ok" data-name="${n}" type="button">${tt("Save")}</button>`
-      :(p.kind==="extra"?`<button class="btn sm ghost" data-sact="move" data-name="${n}" type="button">${tt("Move")}</button>`:"");
-    return `<tr><td>${shown}<br><span class="path">${esc(p.path)}</span></td>
-      <td class="sact">${mv}<button class="btn sm ghost" data-sact="remove" data-name="${n}" type="button">${tt("Remove")}</button></td></tr>`;}).join("");
   const roots=SET.roots.map(r=>`<li><span class="path">${esc(r)}</span><button class="btn sm ghost" data-sact="root-rm" data-path="${esc(r)}" type="button">${tt("Remove")}</button></li>`).join("");
   const ign=SET.ignore.length?`<ul>${SET.ignore.map(n=>`<li><span>${esc(n)}</span><button class="btn sm ghost" data-sact="ign-rm" data-name="${esc(n)}" type="button">${tt("Show again")}</button></li>`).join("")}</ul>`:`<p class="m">${tt("No ignored folders.")}</p>`;
   const gh=!g.gh?`<p class="warn">${tt("GitHub CLI (gh) not found.")}</p>`
@@ -2450,9 +2481,6 @@ function renderSettings(){
   const login=g.gh&&!g.logged_in?`<p class="m">${tt("To clone private repos, sign in once in the terminal:")} ${cp("gh auth login")}</p>`:"";
   const helpers=g.helpers.length?tt("Git credential manager: {h}.",{h:esc(g.helpers.join(", "))}):tt("Git has no credential manager configured.");
   $("setBody").innerHTML=`
-    <section class="sset"><h4>${tt("Projects")}</h4>
-      <p class="m">${tt("The category and git remote live on each project's page. Removing takes the project off the list and never deletes the folder.")}</p>
-      <div class="wrap"><table><thead><tr><th>${tt("Project")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>
     <section class="sset"><h4>${tt("Vault")}</h4>
       <div class="row"><input id="sVault" value="${esc(SET.vault)}" maxlength="400" aria-label="${esc(tt("Vault path"))}"><button class="btn" data-sact="vault" type="button">${tt("Save")}</button></div>
       <p class="m">${tt("The vault is optional: leave it empty to work without one. Changing it only takes effect after you restart the server.")}</p></section>
@@ -2568,9 +2596,6 @@ $("costBody").addEventListener("click",async e=>{
 $("setBody").addEventListener("click",e=>{
   const b=e.target.closest("[data-sact]");if(!b)return;
   const act=b.dataset.sact,name=b.dataset.name;
-  if(act==="move"){moving=name;renderSettings();return;}
-  if(act==="move-ok"){const v=b.parentElement.querySelector(".smv").value;moving="";setAct("extra_move",{name,path:v},tt("Folder updated."));return;}
-  if(act==="remove"){if(armed(b,tt("Take “{n}” off the list? The folder is not deleted from disk.",{n:name})))setAct("project_remove",{name},tt("Project removed from the list."));return;}
   if(act==="vault"){setAct("vault",{path:$("sVault").value});return;}
   if(act==="root-add"){setAct("root_add",{path:$("sRoot").value},tt("Folder added."));return;}
   if(act==="root-rm"){setAct("root_remove",{path:b.dataset.path},tt("Folder taken off the list."));return;}
