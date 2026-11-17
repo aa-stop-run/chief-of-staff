@@ -238,7 +238,7 @@ dialog.wide{width:min(1040px,calc(100vw - 28px));max-height:calc(100vh - 40px);o
 .sset input{background:var(--bg);color:var(--ink);border:1px solid var(--line-2);border-radius:var(--rs);padding:7px 10px;font:inherit}
 .sset input:focus{outline:none;border-color:var(--acc)}.sset .m{color:var(--mute);font-size:11.5px}
 .sset ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}.sset li{display:flex;gap:10px;align-items:center;justify-content:space-between}
-.sset .sdom{width:150px}.sset .smv{width:100%;min-width:200px}.sact{white-space:nowrap}.sact .btn{margin-left:4px}
+.sset .smv{width:100%;min-width:200px}.sact{white-space:nowrap}.sact .btn{margin-left:4px}
 .sgit p{margin:0}.sgit .ok{color:var(--ok)}.sgit .warn{color:var(--warn)}
 dialog h3{margin:0;font:600 20px var(--font-display);letter-spacing:-.01em}
 dialog label{display:grid;gap:6px;font:500 12.5px var(--font-ui);color:var(--mute)}
@@ -2430,14 +2430,12 @@ function renderSettings(){
   const g=SET.github;
   $("domList").innerHTML=SET.domains.map(d=>`<option value="${esc(cap(d))}">`).join("");
   const rows=SET.projects.map(p=>{
-    const n=esc(p.name),shown=esc(cap(p.name)),origin=p.custom?tt("Set by you"):p.from_vault?tt("From the vault"):tt("No category");
-    const remote=p.remote?esc(p.remote):(p.git?tt("No remote"):tt("Not a git repo"));
+    const n=esc(p.name),shown=esc(cap(p.name));
     const mv=moving===p.name
       ?`<input class="smv" data-name="${n}" value="${esc(p.path)}" maxlength="400"><button class="btn sm" data-sact="move-ok" data-name="${n}" type="button">${tt("Save")}</button>`
       :(p.kind==="extra"?`<button class="btn sm ghost" data-sact="move" data-name="${n}" type="button">${tt("Move")}</button>`:"");
     return `<tr><td>${shown}<br><span class="path">${esc(p.path)}</span></td>
-      <td><input class="sdom" list="domList" data-name="${n}" value="${esc(cap(p.domain))}" placeholder="${esc(tt("Category"))}" maxlength="30"><br><span class="m">${origin}</span></td>
-      <td>${remote}</td><td class="sact">${mv}<button class="btn sm ghost" data-sact="remove" data-name="${n}" type="button">${tt("Remove")}</button></td></tr>`;}).join("");
+      <td class="sact">${mv}<button class="btn sm ghost" data-sact="remove" data-name="${n}" type="button">${tt("Remove")}</button></td></tr>`;}).join("");
   const roots=SET.roots.map(r=>`<li><span class="path">${esc(r)}</span><button class="btn sm ghost" data-sact="root-rm" data-path="${esc(r)}" type="button">${tt("Remove")}</button></li>`).join("");
   const ign=SET.ignore.length?`<ul>${SET.ignore.map(n=>`<li><span>${esc(n)}</span><button class="btn sm ghost" data-sact="ign-rm" data-name="${esc(n)}" type="button">${tt("Show again")}</button></li>`).join("")}</ul>`:`<p class="m">${tt("No ignored folders.")}</p>`;
   const gh=!g.gh?`<p class="warn">${tt("GitHub CLI (gh) not found.")}</p>`
@@ -2447,8 +2445,8 @@ function renderSettings(){
   const helpers=g.helpers.length?tt("Git credential manager: {h}.",{h:esc(g.helpers.join(", "))}):tt("Git has no credential manager configured.");
   $("setBody").innerHTML=`
     <section class="sset"><h4>${tt("Projects")}</h4>
-      <p class="m">${tt("The category is a Chief setting: the vault is not changed. Projects without a category of yours use the one from the vault. Removing takes the project off the list and never deletes the folder.")}</p>
-      <div class="wrap"><table><thead><tr><th>${tt("Project")}</th><th>${tt("Category")}</th><th>${tt("Git remote")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>
+      <p class="m">${tt("The category and git remote live on each project's page. Removing takes the project off the list and never deletes the folder.")}</p>
+      <div class="wrap"><table><thead><tr><th>${tt("Project")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>
     <section class="sset"><h4>${tt("Vault")}</h4>
       <div class="row"><input id="sVault" value="${esc(SET.vault)}" maxlength="400" aria-label="${esc(tt("Vault path"))}"><button class="btn" data-sact="vault" type="button">${tt("Save")}</button></div>
       <p class="m">${tt("The vault is optional: leave it empty to work without one. Changing it only takes effect after you restart the server.")}</p></section>
@@ -2560,10 +2558,6 @@ $("costBody").addEventListener("click",async e=>{
   endArmed=false;clearTimeout(endTimer);
   try{const r=await api("/api/session/end",{});toast(tt("Session ended: {d} active, about {c}.",{d:fmtDuration(r.ended.active_s),c:fmtMoney(r.ended.cost_usd)}));await load();await loadCosts();}
   catch(err){toast(err.message,true);renderCosts();}
-});
-$("setBody").addEventListener("change",e=>{
-  const t=e.target;
-  if(t.classList.contains("sdom"))setAct("domain",{name:t.dataset.name,domain:t.value},tt("Category saved."));
 });
 $("setBody").addEventListener("click",e=>{
   const b=e.target.closest("[data-sact]");if(!b)return;
