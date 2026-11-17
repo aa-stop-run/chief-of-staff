@@ -526,6 +526,7 @@ a.plink:active{color:var(--acc);filter:brightness(1.15)}
 <dialog id="addP"><form method="dialog" id="addPForm">
   <h3>Add project</h3>
   <label>Category (optional)<input id="apDom" list="domList" maxlength="30" autocomplete="off" placeholder="e.g. banking, home, product"></label>
+  <label>Git remote (optional)<input id="apRemote" maxlength="400" autocomplete="off" spellcheck="false" placeholder="https://github.com/owner/repo"></label>
   <label>Folder path<input id="apPath" maxlength="400" required autocomplete="off" spellcheck="false" placeholder="D:/Projects/my-repo"></label>
   <p class="note" data-i18n>A folder that already exists on disk (git repo or plain folder). Anything inside <b>your projects folder</b> shows up by itself.</p>
   <p class="note" id="apNote">The project is registered and a read-only worker studies the repo and creates its note in the vault right after.</p>
@@ -1377,6 +1378,22 @@ function pjBlock(id,title,body,source,cls,count){
   return `<section class="pjb${cls?" "+cls:""}" aria-labelledby="pj-${id}"><header class="pjbh"><h2 id="pj-${id}">${esc(title)}${count?`<em>${count}</em>`:""}</h2>${source?`<span class="pjsrc">${esc(source)}</span>`:""}</header>${body}</section>`;
 }
 function stageName(r){const s=stg(r).find(x=>x[0]===r.stage);return s?s[1]:cap(r.stage||"");}
+function pjAbout(h){
+  const d=h.domain||"";
+  const remote=h.remote?esc(h.remote):(h.git?esc(tt("No remote")):esc(tt("Not a git repo")));
+  return `<section class="pjb pjabout" aria-labelledby="pj-about">
+    <header class="pjbh"><h2 id="pj-about">${esc(tt("About"))}</h2><span class="pjsrc">${esc(tt("your Chief settings and the project's git remote"))}</span></header>
+    <div class="pjaboutrow">
+      <div class="pjaboutcell"><label for="abDom">${esc(tt("Category"))}</label>
+        <div class="row"><input id="abDom" list="domList" value="${esc(cap(d))}" placeholder="${esc(tt("Category"))}" maxlength="30" autocomplete="off">
+        <button class="btn sm" type="button" data-pjact="dom">${esc(tt("Save"))}</button></div>
+        <p class="m">${esc(tt("The category is a Chief setting: the vault is not changed. Leave it empty to use the vault's own."))}</p></div>
+      <div class="pjaboutcell"><label for="abRemote">${esc(tt("Git remote"))}</label>
+        <div class="row"><input id="abRemote" value="${remote}" placeholder="https://github.com/owner/repo" maxlength="400" autocomplete="off" spellcheck="false">
+        <button class="btn sm" type="button" data-pjact="remote">${esc(tt("Save"))}</button></div>
+        <p class="m">${esc(tt("An empty value removes the remote. Only the local git config of the project is changed, never the network."))}</p></div>
+    </div></section>`;
+}
 const STATUS_CHIP={awaiting:"acc",failed:"bad",working:"ok"};
 function pjHeader(h,ov){
   const desc=firstParagraph(ov&&ov.text),d=h.domain||"";
@@ -1490,7 +1507,7 @@ function projectHtml(){
   if(PJ.state==="missing")return `<div class="pjmiss">${back}<h1>${esc(PJ.name)}</h1><p>${esc(tt("There is no project with this name, or it is hidden."))}</p></div>`;
   if(!PJ.data)return `<div class="pjmiss">${back}<h1>${esc(PJ.name)}</h1><p>${esc(PJ.failed?tt("Could not load the project."):tt("Loading project…"))}</p></div>`;
   const d=PJ.data,desc=firstParagraph(d.overview&&d.overview.text);
-  const main=[pjAttention(d),pjRequests(d.requests||{}),pjOverview(d.overview,desc),pjDocs(d.docs)].join("");
+  const main=[pjAbout(d.header),pjAttention(d),pjRequests(d.requests||{}),pjOverview(d.overview,desc),pjDocs(d.docs)].join("");
   const side=[pjTools(d.tools),pjCosts(d.costs),pjWork(d.workers,d.todos)].join("");
   const none=!main&&!side?`<p class="pjquiet">${esc(tt("No requests, documents or tools for this project yet."))}</p>`:"";
   return `<div class="pj">${pjHeader(d.header,d.overview)}${none}<div class="pjgrid${side&&main?"":" one"}">${main?`<div class="pjmain">${main}</div>`:""}${side?`<aside class="pjside">${side}</aside>`:""}</div></div>`;
@@ -1541,8 +1558,19 @@ $("projectView").addEventListener("click",e=>{
   }
   const db=e.target.closest("[data-doc]");
   if(db)openDoc(db.dataset.doc);
+  const ab=e.target.closest("[data-pjact]");
+  if(ab&&PJ.data)saveAbout(PJ.data.header.name,ab.dataset.pjact);
 });
 $("projectView").addEventListener("toggle",e=>{const k=e.target.dataset&&e.target.dataset.pjopen;if(k)PJ.open[k]=e.target.open;},true);
+async function saveAbout(name,what){
+  const b=($("projectView").querySelector(`[data-pjact="${what}"]`));if(b)b.disabled=true;
+  try{
+    if(what==="dom"){const r=await api("/api/settings/domain",{name,domain:$("abDom").value});toast(tt("Category saved."));}
+    else{const r=await api("/api/settings/remote_set",{name,remote:$("abRemote").value});toast(tt("Remote saved."));}
+    await refreshProject();
+  }catch(err){toast(err.message,true);}
+  finally{const n=$("projectView").querySelector(`[data-pjact="${what}"]`);if(n)n.disabled=false;}
+}
 // ---------- end project page ----------
 function showView(){
   const v=ROUTE.view;
@@ -2556,7 +2584,7 @@ $("addProjBtn").addEventListener("click",()=>{$("addP").showModal();$("apPath").
 $("apCancel").addEventListener("click",()=>$("addP").close());
 $("addPForm").addEventListener("submit",async e=>{
   e.preventDefault();const go=$("apGo");go.disabled=true;go.textContent=tt("Validating…");
-  try{const r=await api("/api/projects",{path:$("apPath").value,domain:$("apDom").value});
+  try{const r=await api("/api/projects",{path:$("apPath").value,domain:$("apDom").value,remote:$("apRemote").value});
     $("addP").close();$("addPForm").reset();toast(tt("Project “{name}” added: {x}.",{name:r.name,x:r.extraction}));await load();
   }catch(err){toast(err.message,true);}
   go.disabled=false;go.textContent=tt("Add");
