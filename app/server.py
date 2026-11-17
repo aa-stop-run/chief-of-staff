@@ -484,6 +484,8 @@ class Handler(BaseHTTPRequestHandler):
         name, path = str(body.get("name", "")), body.get("path")
         if action == "domain":
             return settings.set_domain(name, body.get("domain"))
+        if action == "remote_set":
+            return settings.set_remote(name, body.get("remote"))
         if action == "vault":
             return settings.set_vault(path)
         if action == "root_add":
@@ -524,7 +526,7 @@ class Handler(BaseHTTPRequestHandler):
             return {"ok": True, "name": p["name"], "extraction": translate(_onboard(p), self._lang)}
         if parts == ["api", "projects"]:
             try:
-                p = chief.add_project(body.get("path"), body.get("domain"))
+                p = chief.add_project(body.get("path"), body.get("domain"), body.get("remote"))
             except ValueError as e:
                 raise FeatureError(str(e)) from e
             return {"ok": True, "name": p["name"], "extraction": translate(_onboard(p), self._lang)}
