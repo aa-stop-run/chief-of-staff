@@ -575,7 +575,7 @@ const T="__TOKEN__";
 // ---------- languages: English is the key; Portuguese is an optional translation; switching reloads the page ----------
 const PT = {
   "Split: {n} parts":"Divisão: {n} partes","Split: 1 part":"Divisão: 1 parte","The split block could not be read: fix it or ask for changes":"Não foi possível ler o bloco de divisão: corrige-o ou pede alterações",
-  "Parts under way":"Partes em curso","Some parts were cancelled or failed":"Algumas partes foram canceladas ou falharam","All parts are ready to be combined":"Todas as partes estão prontas a combinar","Combining the parts":"A combinar as partes","Parts combined":"Partes combinadas","Combined: {c} conflict(s), tests: {tests}":"Combinado: {c} conflito(s), testes: {tests}",
+  "Parts under way":"Partes em curso","Some parts were cancelled or failed":"Algumas partes foram canceladas ou falharam","All parts are ready to be combined":"Todas as partes estão prontas a combinar","Combining the parts":"A combinar as partes","Parts combined":"Partes combinadas","Finished":"Concluída","Combined: {c} conflict(s), tests: {tests}":"Combinado: {c} conflito(s), testes: {tests}",
   "Today":"Hoje","Projects":"Projetos","Views":"Vistas",
   "Needs attention":"Pede atenção","Open":"Aberto","No open requests":"Sem pedidos abertos","Not a git repo":"Sem git",
   "{n} uncommitted":"{n} por comitar","Git info as of {t}":"Informação do git de há {t}",
@@ -1320,8 +1320,10 @@ const splitLabel=(f,t)=>{const p=f&&f.stage==="plan"?f.plan_split:null;if(!p)ret
   if(p.errors>0)return {text:t("The split block could not be read: fix it or ask for changes"),warn:true};
   return {text:p.n===1?t("Split: 1 part"):t("Split: {n} parts",{n:p.n}),warn:false};};
 // the parts of a fanned-out request, one plain-text row each; [] when there are none
+const PART_STAGE={spec:"Spec",plan:"Plan",build:"Implementation",review:"Review"};
+const PART_STATUS={working:"Working",awaiting:"To decide",failed:"Failed",done:"Finished",cancelled:"Cancelled"};
 const partsRows=(f,t)=>(f&&f.parts||[]).map(p=>({title:p.title,stage:p.stage,status:p.status,ready:!!p.ready,
-  text:p.title+" — "+t(String(p.stage))+" · "+t(String(p.status))+(p.ready?" ✓":"")}));
+  text:p.title+" — "+t(PART_STAGE[p.stage]||String(p.stage))+" · "+t(PART_STATUS[p.status]||String(p.status))+(p.ready?" ✓":"")}));
 // where a fanned-out request stands as a whole
 const SPLIT_STATES={running:"Parts under way",partial:"Some parts were cancelled or failed",ready:"All parts are ready to be combined",
   integrating:"Combining the parts",integrated:"Parts combined"};

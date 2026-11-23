@@ -115,7 +115,7 @@ def test_split_block_helpers():
     parts = [{"title": "A", "stage": "build", "status": "working", "ready": False},
              {"title": "B", "stage": "review", "status": "awaiting", "ready": True}]
     rows = call(f"partsRows({json.dumps({'parts': parts})},t)")
-    assert [r["text"] for r in rows] == ["A — build · working", "B — review · awaiting ✓"] and rows[1]["ready"] is True
+    assert [r["text"] for r in rows] == ["A — Implementation · Working", "B — Review · To decide ✓"] and rows[1]["ready"] is True
     assert call("partsRows({},t)") == []
     labels = [call(f'splitStateLabel({{split_state:"{k}"}},t)') for k in ("running", "partial", "ready", "integrating", "integrated")]
     assert all(labels) and len(set(labels)) == 5
