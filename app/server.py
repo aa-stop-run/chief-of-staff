@@ -43,6 +43,7 @@ import features  # noqa: E402
 import home  # noqa: E402
 import sessions  # noqa: E402
 import settings  # noqa: E402
+import splitplan  # noqa: E402
 from alerts import Alerts  # noqa: E402
 from curation import CurationError, Curator  # noqa: E402
 from features import FeatureError, Features, open_requests, request_from_todo  # noqa: E402
@@ -254,6 +255,9 @@ def _card_extras(f: dict, titles: dict) -> dict:
     n = features.plan_tasks((f.get("artifacts") or {}).get("plan", ""))
     if n is not None:
         out["plan_tasks"] = {"n": n, "max": features.MAX_PLAN_TASKS}
+    sp = splitplan.summary((f.get("artifacts") or {}).get("plan", ""))
+    if sp:
+        out["plan_split"] = sp
     if f.get("parent") in titles:
         out["parent_title"] = titles[f["parent"]]
     if f["status"] == "failed" and f.get("worker_id"):

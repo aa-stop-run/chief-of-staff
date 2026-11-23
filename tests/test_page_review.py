@@ -94,3 +94,18 @@ def test_the_card_draws_the_new_blocks():
     for needle in ("${waitChip(f)}", "${parentLine(f)}", "${sizeNote(f)}", "${diffLine(f)}", "${kindSwitch(f)}", "${finishHtml(f)}", "+lastWords(f)",
                    'id="notifBtn"', 'id="scanBtn"', 'id="doctorBtn"', '"?fh="+encodeURIComponent(FH)'):
         assert needle in SRC, needle
+
+
+def test_split_label_on_the_plan_card():
+    plan = lambda sp: json.dumps({"stage": "plan", "plan_split": sp})
+    assert call(f"splitLabel({plan({'n': 3, 'errors': 0})},t)") == {"text": "Split: 3 parts", "warn": False}
+    assert call(f"splitLabel({plan({'n': 1, 'errors': 0})},t)")["text"] == "Split: 1 part"
+    bad = call(f"splitLabel({plan({'n': 0, 'errors': 1})},t)")
+    assert bad["warn"] is True and "could not be read" in bad["text"]
+    assert call('splitLabel({stage:"build",plan_split:{n:3,errors:0}},t)') is None
+    assert call('splitLabel({stage:"plan"},t)') is None
+
+
+def test_the_card_shows_the_split_note_and_pt_has_the_strings():
+    assert "${sizeNote(f)}${splitNote(f)}" in SRC
+    assert '"Split: {n} parts":"Divisão: {n} partes"' in SRC

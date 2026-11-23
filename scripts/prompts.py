@@ -194,6 +194,24 @@ PLAN_SIZE = ("\nSize: after the ordered steps write the line \"TASKS: <number of
 PLANCHECK_SIZE = ("8. Size: the plan has a \"TASKS: <n>\" line. More than {max} steps, or parts that cannot be verified "
                   "independently, is a MEDIUM finding titled \"size\" that proposes how to split the work into separate requests.")
 
+# A plan that splits into independent parts declares them in a «Split» section; the server checks the block and, when the
+# user approves the plan, turns each part into its own request. SPLIT_FORMAT has JSON braces: append it AFTER .format(...).
+SPLIT_FORMAT = ("\nSplit (optional): when the work divides into parts that each own their files and tests, add a section "
+                "titled \"## Split\" with ONE fenced json block, and no other block in that section:\n"
+                "```json\n"
+                "{\"tasks\": [{\"id\": \"api\", \"title\": \"Export endpoint\", "
+                "\"files\": [\"src/export.py\", {\"new\": \"tests/test_export.py\"}], \"depends_on\": []}, "
+                "{\"id\": \"ui\", \"title\": \"Export button\", \"files\": [\"app/page.html\"], \"depends_on\": []}]}\n"
+                "```\n"
+                "Rules: ids are short, unique, lower-case slugs (letters, digits, hyphens, at most 20 characters); 2 to 10 parts; "
+                "`depends_on` stays EMPTY (parts are independent and run in parallel); no file appears in two parts; a file that "
+                "does not exist yet is written as {\"new\": \"path\"}; the plan still needs its \"TASKS: <n>\" line and its "
+                "Tests section. A split block replaces the \"Follow-up requests\" list above: use one or the other, never both. "
+                "Do not use a split block in a plan that is itself a part of a split, nor for a release.")
+SPLIT_CHECK = ("9. Split: if the plan has a \"Split\" section, the server already checks ids, files and overlap; you only check "
+               "that each part is self-contained (it could be built and reviewed alone) and flag shared hidden state between "
+               "parts as a MEDIUM finding titled \"split-coupling\".")
+
 FEEDBACK_SELECTED = ("The independent review (file {review}) raised findings and the user decided on them one by one. Fix ONLY the "
                      "findings listed under “Findings to fix”; the “accepted” ones were accepted as they are and you must not touch "
                      "them. Keep the tests passing.")

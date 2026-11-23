@@ -194,6 +194,25 @@ PLAN_SIZE = ("\nTamanho: depois dos passos ordenados escreve a linha «TASKS: <n
 PLANCHECK_SIZE = ("8. Tamanho: o plano tem uma linha «TASKS: <n>». Mais de {max} passos, ou partes que não se verificam de forma "
                   "independente, é um achado MEDIUM com o título «tamanho» que propõe como partir o trabalho em pedidos separados.")
 
+# Um plano que se divide em partes independentes declara-as numa secção «Divisão»; o servidor confere o bloco e, quando o
+# utilizador aprova o plano, cada parte passa a ser um pedido próprio. SPLIT_FORMAT tem chavetas JSON: juntar DEPOIS de .format(...).
+SPLIT_FORMAT = ("\nDivisão (opcional): quando o trabalho se divide em partes que têm cada uma os seus ficheiros e testes, "
+                "acrescenta uma secção com o título \"## Divisão\" com UM só bloco json delimitado, e nenhum outro bloco nessa secção:\n"
+                "```json\n"
+                "{\"tarefas\": [{\"id\": \"api\", \"title\": \"Endpoint de exportação\", "
+                "\"ficheiros\": [\"src/export.py\", {\"new\": \"tests/test_export.py\"}], \"depende_de\": []}, "
+                "{\"id\": \"ui\", \"title\": \"Botão de exportar\", \"ficheiros\": [\"app/page.html\"], \"depende_de\": []}]}\n"
+                "```\n"
+                "Regras: os ids são slugs curtos, únicos, em minúsculas (letras, dígitos, hífenes, no máximo 20 caracteres); "
+                "2 a 10 partes; `depende_de` fica VAZIO (as partes são independentes e correm em paralelo); nenhum ficheiro "
+                "aparece em duas partes; um ficheiro que ainda não existe escreve-se {\"new\": \"caminho\"}; o plano continua a "
+                "precisar da linha «TASKS: <n>» e da secção de Testes. Um bloco de divisão substitui a lista «Follow-up requests» "
+                "acima: usa uma ou outra, nunca as duas. Não uses o bloco num plano que já é uma parte de uma divisão, nem numa "
+                "passagem a produção (release).")
+SPLIT_CHECK = ("9. Divisão: se o plano tem uma secção «Divisão», o servidor já confere ids, ficheiros e sobreposição; tu só "
+               "confirmas que cada parte é autónoma (pode ser construída e revista sozinha) e assinalas estado oculto partilhado "
+               "entre partes como achado MEDIUM com o título \"split-coupling\".")
+
 FEEDBACK_SELECTED = ("A revisão independente (ficheiro {review}) apontou achados e o utilizador decidiu um a um. Corrige SÓ os "
                      "achados listados em «Achados a corrigir»; os «aceites» foram aceites como estão e não lhes tocas. "
                      "Mantém os testes a passar.")

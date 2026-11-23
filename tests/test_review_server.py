@@ -97,3 +97,16 @@ def test_errors_of_the_new_routes_are_translated(fresh):
     f = fresh.feature("CSV export of trips")
     status, out = fresh.post(f"/api/features/{f['id']}/cleanup", {}, headers={"X-Lang": "pt"})
     assert status == 400 and out == {"error": "só se pode limpar um pedido concluído ou cancelado"}
+
+
+def test_a_plan_with_a_split_block_exposes_plan_split(ro):
+    root = Path(__file__).resolve().parent.parent
+    for sub in ("scripts", "app"):
+        if str(root / sub) not in sys.path:
+            sys.path.insert(0, str(root / sub))
+    import server
+    plan = '## Split\n\n```json\n{"tasks": [{"id": "a"}, {"id": "b"}]}\n```\n'
+    card = {"id": "x", "status": "awaiting", "stage": "plan", "history": [], "artifacts": {"plan": plan}}
+    assert server._card_extras(card, {})["plan_split"] == {"n": 2, "errors": 0}
+    card["artifacts"]["plan"] = "none"
+    assert "plan_split" not in server._card_extras(card, {})

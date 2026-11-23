@@ -574,6 +574,7 @@ a.plink:active{color:var(--acc);filter:brightness(1.15)}
 const T="__TOKEN__";
 // ---------- languages: English is the key; Portuguese is an optional translation; switching reloads the page ----------
 const PT = {
+  "Split: {n} parts":"Divisão: {n} partes","Split: 1 part":"Divisão: 1 parte","The split block could not be read: fix it or ask for changes":"Não foi possível ler o bloco de divisão: corrige-o ou pede alterações",
   "Today":"Hoje","Projects":"Projetos","Views":"Vistas",
   "Needs attention":"Pede atenção","Open":"Aberto","No open requests":"Sem pedidos abertos","Not a git repo":"Sem git",
   "{n} uncommitted":"{n} por comitar","Git info as of {t}":"Informação do git de há {t}",
@@ -1307,6 +1308,10 @@ const followUp=(f,t)=>({project:f.project,kind:["fix","maintenance"].includes(f.
 // may this request still change kind? only on its first phase, waiting or failed, and never a publish or a release
 const canChangeKind=(f,stages)=>{const k=stages[f.kind]?f.kind:"feature";
   return !["ship","release"].includes(k)&&f.stage===stages[k][0]&&["awaiting","failed"].includes(f.status);};
+// «Split: N parts» under a plan that declares a split; warn when the block could not be read
+const splitLabel=(f,t)=>{const p=f&&f.stage==="plan"?f.plan_split:null;if(!p)return null;
+  if(p.errors>0)return {text:t("The split block could not be read: fix it or ask for changes"),warn:true};
+  return {text:p.n===1?t("Split: 1 part"):t("Split: {n} parts",{n:p.n}),warn:false};};
 // </review>
 let ROUTE={view:"today",q:""};
 function readHash(){
@@ -2248,6 +2253,7 @@ function patchQa(root,f){
 const lastWords=f=>f.last_message&&f.last_message.text?`</p><p class="lastmsg"><b>${esc(f.last_message.mark?tt("The worker's last words"):tt("The worker was cut off before finishing. Its last message"))}:</b> ${esc(f.last_message.text)}`:"";
 const waitChip=f=>f.status==="awaiting"&&waitedS(f,Date.now())>=60?`<span class="wait" title="${esc(tt("How long this request has been waiting for your decision"))}">${esc(tt("waiting {t}",{t:fmtDuration(waitedS(f,Date.now()))}))}</span>`:"";
 const parentLine=f=>f.parent_title?`<p class="cnote2">${esc(tt("Follows: {t}",{t:f.parent_title}))}</p>`:"";
+const splitNote=f=>{const s=splitLabel(f,tt);return s?`<p class="cnote2${s.warn?" warn":""}">${esc(s.text)}</p>`:"";};
 const sizeNote=f=>f.stage==="plan"&&f.status==="awaiting"&&f.plan_tasks&&f.plan_tasks.n>f.plan_tasks.max?`<p class="cnote2 warn">${tt("This plan has <b>{n} steps</b> (more than {max}). Large builds tend not to pass the review in one go: consider asking the planner to keep the first self-contained part and leave the rest as follow-up requests.",{n:+f.plan_tasks.n,max:+f.plan_tasks.max})}</p>`:"";
 const diffLine=f=>f.diff&&!["done","cancelled"].includes(f.status)?`<p class="cnote2">${esc(tt(f.diff.committed?"Change in the worktree: {d} (committed by the pipeline).":"Change under review: {d} (not committed yet).",{d:diffText(f.diff,tt)}))}</p>`:"";
 function kindSwitch(f){
@@ -2278,7 +2284,7 @@ function featCard(f){
   const hist=f.history.map(h=>`<li>${esc(ago(h.at,Date.now(),tt))} · ${esc(h.stage)} · ${esc(up1(tt(h.event)))}${h.note?" — "+esc(h.note):""}</li>`).join("");
   return `<article class="feat s-${esc(f.status)}" data-fid="${esc(f.id)}"><div class="ftop"><h3>${esc(f.title)}</h3>${projLink(f.project)}<span class="kind">${esc(KIND_LABEL[f.kind]||KIND_LABEL.feature)}</span>${costChip(f)}${(()=>{const pr=S.projects.find(q=>q.name===f.project),d=pr?dom(pr):"other";return `<span class="dom d-${esc(d)}">${esc(cap(d))}</span>`;})()}
     ${waitChip(f)}<span class="fst">${esc(ST_LABEL[f.status]||f.status)}</span></div>
-    <p class="fdesc">${esc(f.desc)}</p>${parentLine(f)}${stepper(f)}${statusLine(f)}${pausedNote(f)}${sizeNote(f)}${diffLine(f)}${threadHtml(f)}${artifacts(f)}${kindSwitch(f)}${finishHtml(f)}${actions(f)}${qaHtml(f)}
+    <p class="fdesc">${esc(f.desc)}</p>${parentLine(f)}${stepper(f)}${statusLine(f)}${pausedNote(f)}${sizeNote(f)}${splitNote(f)}${diffLine(f)}${threadHtml(f)}${artifacts(f)}${kindSwitch(f)}${finishHtml(f)}${actions(f)}${qaHtml(f)}
     <details class="hist"><summary>${tt("History")}</summary><ul>${hist}</ul></details></article>`;
 }
 let featHtml="";
