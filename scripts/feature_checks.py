@@ -13,6 +13,15 @@ import splitplan
 from gates import parse_review
 
 PLAN_REVIEW = "plan-review.md"   # independent plan validation (a sub-step of the plan phase)
+CONCEPT_REVIEW = "concept-review.md"   # independent concept validation (a sub-step of the concept phase)
+# The checks that run inside a phase of their own «parent» (the request stays on the parent's stage while the validator works):
+# each keeps its state under `state` ({checking, fixes, retries, rev}), its artifact and the names it logs under.
+SUBCHECKS = {
+    "plan-validation": {"parent": "plan", "artifact": PLAN_REVIEW, "state": "pv", "stem": "plan-review", "slug": "validate-plan",
+                        "start": "plan validation", "failed": "plan validation failed", "feedback": "FEEDBACK_PLAN"},
+    "concept-validation": {"parent": "concept", "artifact": CONCEPT_REVIEW, "state": "cv", "stem": "concept-review", "slug": "validate-concept",
+                           "start": "concept validation", "failed": "concept validation failed", "feedback": "FEEDBACK_CONCEPT"}}
+SUBCHECK_OF = {c["parent"]: ph for ph, c in SUBCHECKS.items()}      # parent stage -> the check that validates it
 WORKING, AWAITING, FAILED, DONE, CANCELLED = "working", "awaiting", "failed", "done", "cancelled"
 
 
@@ -46,13 +55,16 @@ CHECK_EVENTS = {
     "review": {"gate": "reviewer's tests not confirmed", "limit": "automatic fixes limit", "fixes_failed": "automatic fixes failed",
                "no_verdict": "review without verdict", "repeated": "review repeated", "read": "read the review and decide"},
     "plan-validation": {"ok": "plan validated", "fixes": "plan fixes", "limit": "plan fixes limit", "fixes_failed": "plan fixes failed",
-                        "no_verdict": "validation without verdict", "repeated": "validation repeated", "read": "read the plan and decide"}}
+                        "no_verdict": "validation without verdict", "repeated": "validation repeated", "read": "read the plan and decide"},
+    "concept-validation": {"ok": "concept validated", "fixes": "concept fixes", "limit": "concept fixes limit", "fixes_failed": "concept fixes failed",
+                           "no_verdict": "concept validation without verdict", "repeated": "concept validation repeated",
+                           "read": "read the concept and decide"}}
 
 
 class CheckFlow:
     def _begin_check(self, fs: list, f: dict, step: dict) -> None:
-        if step.get("phase") == "plan-validation":
-            self._begin_plancheck(fs, f)
+        if step.get("phase") in SUBCHECKS:
+            self._begin_subcheck(fs, f, step["phase"])
             return
         before = f["stage"]
         f["stage"] = step["phase"]
@@ -63,47 +75,57 @@ class CheckFlow:
             f["stage"], f["status"] = before, AWAITING
             self._log(f, "automatic review failed", before, str(e))
 
-    # ---- independent plan validation: plan -> validator -> (plan fixes -> validator)* -> user ----
+    # ---- independent validation of a phase (the plan, the concept): phase -> validator -> (fixes -> validator)* -> user ----
     @staticmethod
-    def _pv(f: dict) -> dict:
-        return f.setdefault("pv", {"checking": False, "fixes": 0, "retries": 0, "rev": 0})
+    def _sv(f: dict, phase: str) -> dict:
+        """The state of the sub-check `phase` (`pv` for the plan validation, `cv` for the concept validation)."""
+        return f.setdefault(SUBCHECKS[phase]["state"], {"checking": False, "fixes": 0, "retries": 0, "rev": 0})
 
-    def _begin_plancheck(self, fs: list, f: dict) -> None:
-        step = self._step_by_phase(f, "plan-validation")
-        self._pv(f)
+    def _pv(self, f: dict) -> dict:
+        return self._sv(f, "plan-validation")
+
+    @staticmethod
+    def _checking(f: dict):
+        """The sub-check that is running now (its phase name), or None."""
+        return next((ph for ph, c in SUBCHECKS.items() if (f.get(c["state"]) or {}).get("checking")), None)
+
+    def _begin_subcheck(self, fs: list, f: dict, phase: str) -> None:
+        step = self._step_by_phase(f, phase)
+        self._sv(f, phase)
         self._rounds(f).pop(f"{step['id']}:unknown", None)
         self._mirror(f)
         try:
-            self._start_plancheck(fs, f)
-        except FeatureError as e:   # the plan waits for the user, without validation
-            self._pv(f)["checking"] = False
-            self._log(f, "plan validation failed", "plan", str(e))
+            self._start_subcheck(fs, f, phase)
+        except FeatureError as e:   # the phase waits for the user, without validation
+            self._sv(f, phase)["checking"] = False
+            self._log(f, SUBCHECKS[phase]["failed"], SUBCHECKS[phase]["parent"], str(e))
 
-    def _start_plancheck(self, fs: list, f: dict) -> None:
+    def _start_subcheck(self, fs: list, f: dict, phase: str) -> None:
+        cfg = SUBCHECKS[phase]
         d = self._dir(f["id"])
-        pv = self._pv(f)
-        old, moved = d / PLAN_REVIEW, None
+        sv = self._sv(f, phase)
+        old, moved = d / cfg["artifact"], None
         if old.is_file():
-            pv["rev"] = pv.get("rev", 0) + 1
-            moved = d / f"plan-review.v{pv['rev']}.md"
+            sv["rev"] = sv.get("rev", 0) + 1
+            moved = d / f"{cfg['stem']}.v{sv['rev']}.md"
             old.replace(moved)
-        step = self._step_by_phase(f, "plan-validation")
+        step = self._step_by_phase(f, phase)
         task = prompt_refs.render(step["prompt"]["ref"], self._lang(f), {
             "title": f["title"], "fid": f["id"], "project": f["project"], "desc": f["desc"], "dir": d,
             "note_lang": self._note_lang, "part": bool(f.get("part"))})
         try:
-            w = self._spawn(f, "plan-validation", task, [str(d)], f"{_slug(f['title'])[:30].strip('-')}-validate-plan")
+            w = self._spawn(f, phase, task, [str(d)], f"{_slug(f['title'])[:30].strip('-')}-{cfg['slug']}")
         except Exception as e:
             if moved:
                 moved.replace(old)
             raise FeatureError(f"could not launch the validator: {e}") from e
-        self._tag(w, f, "plan-validation")
+        self._tag(w, f, phase)
         previous = f["worker_id"]
-        pv["checking"] = True
+        sv["checking"] = True
         f.update(status=WORKING, worker_id=w["id"], worker_name=w.get("name", ""), step=step["id"])
         if previous and previous != w["id"]:
             self._release(previous)
-        self._log(f, "plan validation", "plan", w.get("name", ""))
+        self._log(f, cfg["start"], cfg["parent"], w.get("name", ""))
 
     # ---- after a check step (the independent review or plan validation): the engine decides, this applies it ----
     def _gate_codes(self, f: dict, step: dict) -> list:
@@ -113,13 +135,15 @@ class CheckFlow:
 
     def _after_check(self, fs: list, f: dict, step: dict) -> None:
         ev = CHECK_EVENTS.get(step.get("phase"), CHECK_EVENTS["review"])
-        plan_check = step.get("phase") == "plan-validation"
+        phase = step.get("phase")
+        plan_check = phase == "plan-validation"
+        sub = phase in SUBCHECKS               # a validation of the plan or of the concept (not the review of the code)
         path = self._dir(f["id"]) / step["artifact"]
         if plan_check:
             self._merge_split_findings(f, path)
         verdict, counts = parse_review(path.read_text(encoding="utf-8", errors="replace") if path.is_file() else "")
-        if plan_check and verdict == "blocked" and not (counts["CRITICAL"] or counts["HIGH"]) and (counts["MEDIUM"] or counts["LOW"]):
-            verdict = "reserves"             # only minor findings: they inform the user, they do not send the plan back
+        if sub and verdict == "blocked" and not (counts["CRITICAL"] or counts["HIGH"]) and (counts["MEDIUM"] or counts["LOW"]):
+            verdict = "reserves"             # only minor findings: they inform the user, they do not send the work back
         why, codes = "no recognisable verdict", []
         if verdict in ("approved", "reserves"):
             codes = [c for c in self._gate_codes(f, step) if c != "ok"]
@@ -130,8 +154,8 @@ class CheckFlow:
         blocking = [c for c in codes if c in engine.BLOCKING_GATES]
         stage = f["stage"]
         retry = d.kind == "launch" and d.step == step["id"]
-        if plan_check and not retry:
-            self._pv(f)["checking"] = False
+        if sub and not retry:
+            self._sv(f, phase)["checking"] = False
         if d.kind == "await":
             if blocking:     # the reviewer did not confirm the tests: nothing is committed automatically
                 self._log(f, ev["gate"], stage, f"{GATE_REASONS[blocking[0]]}: {ev['read']}")
@@ -144,26 +168,27 @@ class CheckFlow:
             if plan_check:
                 self._autopilot(fs, f, validated=False)
         elif retry:
-            self._log(f, ev["repeated"], stage, "no recognisable verdict" if plan_check else why)
+            self._log(f, ev["repeated"], stage, "no recognisable verdict" if sub else why)
             try:
-                if plan_check:
-                    self._start_plancheck(fs, f)
+                if sub:
+                    self._start_subcheck(fs, f, phase)
                 else:
                     self._start(fs, f, "")
             except FeatureError as e:
-                if plan_check:
-                    self._pv(f)["checking"] = False
+                if sub:
+                    self._sv(f, phase)["checking"] = False
                 self._log(f, ev["no_verdict"], stage, str(e))
         elif d.kind == "launch":
-            self._send_back(fs, f, step, plan_check, path, ev)
+            self._send_back(fs, f, step, sub, path, ev)
         else:
             if d.action == "commit_worktree":
                 if not self._tests_compared(f):
                     self._log(f, "tests not compared", "review",
                               "the report has no «FINAL RESULT» line: the reviewer's numbers were not compared with the implementer's")
                 self._commit(f, verdict)
-            if plan_check:
+            if sub:
                 self._log(f, ev["ok"], stage, "approved" if verdict == "approved" else "with reservations")
+            if plan_check:
                 self._autopilot(fs, f)
 
     def _merge_split_findings(self, f: dict, review: Path) -> None:
@@ -184,12 +209,13 @@ class CheckFlow:
             if merged != text:
                 review.write_text(merged, encoding="utf-8")
 
-    def _send_back(self, fs: list, f: dict, step: dict, plan_check: bool, path: Path, ev: dict) -> None:
+    def _send_back(self, fs: list, f: dict, step: dict, sub: bool, path: Path, ev: dict) -> None:
         """A check blocked the work: its findings go back to the step it names (an automatic round)."""
-        if plan_check:
-            self._log(f, ev["fixes"], f["stage"], "the validator blocked the plan")
+        if sub:
+            cfg = SUBCHECKS[step["phase"]]
+            self._log(f, ev["fixes"], f["stage"], f"the validator blocked the {cfg['parent']}")
             try:
-                self._start(fs, f, self._prompts(f).FEEDBACK_PLAN.format(path=path))
+                self._start(fs, f, getattr(self._prompts(f), cfg["feedback"]).format(path=path))
             except FeatureError as e:
                 self._log(f, ev["fixes_failed"], f["stage"], str(e))
             return

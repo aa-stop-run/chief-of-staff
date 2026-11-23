@@ -253,7 +253,7 @@ def test_plancheck_prompt_byte_identical(feats, kind, lang):
     f = {"id": "x-1", "title": "T", "desc": "D", "project": "P", "lang": lang, "kind": kind, "stage": "plan", "status": "awaiting",
          "worker_id": "", "history": [], "rev": {}, "model": ""}
     fs._dir("x-1").mkdir(parents=True)
-    fs._start_plancheck([f], f)
+    fs._start_subcheck([f], f, "plan-validation")
     d = fs._dir("x-1")
     got = prompt_refs.render(f"builtin:{kind}.plancheck", lang, {"title": "T", "fid": "x-1", "project": "P", "desc": "D", "dir": d,
                              "note_lang": fs._note_lang})

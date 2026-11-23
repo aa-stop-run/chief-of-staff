@@ -28,7 +28,7 @@ import prompts_pt
 import pipelines_store
 import prompts_qa
 import splitplan
-from feature_checks import (AWAITING, CANCELLED, CHECK_EVENTS, DONE, FAILED, GATE_REASONS, PLAN_REVIEW, WORKING,  # noqa: F401
+from feature_checks import (AWAITING, CANCELLED, CHECK_EVENTS, CONCEPT_REVIEW, DONE, FAILED, GATE_REASONS, PLAN_REVIEW, SUBCHECK_OF, SUBCHECKS, WORKING,  # noqa: F401,E501
                            CheckFlow, COMMIT_TYPES, FeatureError, _now, _slug, commit_message)  # noqa: F401
 
 STAGES = ("spec", "plan", "build", "review")
@@ -261,8 +261,8 @@ class Features(CheckFlow):
                 dirty = True
                 self._log(f, "resumed after usage limit", f["stage"], f"try {f['limit_resumes']} of {MAX_LIMIT_RESUMES}")
                 try:
-                    if f.get("pv", {}).get("checking"):
-                        self._start_plancheck(fs, f)
+                    if self._checking(f):
+                        self._start_subcheck(fs, f, self._checking(f))
                     else:
                         self._start(fs, f, self._pending_feedback(f))
                     restarted.append(f["id"])
@@ -301,7 +301,7 @@ class Features(CheckFlow):
         p = self._pipe(f)[0]
         if p.builtin:
             return None
-        phases = [s["phase"] for s in p.steps if s["type"] != "approval" and s["phase"] != "plan-validation"]
+        phases = [s["phase"] for s in p.steps if s["type"] != "approval" and s["phase"] not in SUBCHECKS]
         return {"name": p.data.get("name") or p.id, "stages": phases}
 
     def _step_by_phase(self, f: dict, phase: str):
@@ -312,8 +312,8 @@ class Features(CheckFlow):
         return self._step_by_phase(f, f["stage"])
 
     def _cur(self, f: dict):
-        """The step the request is on: the plan validation while it runs, else the step of its stage."""
-        return self._step_by_phase(f, "plan-validation" if f.get("pv", {}).get("checking") else f["stage"])
+        """The step the request is on: the validation of the plan or the concept while it runs, else the step of its stage."""
+        return self._step_by_phase(f, self._checking(f) or f["stage"])
 
     def _rounds(self, f: dict) -> dict:
         """f["rounds"]: automatic rounds used, by `<step>:<verdict>`. Requests from before it existed get it from pv / auto."""
@@ -332,8 +332,8 @@ class Features(CheckFlow):
             if st["type"] != "check":
                 continue
             counts = {"fixes": r.get(f"{st['id']}:blocked", 0), "retries": r.get(f"{st['id']}:unknown", 0)}
-            if st.get("phase") == "plan-validation":
-                self._pv(f).update(counts)
+            if st.get("phase") in SUBCHECKS:
+                self._sv(f, st["phase"]).update(counts)
             elif st.get("phase") == "review":
                 f.setdefault("auto", {}).update(counts)
 
@@ -615,7 +615,7 @@ class Features(CheckFlow):
     def _settle(self, f: dict) -> str:
         """The phase's real state: artifact written and worker stopped = waiting for a decision."""
         wid = f["worker_id"]
-        name = PLAN_REVIEW if f.get("pv", {}).get("checking") else ARTIFACT[f["stage"]]
+        name = SUBCHECKS[self._checking(f)]["artifact"] if self._checking(f) else ARTIFACT[f["stage"]]
         has = (self._dir(f["id"]) / name).is_file()
         if has and not self._is_busy(wid):
             return AWAITING
@@ -638,10 +638,11 @@ class Features(CheckFlow):
             if p.is_file():
                 t = p.read_text(encoding="utf-8", errors="replace")
                 out[stage] = t if len(t) <= MAX_ARTIFACT else t[:MAX_ARTIFACT] + "\n… (truncated)"
-        p = self._dir(fid) / PLAN_REVIEW
-        if p.is_file():
-            t = p.read_text(encoding="utf-8", errors="replace")
-            out["planreview"] = t if len(t) <= MAX_ARTIFACT else t[:MAX_ARTIFACT] + "\n… (truncated)"
+        for key, name in (("planreview", PLAN_REVIEW), ("conceptreview", CONCEPT_REVIEW)):
+            p = self._dir(fid) / name
+            if p.is_file():
+                t = p.read_text(encoding="utf-8", errors="replace")
+                out[key] = t if len(t) <= MAX_ARTIFACT else t[:MAX_ARTIFACT] + "\n… (truncated)"
         return out
 
     # ---- questions to the worker: a read-only worker answers about the request; the request itself never changes ----
@@ -684,7 +685,7 @@ class Features(CheckFlow):
 
     def _qa_task(self, f: dict, n: int, question: str) -> str:
         d, lang, P = self._dir(f["id"]), self._lang(f), self._prompts(f)
-        names = list(ARTIFACT.values()) + [PLAN_REVIEW]
+        names = list(ARTIFACT.values()) + [PLAN_REVIEW, CONCEPT_REVIEW]
         files = [f"- {d / name}" for name in names if (d / name).is_file()]
         if (d / "work").is_dir():
             files.append(f"- {d / 'work'} (the implementation's git worktree, uncommitted)")
@@ -899,8 +900,8 @@ class Features(CheckFlow):
             self._need(f, AWAITING)
             f.pop("commit", None)
             self._log(f, "changes requested", f["stage"], comment)
-            check = self._step_by_phase(f, "plan-validation")
-            if check and f["stage"] == "plan":
+            check = self._step_by_phase(f, SUBCHECK_OF.get(f["stage"], ""))
+            if check:
                 for v in ("blocked", "unknown"):
                     self._rounds(f).pop(f"{check['id']}:{v}", None)
                 self._mirror(f)
@@ -913,8 +914,8 @@ class Features(CheckFlow):
             fs = self._load()
             f = self._get(fs, fid)
             self._need(f, FAILED)
-            if f.get("pv", {}).get("checking"):
-                self._start_plancheck(fs, f)
+            if self._checking(f):
+                self._start_subcheck(fs, f, self._checking(f))
             else:
                 self._start(fs, f, self._pending_feedback(f))
             self._save(fs)
