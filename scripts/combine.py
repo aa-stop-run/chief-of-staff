@@ -70,3 +70,37 @@ def run(repo: str, branches: list, dest: str) -> dict:
         remove(repo, dest)
         raise
     return {"base": base, "head": head, "merged": merged, "conflicts": conflicts, "missing": missing}
+
+
+def branch_exists(repo: str, branch: str) -> bool:
+    """Does `branch` exist in `repo`? False for a folder that is not a repo."""
+    try:
+        return _git(repo, "rev-parse", "--verify", "--quiet", f"{branch}^{{commit}}").returncode == 0
+    except CombineError:
+        return False
+
+
+def make_base(repo: str, branches: list, name: str, dest: str) -> dict:
+    """Create the branch `name` holding the merge of `branches` (what a part that follows several parts builds on).
+
+    The merge is done in a throw-away worktree at `dest`, which is always removed. A conflict or a missing branch raises
+    `CombineError` and leaves no branch behind. The project's checkout and the merged branches are never touched."""
+    try:
+        res = run(repo, branches, dest)
+        if res["conflicts"] or res["missing"]:
+            problems = [f"{b} conflicts in {', '.join(f) or 'some files'}" for b, f in res["conflicts"].items()]
+            problems += [f"{b} does not exist" for b in res["missing"]]
+            raise CombineError("the parts this one follows cannot be combined: " + "; ".join(problems))
+        _must(repo, "branch", name, res["head"])
+        return res
+    finally:
+        remove(repo, dest)
+
+
+def delete_branch(repo: str, branch: str) -> None:
+    """Delete a branch if it exists (used for the bases made by `make_base`). Never raises."""
+    try:
+        if branch_exists(repo, branch):
+            _git(repo, "branch", "-D", branch)
+    except CombineError:
+        pass

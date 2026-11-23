@@ -175,7 +175,7 @@ def test_parts_view_order_and_missing_requests():
     parent = _parent("b", "gone", "a")
     view = fanout.parts_view(parent, [_part("a"), _part("b", status="working")])
     assert [v["id"] for v in view] == ["b", "a"]
-    assert view[0] == {"id": "b", "title": "B", "stage": "review", "status": "working", "ready": False}
+    assert view[0] == {"id": "b", "title": "B", "stage": "review", "status": "working", "ready": False, "held": False, "waits_for": []}
     assert view[1]["ready"] is True
 
 
@@ -233,3 +233,72 @@ def test_a_reservation_with_nothing_behind_it_is_lost_after_30_minutes():
     late = fanout.integration_due(parent, feats, now="2026-11-23T10:31:00")
     assert not late["due"] and late["reason"] == "integration reservation lost"
     assert fanout.integration_due(parent, feats, now="2026-11-23T10:31:00", has_folder=True)["reason"] == "integration already created"
+
+
+# --------------------------------------------------------------------------- dependent (held) parts
+
+def test_part_desc_says_what_the_part_builds_on():
+    task = {"id": "ui", "title": "Button", "files": [{"path": "ui.py", "new": True}]}
+    d = fanout.part_desc("Export", task, "", follows_titles=["Endpoint", "Model"])
+    assert "Builds on: «Endpoint», «Model»" in d and "already on your branch" in d
+    assert "Builds on" not in fanout.part_desc("Export", task, "")
+
+
+def test_build_parts_holds_a_dependent_part_and_links_it_to_the_ids_it_follows():
+    from datetime import datetime
+    split = {"tasks": [{"id": "api", "title": "API", "files": [{"path": "a.py", "new": True}], "depends_on": []},
+                       {"id": "db", "title": "DB", "files": [{"path": "d.py", "new": True}], "depends_on": []},
+                       {"id": "ui", "title": "UI", "files": [{"path": "u.py", "new": True}], "depends_on": ["api", "db"]}], "errors": []}
+    parent = {"id": "par-1", "title": "Parent", "desc": "D", "project": "Alfa", "model": "", "lang": "en", "kind": "feature", "path": "/p"}
+    out = fanout.build_parts(parent, split, "", set(), datetime(2026, 1, 1), lambda *a: (a[1], a[2], a[5]))
+    api, db, ui = out
+    assert api["extra"] == {"part": "api"} and db["extra"] == {"part": "db"}
+    assert ui["extra"] == {"part": "ui", "held": True, "follows": [api["fid"], db["fid"]]}
+    assert "Builds on: «API», «DB»" in ui["desc"] and "Builds on" not in api["desc"]
+
+
+def test_parts_view_reports_held_parts_and_what_they_wait_for():
+    parent = _parent("a", "b")
+    b = _part("b", status="awaiting", ok=None)
+    b.update(held=True, follows=["a"])
+    view = fanout.parts_view(parent, [_part("a", status="working", ok=None), b])
+    assert view[0]["held"] is False and view[1]["held"] is True and view[1]["waits_for"] == ["A"]
+    assert view[1]["ready"] is False
+
+
+def _held(pid, follows):
+    p = _part(pid, status="awaiting", ok=None)
+    p.update(held=True, follows=list(follows))
+    return p
+
+
+def test_release_due_waits_until_every_followed_part_is_ready():
+    parent = _parent("a", "b", "c")
+    a, b = _part("a"), _part("b", status="working", ok=None)
+    c = _held("c", ["a", "b"])
+    assert fanout.release_due(parent, [a, b, c]) == []
+    assert fanout.release_due(parent, [a, _part("b"), c]) == [("c", "release")]
+
+
+def test_release_due_cancels_a_part_whose_followed_part_was_cancelled_and_keeps_waiting_on_a_failed_one():
+    parent = _parent("a", "b")
+    assert fanout.release_due(parent, [_part("a", status="cancelled", ok=None), _held("b", ["a"])]) == [("b", "cancel")]
+    assert fanout.release_due(parent, [_part("a", status="failed", ok=None), _held("b", ["a"])]) == []
+
+
+def test_a_cancelled_dependency_cascades_down_the_chain_in_one_pass():
+    parent = _parent("a", "b", "c")
+    feats = [_part("a", status="cancelled", ok=None), _held("b", ["a"]), _held("c", ["b"])]
+    assert fanout.release_due(parent, feats) == [("b", "cancel"), ("c", "cancel")]
+
+
+def test_a_held_part_is_not_ready_and_blocks_the_integration_until_it_finishes():
+    parent = _parent("a", "b")
+    feats = [_part("a"), _held("b", ["a"])]
+    assert fanout.split_state(parent, feats) == "running"
+    d = fanout.integration_due(parent, feats)
+    assert not d["due"] and d["reason"] == "parts still under way"
+
+
+def test_base_branches():
+    assert fanout.base_branches(["x-1", "y-2"]) == ["feat/x-1", "feat/y-2"]

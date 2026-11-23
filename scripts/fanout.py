@@ -60,10 +60,13 @@ def criteria_section(spec_text: str) -> str:
     return text[m.start():end].strip()
 
 
-def part_desc(parent_title: str, task: dict, criteria: str) -> str:
-    """The description of a part's request: goal, owned files, the scope rule and the parent's criteria."""
+def part_desc(parent_title: str, task: dict, criteria: str, follows_titles=()) -> str:
+    """The description of a part's request: goal, what it builds on, owned files, the scope rule and the parent's criteria."""
     files = task.get("files") or []
-    lines = [f"Goal: {task.get('title', '')} (a part of «{parent_title}»).", "", "Files you own:"]
+    lines = [f"Goal: {task.get('title', '')} (a part of «{parent_title}»).", ""]
+    if follows_titles:
+        lines += ["Builds on: " + ", ".join(f"«{t}»" for t in follows_titles) + " (their code is already on your branch).", ""]
+    lines += ["Files you own:"]
     lines += [f"- {f.get('path', '')}{' (new)' if f.get('new') else ''}" for f in files] or ["- (none listed)"]
     lines += ["", "Touch only these files; ask for a follow-up request if you need others."]
     criteria = (criteria or "").strip()
@@ -85,17 +88,19 @@ def build_parts(parent: dict, split: dict, spec_text: str, taken_ids, now: datet
     kind has no spec). Every part is validated first (`validate(project, title, desc, model, lang, kind)` raises on a bad
     one), so nothing is created when any of them is wrong. Pure: it neither writes nor mutates its arguments."""
     criteria = criteria_section(spec_text) if (spec_text or "").strip() else (parent.get("desc") or "")
-    taken, out = set(taken_ids or ()), []
+    taken, out, id_of, title_of = set(taken_ids or ()), [], {}, {}
     for task in split.get("tasks") or []:
         fid = part_id(parent["id"], task["id"], taken, now)
         taken.add(fid)
+        id_of[task["id"]], title_of[task["id"]] = fid, task.get("title", "")
         title = part_title(parent["id"], task)
-        desc = part_desc(parent.get("title", ""), task, criteria)
+        deps = [d for d in task.get("depends_on") or [] if d in id_of]
+        desc = part_desc(parent.get("title", ""), task, criteria, [title_of[d] for d in deps])
         title, desc, kind = validate(parent["project"], title, desc, parent.get("model"), parent.get("lang", "en"),
                                      parent.get("kind", "feature"))
         out.append({"fid": fid, "project": parent["project"], "title": title, "desc": desc, "model": parent.get("model") or "",
                     "lang": parent.get("lang", "en"), "kind": kind, "path": parent.get("path", ""), "parent": parent["id"],
-                    "stage": START_STAGE, "extra": {"part": task["id"]},
+                    "stage": START_STAGE, "extra": {"part": task["id"], **({"held": True, "follows": [id_of[d] for d in deps]} if deps else {})},
                     "spec": part_spec(parent["id"], task, desc) if (spec_text or "").strip() else ""})
     return out
 
@@ -165,8 +170,11 @@ def _parts(parent: dict, feats) -> list:
 
 def parts_view(parent: dict, feats) -> list:
     """What the card lists: id, title, stage, status and `ready` of each part that still exists."""
-    return [{"id": p["id"], "title": p.get("title", ""), "stage": p.get("stage", ""),
-             "status": p.get("status", ""), "ready": is_ready(p)} for p in _parts(parent, feats)]
+    by_id = _by_id(feats)
+    return [{"id": p["id"], "title": p.get("title", ""), "stage": p.get("stage", ""), "status": p.get("status", ""),
+             "ready": is_ready(p), "held": bool(p.get("held")),
+             "waits_for": [by_id[i].get("title", "") for i in p.get("follows") or [] if i in by_id and not is_ready(by_id[i])]
+             if p.get("held") else []} for p in _parts(parent, feats)]
 
 
 def split_state(parent: dict, feats) -> str:
@@ -261,3 +269,26 @@ def integration_kwargs(parent: dict, due: dict, feats) -> dict:
     return {"project": parent["project"], "title": title if len(title) <= MAX_TITLE else title[:MAX_TITLE - 1].rstrip() + "…",
             "desc": desc[:MAX_DESC], "model": parent.get("model") or "", "lang": parent.get("lang", "en"),
             "path": parent.get("path", ""), "parent": parent["id"]}
+
+
+def base_branches(part_ids) -> list:
+    """The branches (`feat/<request id>`) a dependent part builds on."""
+    return [f"feat/{i}" for i in part_ids]
+
+
+def release_due(parent: dict, feats) -> list:
+    """What to do with the parts that are still held: [(part id, "release" | "cancel")] in the order of the split.
+
+    A held part is released when every part it follows is ready (committed and reviewed); it is cancelled when a part it follows
+    was cancelled (so the chain below it can never start). A followed part that failed keeps it waiting: the user retries it."""
+    by_id, cancelled, out = _by_id(feats), set(), []
+    for p in _parts(parent, feats):
+        if not p.get("held"):
+            continue
+        deps = [by_id.get(i) for i in p.get("follows") or []]
+        if any(d is None or d.get("status") == "cancelled" or d["id"] in cancelled for d in deps):
+            cancelled.add(p["id"])
+            out.append((p["id"], "cancel"))
+        elif all(is_ready(d) for d in deps):
+            out.append((p["id"], "release"))
+    return out

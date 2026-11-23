@@ -92,3 +92,39 @@ def test_a_folder_that_is_not_a_repo_raises(tmp_path):
     plain.mkdir()
     with pytest.raises(combine.CombineError):
         combine.run(str(plain), ["feat/a"], str(tmp_path / "dest"))
+
+
+# ---- the base a dependent part builds on ----
+def test_branch_exists(repo):
+    assert combine.branch_exists(str(repo), "feat/a") is True
+    assert combine.branch_exists(str(repo), "feat/nope") is False
+    assert combine.branch_exists(str(repo / "missing-folder"), "feat/a") is False
+
+
+def test_make_base_merges_several_branches_into_one_new_branch(repo, tmp_path):
+    before = refs(repo)
+    res = combine.make_base(str(repo), ["feat/a", "feat/b"], "base/x-1", str(tmp_path / "tmp-base"))
+    assert res["merged"] == ["feat/a", "feat/b"]
+    files = git(repo, "ls-tree", "-r", "--name-only", "base/x-1").split()
+    assert {"a.txt", "b.txt", "shared.txt"} <= set(files)
+    assert not (tmp_path / "tmp-base").exists() and "tmp-base" not in git(repo, "worktree", "list")
+    assert refs(repo).count("base/x-1") == 1 and all(line in refs(repo) for line in before.splitlines())
+    assert git(repo, "status", "--porcelain") == "" and git(repo, "rev-parse", "--abbrev-ref", "HEAD") == "main"
+
+
+def test_make_base_refuses_conflicts_and_missing_branches_and_leaves_nothing_behind(repo, tmp_path):
+    for name, text in (("feat/c1", "ONE\ntwo\nthree\n"), ("feat/c2", "uno\ntwo\nthree\n")):
+        git(repo, "switch", "-c", name, "main")
+        commit_file(repo, "shared.txt", text, name)
+        git(repo, "switch", "main")
+    for branches in (["feat/c1", "feat/c2"], ["feat/a", "feat/nope"]):
+        with pytest.raises(combine.CombineError):
+            combine.make_base(str(repo), branches, "base/y-1", str(tmp_path / "tmp-base"))
+        assert not combine.branch_exists(str(repo), "base/y-1") and not (tmp_path / "tmp-base").exists()
+
+
+def test_delete_branch_removes_only_what_it_is_told_and_never_raises(repo):
+    combine.delete_branch(str(repo), "feat/a")
+    assert not combine.branch_exists(str(repo), "feat/a") and combine.branch_exists(str(repo), "feat/b")
+    combine.delete_branch(str(repo), "feat/a")                  # already gone: no error
+    combine.delete_branch(str(repo / "missing-folder"), "feat/b")
