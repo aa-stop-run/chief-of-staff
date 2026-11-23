@@ -263,3 +263,12 @@ def test_plancheck_prompt_byte_identical(feats, kind, lang):
 def test_unknown_prompt_ref_is_refused(tmp_path):
     with pytest.raises(KeyError):
         prompt_refs.render("builtin:feature.deploy", "en", {})
+
+
+def test_there_is_no_cost_limit_field():
+    """Cost is only accounted for (usage.request_costs), never a limit: the field was removed and is refused like any unknown key."""
+    d = json.loads((pipelines.builtin_dir() / "fix.json").read_text(encoding="utf-8"))
+    d["id"], d["limits"] = "my-fix", {"max_cost_usd": 5}
+    with pytest.raises(pipelines.PipelineError) as e:
+        pipelines.validate(d)
+    assert "max_cost_usd" in str(e.value)

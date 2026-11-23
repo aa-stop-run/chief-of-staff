@@ -29,7 +29,7 @@ _WORKER = _COMMON | {"phase", "artifact", "mode", "prompt", "skills", "questions
                      "archive", "report_gate", "inputs", "keep_questions_on_next"}
 ACCEPTED_KEYS = {
     "pipeline": frozenset({"format", "id", "version", "name", "description", "based_on", "limits", "inputs", "steps"}),
-    "limits": frozenset({"max_cost_usd", "max_total_rounds"}),
+    "limits": frozenset({"max_total_rounds"}),
     "worker": frozenset(_WORKER),
     "check": frozenset(_WORKER | {"checks", "verdict", "gates", "on"}),
     "approval": frozenset(_COMMON | {"of", "on_changes", "on_fixes", "confirm", "requires_user"}),
@@ -264,9 +264,6 @@ def validate(data: dict, *, filename_id: str | None = None, builtin: bool = Fals
         n = data["limits"].get("max_total_rounds")
         if n is not None and not (isinstance(n, int) and 1 <= n <= 100):
             raise PipelineError("limits.max_total_rounds", "integer 1..100")
-        c = data["limits"].get("max_cost_usd")
-        if c is not None and not (isinstance(c, (int, float)) and not isinstance(c, bool) and c > 0):
-            raise PipelineError("limits.max_cost_usd", "positive number")
     steps = data.get("steps")
     if not isinstance(steps, list) or not steps:
         raise PipelineError("steps", "at least one step")
