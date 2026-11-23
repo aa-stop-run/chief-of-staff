@@ -25,6 +25,7 @@ import prompts
 import prompts_kinds
 import prompts_integration
 import prompts_pt
+import pipelines_store
 import prompts_qa
 import splitplan
 from feature_checks import (AWAITING, CANCELLED, CHECK_EVENTS, DONE, FAILED, GATE_REASONS, PLAN_REVIEW, WORKING,  # noqa: F401
@@ -135,7 +136,7 @@ class Features(CheckFlow):
     def __init__(self, root, launcher, is_active, grace_s: int = 0, is_busy=None, on_release=None,
                  auto_review: bool = False, committer=None, publisher=None, note_lang: str = "English", has_vault: bool = True,
                  session=None, on_launch=None, limit=None, route=None, tools=None, route_step=None, tools_for_step=None,
-                 live_known=None, cleaner=None):
+                 live_known=None, cleaner=None, pipeline_home=None):
         """is_active: the worker session exists; is_busy: it is really working (defaults to is_active).
 
         A worker may finish the phase and keep the session open waiting for input: active, but not busy."""
@@ -156,6 +157,7 @@ class Features(CheckFlow):
         self._route_step = route_step    # route_step(step, request_model) -> (model, effort); wins over `route` when given
         self._tools_for_step = tools_for_step  # tools_for_step(step, kind) -> (allow, deny); wins over `tools` when given
         self._pipes = {}                 # request id -> (Pipeline, Engine)
+        self._pipeline_home = pipeline_home   # the Chief's home: where the user's own pipelines are (`<home>/pipelines`)
         self._on_launch = on_launch      # on_launch(worker_id, request=, phase=): lets the cost of a worker be attributed to a request
         self._limit = limit              # limit(worker_id) -> the usage-limit notice stopping that worker, or None
         self._live_known = live_known or (lambda: True)   # False while the host cannot ask Claude Code for its sessions
@@ -292,6 +294,15 @@ class Features(CheckFlow):
             p = pipelines.load(pipelines.builtin_dir() / f"{kind}.json", builtin=True)
         self._pipes[f["id"]] = got = (p, engine.Engine(p))
         return got
+
+    def pipeline_view(self, f: dict):
+        """{name, stages} of a request on one of the user's own pipelines (the phases it goes through, in order, as its snapshot says);
+        None for a built-in type, whose phases the page knows."""
+        p = self._pipe(f)[0]
+        if p.builtin:
+            return None
+        phases = [s["phase"] for s in p.steps if s["type"] != "approval" and s["phase"] != "plan-validation"]
+        return {"name": p.data.get("name") or p.id, "stages": phases}
 
     def _step_by_phase(self, f: dict, phase: str):
         return next((s for s in self._pipe(f)[0].steps if s["type"] != "approval" and s.get("phase") == phase), None)
@@ -570,7 +581,9 @@ class Features(CheckFlow):
         for p in parts:
             kw = dict(p)
             spec = kw.pop("spec")
-            child = self._new_request(fs, kw.pop("project"), kw.pop("title"), kw.pop("desc"), kw.pop("model"), start=False, **kw)
+            mine = self._pipe(f)[0]            # a part follows its parent's pipeline (the snapshot it keeps), unless that is a built-in
+            child = self._new_request(fs, kw.pop("project"), kw.pop("title"), kw.pop("desc"), kw.pop("model"), start=False,
+                                      **({"pipeline": mine} if not mine.builtin else {}), **kw)
             if spec:
                 (self._dir(child["id"]) / ARTIFACT["spec"]).write_text(spec, encoding="utf-8")
             if child.get("held"):          # it follows other parts: it starts when they are ready (`release_held`)
@@ -717,16 +730,18 @@ class Features(CheckFlow):
 
     # ---- actions ----
     def create(self, project: str, title: str, desc: str, model, lang: str = "en", kind: str = "feature",
-               autopilot: bool = False, path: str = "", parent: str = "") -> dict:
+               autopilot: bool = False, path: str = "", parent: str = "", pipeline: str = "") -> dict:
         """`path`: the project's folder, kept so the request still finds its project if the project's name changes.
-        `parent`: the id of the request this one follows (a part split from a plan, the fix an analysis asked for)."""
-        title, desc, kind = self._validate_request_fields(project, title, desc, model, lang, kind)
+        `parent`: the id of the request this one follows (a part split from a plan, the fix an analysis asked for).
+        `pipeline`: the id of one of the user's own pipelines; the request then has that pipeline's type, whatever `kind` says."""
+        custom = self._user_pipeline(pipeline) if pipeline else None
+        title, desc, kind = self._validate_request_fields(project, title, desc, model, lang, custom.data["kind"] if custom else kind)
         with self._lock:
             fs = self._load()
             if parent and not any(x["id"] == parent for x in fs):
                 raise FeatureError("the request this one follows was not found")
             f = self._new_request(fs, project, title, desc, model, lang=lang, kind=kind, path=path, parent=parent,
-                                  autopilot=autopilot)
+                                  autopilot=autopilot, pipeline=custom)
             self._save(fs)
             return f
 
@@ -751,7 +766,7 @@ class Features(CheckFlow):
 
     def _new_request(self, fs: list, project: str, title: str, desc: str, model, *, lang: str = "en", kind: str = "feature",
                      path: str = "", parent: str = "", autopilot: bool = False, fid: str = "", stage: str = "",
-                     extra: dict | None = None, start: bool = True) -> dict:
+                     extra: dict | None = None, start: bool = True, pipeline: "pipelines.Pipeline | None" = None) -> dict:
         """Build a request, append it to `fs` (the caller's loaded list) and return it. It never loads or saves the file: the
         caller holds the lock and saves, so two updates cannot be lost. `start=False` leaves it waiting (status `awaiting`)
         for the caller to start; `stage` begins at that phase; `extra` keys are merged before the request starts."""
@@ -767,7 +782,7 @@ class Features(CheckFlow):
             f["parent"] = parent
         f.update(extra or {})
         self._dir(fid).mkdir(parents=True, exist_ok=True)
-        self._attach_pipeline(f, kind)
+        self._attach_pipeline(f, kind, pipeline)
         if stage:
             step = self._step_by_phase(f, stage)
             if step is None:
@@ -1167,9 +1182,29 @@ class Features(CheckFlow):
     def _prompts(self, f: dict):
         return prompts if self._lang(f) == "en" else prompts_pt
 
-    def _attach_pipeline(self, f: dict, kind: str) -> None:
-        """A new request keeps the definition it starts with (a snapshot file and its identity) and starts at its first step."""
-        p = pipelines.load(pipelines.builtin_dir() / f"{kind}.json", builtin=True)
+    def _user_pipeline(self, pid: str) -> "pipelines.Pipeline":
+        """One of the user's own pipelines, ready to start a request: it must be valid and made only of the built-in phases."""
+        home = self._pipeline_home() if callable(self._pipeline_home) else self._pipeline_home
+        if home is None:
+            raise FeatureError("there is no folder for your own pipelines")
+        try:
+            one = pipelines_store.get(home, pid)
+        except pipelines_store.StoreError as e:
+            raise FeatureError(str(e)) from e
+        if one["origin"] != "user":
+            raise FeatureError(f"«{pid}» is a built-in type: choose it as the type of request")
+        why = one["reason"]
+        if not one["valid"]:
+            raise FeatureError(f"the pipeline «{pid}» is not valid: {why}")
+        why = "; ".join(one["unusable"])
+        if why:
+            raise FeatureError(f"the pipeline «{pid}» cannot start a request: {why}")
+        return pipelines.load(one["data"])
+
+    def _attach_pipeline(self, f: dict, kind: str, p: "pipelines.Pipeline | None" = None) -> None:
+        """A new request keeps the definition it starts with (a snapshot file and its identity) and starts at its first step.
+        `p`: one of the user's own pipelines (its type is `kind`); by default the built-in definition of the type."""
+        p = p or pipelines.load(pipelines.builtin_dir() / f"{kind}.json", builtin=True)
         (self._dir(f["id"]) / PIPELINE_SNAPSHOT).write_text(json.dumps(pipelines.snapshot(p), ensure_ascii=False, indent=1), encoding="utf-8")
         self._pipes[f["id"]] = (p, engine.Engine(p))
         first = p.steps[0]

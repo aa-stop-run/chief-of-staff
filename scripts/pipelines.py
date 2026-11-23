@@ -28,7 +28,7 @@ _COMMON = {"id", "type", "label", "next", "notes"}
 _WORKER = _COMMON | {"phase", "artifact", "mode", "prompt", "skills", "questions", "model", "effort", "permissions",
                      "archive", "report_gate", "inputs", "keep_questions_on_next"}
 ACCEPTED_KEYS = {
-    "pipeline": frozenset({"format", "id", "version", "name", "description", "based_on", "limits", "inputs", "steps"}),
+    "pipeline": frozenset({"format", "id", "version", "name", "description", "based_on", "kind", "limits", "inputs", "steps"}),
     "limits": frozenset({"max_total_rounds"}),
     "worker": frozenset(_WORKER),
     "check": frozenset(_WORKER | {"checks", "verdict", "gates", "on"}),
@@ -259,6 +259,8 @@ def validate(data: dict, *, filename_id: str | None = None, builtin: bool = Fals
         raise PipelineError("id", f"«{pid}» differs from the file name «{filename_id}»")
     if not builtin and pid in BUILTIN_IDS:
         raise PipelineError("id", f"«{pid}» belongs to a built-in pipeline")
+    if "kind" in data and data["kind"] not in CONVERTIBLE:
+        raise PipelineError("kind", "one of " + ", ".join(CONVERTIBLE))
     if "limits" in data:
         _keys(data["limits"], "limits", "limits")
         n = data["limits"].get("max_total_rounds")
@@ -278,6 +280,71 @@ def validate(data: dict, *, filename_id: str | None = None, builtin: bool = Fals
             if isinstance(t, dict) and "max_rounds" in t and not (isinstance(t["max_rounds"], int) and 1 <= t["max_rounds"] <= MAX_ROUNDS):
                 raise PipelineError(f"steps.{s['id']}.on.{verdict}.max_rounds", f"integer 1..{MAX_ROUNDS}")
     return data
+
+
+_FREE = frozenset({"id", "label", "notes", "next", "model", "effort"})      # what a user may change in a step taken from a built-in
+_INPUT_PHASE = {"spec": "spec", "plan": "plan", "report": "build"}          # the phase whose artifact an input names
+_NEEDS = {"plan-validation": "plan", "review": "build"}
+_ROUNDS = frozenset({"max_rounds", "retry"})      # how many automatic rounds a check may use is the user's to set
+
+
+def _keyed(steps: list) -> dict:
+    """step id -> a name that does not depend on the id: its phase, or `approval:<phase of what it approves>`."""
+    out = {s["id"]: s.get("phase", s["id"]) for s in steps if s["type"] != "approval"}
+    out.update({s["id"]: "approval:" + out.get(s.get("of"), "?") for s in steps if s["type"] == "approval"})
+    return out
+
+
+def _canon(step: dict, names: dict) -> dict:
+    """The step without what the user may change, its ways to other steps written by name instead of id."""
+    c = {k: v for k, v in step.items() if k not in _FREE}
+    if "next" in step:
+        c["next"] = names.get(step["next"], step["next"])
+    if step.get("on"):
+        c["on"] = {v: ({**{k: x for k, x in t.items() if k not in _ROUNDS}, **{k: names.get(t[k], t[k]) for k in ("goto", "next") if k in t}}
+                       if isinstance(t, dict) else names.get(t, t)) for v, t in step["on"].items()}
+    return c
+
+
+def runnable(data: dict) -> list:
+    """Why a (valid) user pipeline cannot be chosen for a request: a list of plain sentences, empty when it can.
+
+    A request runs on the built-in phases only (each one writes its own file and is waited for by it), so a usable pipeline is an
+    ordered choice of the phases of ONE request type, each at most once, every step being the built-in step of its phase; its id,
+    label, model, effort and rounds are free. It must be able to read what its prompts read, a build needs the review after it, and it
+    ends with the user's acceptance of the review."""
+    kind = data.get("kind")
+    if kind not in CONVERTIBLE:
+        return ["kind: choose the type of request it is (" + ", ".join(CONVERTIBLE) + ")"]
+    base = load(builtin_dir() / f"{kind}.json", builtin=True)
+    base_by_phase = {s["phase"]: s for s in base.steps if s["type"] != "approval"}
+    base_names, names = _keyed(base.steps), _keyed(data["steps"])
+    problems, seen = [], []
+    for s in data["steps"]:
+        if s["type"] == "approval":
+            continue
+        ph, sid = s.get("phase"), s["id"]
+        ref = base_by_phase.get(ph)
+        if ref is None:
+            problems.append(f"step «{sid}»: «{ph}» is not a phase of a {kind} request")
+            continue
+        if ph in seen:
+            problems.append(f"step «{sid}»: the phase «{ph}» is used twice")
+            continue
+        if _canon(s, names) != _canon(ref, base_names):
+            problems.append(f"step «{sid}»: it must be the built-in «{ph}» step (only its id, label, model, effort and rounds may change)")
+        needs = [_INPUT_PHASE[i] for i in ref.get("inputs", []) if i in _INPUT_PHASE] + ([_NEEDS[ph]] if ph in _NEEDS else [])
+        for need in dict.fromkeys(needs):
+            if need not in seen:
+                problems.append(f"step «{sid}»: the «{need}» step must come before it")
+        seen.append(ph)
+    if "build" in seen and "review" not in seen:
+        problems.append("a build needs the independent review after it")
+    last = data["steps"][-1]
+    rev = next((s["id"] for s in data["steps"] if s.get("phase") == "review"), None)
+    if not (last["type"] == "approval" and last.get("requires_user", True) and rev and last.get("of") == rev):
+        problems.append("it must end with your acceptance of the review")
+    return problems
 
 
 def load(source, *, builtin: bool = False) -> Pipeline:

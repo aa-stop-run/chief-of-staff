@@ -18,6 +18,7 @@ def custom(pid="my-flow", base="maintenance"):
     d = builtin(base)
     d["id"] = pid
     d["name"] = "My flow"
+    d["kind"] = base
     return d
 
 
@@ -28,7 +29,7 @@ def codes(exc):
 def test_list_has_the_builtins_first_marked_and_user_ones_first_in_the_list(tmp_path):
     store.create(tmp_path, custom())
     rows = store.list_entries(tmp_path)
-    assert rows[0] == {"id": "my-flow", "origin": "user", "valid": True, "reason": ""}
+    assert rows[0] == {"id": "my-flow", "origin": "user", "valid": True, "reason": "", "runnable": True, "kind": "maintenance", "name": "My flow"}
     assert [r["id"] for r in rows if r["origin"] == "builtin"] == sorted(pipelines.BUILTIN_IDS)
     assert all(r["valid"] for r in rows)
 
@@ -164,3 +165,39 @@ def test_a_symlink_in_the_folder_is_not_followed(tmp_path):
     except OSError:
         pytest.skip("symlinks not allowed here")
     assert next(r for r in store.list_entries(tmp_path) if r["id"] == "linked")["valid"] is False
+
+
+def test_a_pipeline_that_no_request_could_run_is_refused_with_the_reason(tmp_path):
+    d = custom()
+    d["steps"][0]["phase"], d["steps"][0]["artifact"] = "write", "write.md"
+    with pytest.raises(store.StoreError) as e:
+        store.create(tmp_path, d)
+    assert e.value.code == "invalid" and "«write»" in str(e.value)
+    d = custom()
+    d.pop("kind")
+    with pytest.raises(store.StoreError) as e:
+        store.create(tmp_path, d)
+    assert "kind" in str(e.value)
+    store.create(tmp_path, custom())
+    with pytest.raises(store.StoreError):
+        store.update(tmp_path, "my-flow", d)
+
+
+def test_a_copy_of_a_standard_type_gets_its_type_and_is_listed_as_usable(tmp_path):
+    d = builtin("fix")
+    d["id"] = "my-fix"
+    store.create(tmp_path, d, forked_from="fix")
+    row = next(r for r in store.list_entries(tmp_path) if r["id"] == "my-fix")
+    assert row["runnable"] is True and row["kind"] == "fix"
+    assert store.get(tmp_path, "my-fix")["unusable"] == []
+    assert next(r for r in store.list_entries(tmp_path) if r["id"] == "fix")["runnable"] is False
+
+
+def test_an_old_file_that_is_valid_but_not_usable_stays_visible_with_the_reasons(tmp_path):
+    old = custom()
+    old.pop("kind")
+    (tmp_path / "pipelines").mkdir()
+    (tmp_path / "pipelines" / "my-flow.json").write_text(json.dumps(old), encoding="utf-8")
+    row = store.list_entries(tmp_path)[0]
+    assert row["valid"] is True and row["runnable"] is False
+    assert store.get(tmp_path, "my-flow")["unusable"]

@@ -103,26 +103,8 @@ def test_going_back_needs_max_rounds():
 
 # ------------------------------------------------------------------ editing (pure: always a new object)
 
-def test_blank_pipeline_has_a_worker_and_its_approval_and_problems_to_fix():
-    d = call("pipeBlank()")
-    assert d["format"] == 1 and [s["type"] for s in d["steps"]] == ["worker", "approval"] and d["steps"][1]["of"] == d["steps"][0]["id"]
-    assert problems(d)                                              # no id, no prompt yet
 
 
-def test_add_move_remove_steps_never_mutate_and_keep_ids_unique():
-    d = mine()
-    n = len(d["steps"])
-    added = call(f'pipeAddStep({json.dumps(d)},"worker")')
-    assert len(added["steps"]) == n + 1 and len(d["steps"]) == n
-    added2 = call(f'pipeAddStep({json.dumps(added)},"worker")')
-    ids = [s["id"] for s in added2["steps"]]
-    assert len(set(ids)) == len(ids)
-    moved = call(f"pipeMove({json.dumps(d)},1,-1)")
-    assert [s["id"] for s in moved["steps"][:2]] == [d["steps"][1]["id"], d["steps"][0]["id"]]
-    assert call(f"pipeMove({json.dumps(d)},0,-1)") == d                    # cannot go above the first
-    assert call(f"pipeMove({json.dumps(d)},{n - 1},1)") == d                # nor below the last
-    gone = call(f"pipeRemove({json.dumps(d)},0)")
-    assert len(gone["steps"]) == n - 2                                       # the step and the approval of it
 
 
 def test_removing_or_renaming_a_step_repoints_what_named_it():
@@ -145,11 +127,6 @@ def test_set_step_field_and_unknown_keys_survive():
     assert "artifact" not in cleared["steps"][0]
 
 
-def test_changing_a_step_type_keeps_the_shared_keys_and_drops_the_rest():
-    d = mine()
-    out = call(f'pipeSetType({json.dumps(d)},0,"approval")')
-    s = out["steps"][0]
-    assert s["type"] == "approval" and s["id"] == d["steps"][0]["id"] and "mode" not in s and "prompt" not in s and s["requires_user"] is True
 
 
 # ------------------------------------------------------------------ what the list and the details show
@@ -164,11 +141,11 @@ def test_summary_lines():
 
 def test_row_text_shows_origin_validity_and_use():
     ok = {"id": "my-flow", "origin": "user", "valid": True, "reason": "", "used": 2}
-    assert call(f"pipeRowFlags({json.dumps(ok)},t)") == {"badge": "Custom", "state": "valid", "note": "2 request(s)", "canEdit": True, "canDelete": True}
+    assert call(f"pipeRowFlags({json.dumps(ok)},t)") == {"badge": "Custom", "state": "valid", "note": "2 request(s)", "canEdit": True, "canDelete": True, "canFork": False}
     bad = {"id": "x", "origin": "user", "valid": False, "reason": "mode: nope", "used": 0}
     assert call(f"pipeRowFlags({json.dumps(bad)},t)")["state"] == "invalid" and "mode: nope" in call(f"pipeRowFlags({json.dumps(bad)},t)")["note"]
     b = {"id": "fix", "origin": "builtin", "valid": True, "reason": "", "used": 0}
-    assert call(f"pipeRowFlags({json.dumps(b)},t)") == {"badge": "Built-in", "state": "valid", "note": "", "canEdit": False, "canDelete": False}
+    assert call(f"pipeRowFlags({json.dumps(b)},t)") == {"badge": "Built-in", "state": "valid", "note": "", "canEdit": False, "canDelete": False, "canFork": True}
 
 
 def test_delete_arms_on_the_second_click():
@@ -192,53 +169,83 @@ def named(d, pid="my-flow"):
     return d
 
 
-def test_every_block_makes_a_pipeline_the_server_accepts():
-    d = call("pipeBlank()")
-    for kind in ("read", "change", "review", "review", "read", "change"):
-        d = call(f"pipeBlock({json.dumps(d)},{json.dumps(kind)},'Step')")
-    d = named(d)
-    assert problems(d) == []
+
+
+
+
+
+
+
+
+
+
+def test_only_valid_usable_pipelines_of_the_user_are_offered_for_a_request():
+    rows = [{"id": "a-flow", "origin": "user", "valid": True, "runnable": True, "kind": "fix", "name": "Quick fix"},
+            {"id": "b-flow", "origin": "user", "valid": True, "runnable": False, "kind": "", "name": "Old"},
+            {"id": "c-flow", "origin": "user", "valid": False, "runnable": False, "kind": "fix", "name": ""},
+            {"id": "fix", "origin": "builtin", "valid": True, "runnable": False, "kind": "", "name": ""}]
+    assert call(f"pipeChoices({json.dumps(rows)})") == [{"id": "a-flow", "label": "Quick fix", "kind": "fix"}]
+    assert call("pipeChoices(null)") == []
+
+
+def test_the_new_request_dialog_has_the_pipeline_menu_and_sends_it():
+    assert 'id="nfPipe"' in SRC and "pipeline:$(\"nfPipe\").value||undefined" in SRC and "nfLoadPipes()" in SRC
+
+
+# ------------------------------------------------------------------ the editor: the type's own phases, nothing that cannot run
+
+def runnable(d):
+    return pipelines.runnable(d)
+
+
+def fresh(kind, name="My flow"):
+    return call(f"pipeFromBuiltin({json.dumps(builtin(kind))},{json.dumps(kind)},{json.dumps({'id': 'my-flow', 'name': name})})")
+
+
+@pytest.mark.parametrize("kind", ("feature", "fix", "maintenance", "analysis"))
+def test_a_new_pipeline_of_every_type_is_usable_as_it_comes(kind):
+    d = fresh(kind)
+    assert d["kind"] == kind and d["id"] == "my-flow" and d["name"] == "My flow" and "based_on" not in d
+    assert problems(d) == [] and runnable(d) == []
     pipelines.validate(d)
-    phases = [s["phase"] for s in d["steps"] if s["type"] != "approval"]
-    assert len(set(phases)) == len(phases)
 
 
-def test_a_review_block_goes_back_to_the_worker_before_it_a_bounded_number_of_times():
-    d = call(f'pipeBlock({json.dumps(call("pipeBlank()"))},"review","R")')
-    rev = d["steps"][-1]
-    assert rev["type"] == "check" and rev["on"]["blocked"] == {"goto": "work", "max_rounds": 2}
+def test_the_plan_validation_can_be_removed_and_put_back_and_stays_usable():
+    base = builtin("feature")
+    d = fresh("feature")
+    i = next(i for i, s in enumerate(d["steps"]) if s.get("phase") == "plan-validation")
+    assert call(f"pipeCanAddCheck({json.dumps(d)},{json.dumps(base)})") is False
+    gone = call(f"pipeRemove({json.dumps(d)},{i})")
+    assert all(s.get("phase") != "plan-validation" for s in gone["steps"]) and runnable(gone) == [] and problems(gone) == []
+    assert call(f"pipeCanAddCheck({json.dumps(gone)},{json.dumps(base)})") is True
+    back = call(f"pipeAddCheck({json.dumps(gone)},{json.dumps(base)})")
+    assert [s["id"] for s in back["steps"]] == [s["id"] for s in d["steps"]] and runnable(back) == []
+    assert call(f"pipeAddCheck({json.dumps(back)},{json.dumps(base)})") == back                # not twice
+    assert call(f"pipeCanAddCheck({json.dumps(fresh('analysis'))},{json.dumps(builtin('analysis'))})") is False   # no plan in an analysis
 
 
-def test_change_the_kind_keeps_the_pipeline_valid():
-    d = named(call("pipeBlank()"))
-    d["steps"][0]["prompt"] = {"ref": "builtin:feature.spec"}
-    for kind in ("change", "review", "read"):
-        d = call(f"pipeSetKind({json.dumps(d)},0,{json.dumps(kind)})")
-        assert call(f"pipeKind({json.dumps(d['steps'][0])})") == kind
-        pipelines.validate(d) if kind != "change" else None
+def test_model_effort_label_and_rounds_keep_it_usable():
+    d = fresh("maintenance")
+    bi = next(i for i, s in enumerate(d["steps"]) if s.get("phase") == "build")
+    d = call(f'pipeSetStep({json.dumps(d)},{bi},"model","sonnet")')
+    d = call(f'pipeSetStep({json.dumps(d)},{bi},"effort","low")')
+    d = call(f'pipeSetStep({json.dumps(d)},{bi},"label","Do the work")')
+    ri = next(i for i, s in enumerate(d["steps"]) if s.get("phase") == "review")
+    d["steps"][ri]["on"]["blocked"]["max_rounds"] = 1
+    assert problems(d) == [] and runnable(d) == []
+    pipelines.validate(d)
+    cleared = call(f'pipeSetStep({json.dumps(d)},{bi},"model","")')
+    assert "model" not in cleared["steps"][bi]
 
 
-def test_the_approval_is_a_tick_box_and_moves_with_its_step():
-    d = named(builtin("maintenance"))
-    first = d["steps"][0]["id"]
-    at = call(f"pipeApprovalAt({json.dumps(d)},0)")
-    assert d["steps"][at]["of"] == first and d["steps"][1]["type"] == "check"      # the review sits between the step and its approval
-    off = call(f"pipeSetApproval({json.dumps(d)},0,false)")
-    assert not call(f"pipeHasApproval({json.dumps(off)},0)") and all(s.get("of") != first for s in off["steps"])
-    on = call(f"pipeSetApproval({json.dumps(off)},0,true)")
-    assert call(f"pipeApprovalAt({json.dumps(on)},0)") == at and on == d
-    groups = call(f"pipeGroups({json.dumps(d)})")
-    assert groups[0] == [0, at]
-    start = groups[1][0]
-    moved = call(f"pipeMoveBlock({json.dumps(d)},{start},-1)")
-    assert moved["steps"][0]["id"] == d["steps"][start]["id"]                          # the next unit went first, whole
-    assert sorted(s["id"] for s in moved["steps"]) == sorted(s["id"] for s in d["steps"])
-    assert call(f"pipeMoveBlock({json.dumps(d)},0,-1)") == d
-
-
-def test_flow_sentence_and_names():
-    d = builtin("feature")
-    flow = call(f"pipeFlow({json.dumps(d)},t)")
-    assert flow.startswith("spec → ✋") and "plan" in flow
-    assert call("pipePromptName('builtin:feature.spec',t)") == "Feature@k · write the spec@p"
+def test_flow_and_slug():
+    flow = call(f"pipeFlow({json.dumps(builtin('feature'))},t)")
+    assert flow.startswith("spec → ✋") and "plan" in flow and flow.endswith("✋ your approval")
     assert call("pipeSlug('Minha Pipeline Ótima!')") == "minha-pipeline-otima"
+
+
+def test_a_pipeline_that_cannot_start_a_request_says_so_in_the_list():
+    r = {"id": "old", "origin": "user", "valid": True, "reason": "", "used": 0, "runnable": False}
+    assert "Cannot be chosen" in call(f"pipeRowFlags({json.dumps(r)},t)")["note"]
+    r["runnable"] = True
+    assert call(f"pipeRowFlags({json.dumps(r)},t)")["note"] == ""

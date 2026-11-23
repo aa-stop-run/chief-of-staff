@@ -20,7 +20,7 @@ def srv(tmp_path):
 
 def mine(pid="my-flow", base="maintenance"):
     d = json.loads((pipelines.builtin_dir() / f"{base}.json").read_text(encoding="utf-8"))
-    d["id"], d["name"] = pid, "My flow"
+    d["id"], d["name"], d["kind"] = pid, "My flow", base
     return d
 
 
@@ -111,3 +111,29 @@ def test_the_error_is_translated_on_request(srv):
     srv.post("/api/pipelines", {"data": mine()})
     status, out = srv.post("/api/pipelines", {"data": mine()}, headers={"X-Lang": "pt"})
     assert status == 409 and "já existe" in out["error"]
+
+
+def lean(pid="lean-maint"):
+    d = mine(pid, "maintenance")
+    d["steps"] = [s for s in d["steps"] if s["id"] != "plancheck"]
+    return d
+
+
+def test_a_request_can_be_created_from_your_pipeline_and_its_card_brings_the_phases(srv):
+    assert srv.post("/api/pipelines", {"data": lean()})[0] == 200
+    status, f = srv.post("/api/features", {"project": "Dotfiles", "title": "Tidy up", "desc": "tidy", "pipeline": "lean-maint"})
+    assert status == 200 and f["kind"] == "maintenance" and f["pipeline"]["id"] == "lean-maint"
+    card = next(c for c in srv.get("/api/state")[1]["features"] if c["id"] == f["id"])
+    assert card["pipeline_name"] == "My flow" and card["stages"] == ["plan", "build", "review"]
+
+
+def test_a_builtin_request_card_has_no_pipeline_name(srv):
+    status, f = srv.post("/api/features", {"project": "Dotfiles", "title": "Tidy", "desc": "tidy", "kind": "feature"})
+    card = next(c for c in srv.get("/api/state")[1]["features"] if c["id"] == f["id"])
+    assert "pipeline_name" not in card and "stages" not in card
+
+
+def test_a_pipeline_that_does_not_exist_or_cannot_start_a_request_is_a_400(srv):
+    assert srv.post("/api/features", {"project": "Dotfiles", "title": "x", "desc": "y", "pipeline": "ghost"})[0] == 400
+    status, out = srv.post("/api/features", {"project": "Dotfiles", "title": "x", "desc": "y", "pipeline": "feature"})
+    assert status == 400 and "built-in" in out["error"]

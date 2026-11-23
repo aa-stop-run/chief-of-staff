@@ -94,7 +94,7 @@ FEATURES = Features(chief.STATE, chief.launch_worker, _is_active, grace_s=GRACE_
                     has_vault=chief.vault_enabled(), session=SESSIONS.current_id, on_launch=chief.tag_worker, limit=chief.worker_limit,
                     route=chief.route, tools=chief.tools_for, live_known=lambda: _live["map"] is not None,
                     route_step=chief.route_step, tools_for_step=chief.tools_for_step,
-                    cleaner=lambda *a: chief.cleanup_request(*a))
+                    cleaner=lambda *a: chief.cleanup_request(*a), pipeline_home=lambda: chief.HOME)
 TICK_S = 10
 PENDING = Pending(chief.STATE)
 ALERTS = Alerts()                           # a worker stuck on a prompt or a failed request, once it has lasted a few minutes
@@ -288,6 +288,9 @@ def _card_extras(f: dict, titles: dict, every=()) -> dict:
         out["integration_summary"] = prompts_integration.parse_report(f["artifacts"]["build"])
     if f.get("parent") in titles:
         out["parent_title"] = titles[f["parent"]]
+    mine = FEATURES.pipeline_view(f)
+    if mine:
+        out["pipeline_name"], out["stages"] = mine["name"], mine["stages"]
     if f["status"] == "failed" and f.get("worker_id"):
         said = chief.worker_last_message(f["worker_id"])
         if said:
@@ -635,7 +638,7 @@ class Handler(BaseHTTPRequestHandler):
             return FEATURES.create(body["project"], str(body.get("title", "")), str(body.get("desc", "")),
                                    body.get("model") or None, lang=self._lang, kind=str(body.get("kind") or "feature"),
                                    autopilot=body.get("autopilot") is True, path=paths[body["project"]],
-                                   parent=str(body.get("parent") or ""))
+                                   parent=str(body.get("parent") or ""), pipeline=str(body.get("pipeline") or ""))
         if len(parts) == 4:
             fid, action = parts[2], parts[3]
             if action == "approve":

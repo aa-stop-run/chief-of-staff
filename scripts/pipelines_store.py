@@ -34,9 +34,23 @@ def _digest_of(data: dict) -> str:
         return ""
 
 
+def _usable(data) -> list:
+    """Why a valid user pipeline cannot be chosen for a request (empty: it can)."""
+    try:
+        return pipelines.runnable(data)
+    except (KeyError, TypeError, pipelines.PipelineError) as e:
+        return [str(e)]
+
+
 def list_entries(home) -> list:
-    """Every pipeline, the user's first: [{id, origin, valid, reason}]."""
-    rows = [{"id": e.id, "origin": e.origin, "valid": e.valid, "reason": e.reason} for e in pipelines.list_all(home)]
+    """Every pipeline, the user's first: [{id, origin, valid, reason, runnable, kind, name}]. `runnable`: it can be chosen for a request."""
+    rows = []
+    for e in pipelines.list_all(home):
+        row = {"id": e.id, "origin": e.origin, "valid": e.valid, "reason": e.reason, "runnable": False, "kind": "", "name": ""}
+        if e.origin == "user" and e.valid:
+            data = get(home, e.id)["data"]
+            row.update(kind=str(data.get("kind", "")), name=str(data.get("name", "")), runnable=not _usable(data))
+        rows.append(row)
     return [r for r in rows if r["origin"] == "user"] + [r for r in rows if r["origin"] != "user"]
 
 
@@ -45,27 +59,34 @@ def get(home, pid: str) -> dict:
     builtin_path = pipelines.builtin_dir() / f"{pid}.json"
     if pid in pipelines.BUILTIN_IDS and builtin_path.is_file():
         p = pipelines.load(builtin_path, builtin=True)
-        return {"id": pid, "origin": "builtin", "valid": True, "reason": "", "digest": pipelines.digest(p)[:12], "data": p.data}
+        return {"id": pid, "origin": "builtin", "valid": True, "reason": "", "digest": pipelines.digest(p)[:12], "data": p.data,
+                "unusable": []}
     path = _user_path(home, pid)
     if not path.is_file() or path.is_symlink():
         raise StoreError("notfound", f"no pipeline «{pid}»")
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
-        return {"id": pid, "origin": "user", "valid": False, "reason": f"file: not valid JSON: {e}", "digest": "", "data": {}}
+        return {"id": pid, "origin": "user", "valid": False, "reason": f"file: not valid JSON: {e}", "digest": "", "data": {}, "unusable": []}
     try:
         p = pipelines.load(path)
-        return {"id": pid, "origin": "user", "valid": True, "reason": "", "digest": pipelines.digest(p)[:12], "data": p.data}
+        return {"id": pid, "origin": "user", "valid": True, "reason": "", "digest": pipelines.digest(p)[:12], "data": p.data,
+                "unusable": _usable(p.data)}
     except pipelines.PipelineError as e:
-        return {"id": pid, "origin": "user", "valid": False, "reason": str(e), "digest": "", "data": data}
+        return {"id": pid, "origin": "user", "valid": False, "reason": str(e), "digest": "", "data": data, "unusable": []}
 
 
 def _validated(data, pid: str | None = None) -> dict:
+    """The engine's validation, then the rule that a saved pipeline can be used by a request (see `pipelines.runnable`)."""
     try:
-        return pipelines.validate(data, filename_id=pid)
+        pipelines.validate(data, filename_id=pid)
     except pipelines.PipelineError as e:
         code = "builtin" if e.field == "id" and "built-in" in e.msg else "invalid"
         raise StoreError(code, str(e)) from e
+    problems = _usable(data)
+    if problems:
+        raise StoreError("invalid", "; ".join(problems))
+    return data
 
 
 def _write(home, pid: str, data: dict) -> dict:
@@ -82,7 +103,7 @@ def create(home, data: dict, forked_from: str | None = None) -> dict:
     if pid and len(pid) < MIN_ID:
         raise StoreError("invalid", f"id: at least {MIN_ID} characters")
     if forked_from:
-        data = {**data, "based_on": forked_from}
+        data = {**data, "based_on": forked_from, **({"kind": forked_from} if forked_from in pipelines.CONVERTIBLE and "kind" not in data else {})}
     _validated(data)
     if _user_path(home, pid).exists():
         raise StoreError("exists", f"there already is a pipeline «{pid}»")
