@@ -930,4 +930,5 @@ class Features(CheckFlow):
             raise FeatureError("this step has no built-in prompt")
         return prompt_refs.render(ref, self._lang(f), {
             "title": f["title"], "fid": f["id"], "project": f["project"], "desc": f["desc"], "dir": self._dir(f["id"]),
-            "rev": f["rev"].get(f["stage"], 0), "feedback": feedback, "note_lang": self._note_lang, "has_vault": self._has_vault})
+            "rev": f["rev"].get(f["stage"], 0), "feedback": feedback, "note_lang": self._note_lang, "has_vault": self._has_vault,
+            "part": bool(f.get("part"))})

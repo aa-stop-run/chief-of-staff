@@ -2,6 +2,7 @@
 modules. `render` produces exactly what `Features._task` / the plan validation launch produced before pipelines were data."""
 from pathlib import Path
 
+import fanout
 import prompts
 import prompts_kinds
 import prompts_pt
@@ -47,7 +48,10 @@ def render(ref: str, lang: str, ctx: dict) -> str:
         extra = prompts_kinds.EXTRA.get((lang, kind, "plancheck"))
         if extra:
             base = base.replace(P.OUT_MARKER, extra + "\n" + P.OUT_MARKER, 1)
-        base = base.replace(P.OUT_MARKER, P.PLANCHECK_SIZE.replace("{max}", str(MAX_PLAN_TASKS)) + "\n" + P.OUT_MARKER, 1)
+        size = P.PLANCHECK_SIZE.replace("{max}", str(MAX_PLAN_TASKS))
+        if kind in fanout.FAN_OUT_KINDS and not ctx.get("part"):       # SPLIT_CHECK has no braces: it may go before .format
+            size += "\n" + P.SPLIT_CHECK
+        base = base.replace(P.OUT_MARKER, size + "\n" + P.OUT_MARKER, 1)
         return base.format(title=ctx["title"], fid=ctx["fid"], project=ctx["project"], desc=ctx["desc"],
                            spec=spec_ref(kind, lang, d), plan=d / ARTIFACT["plan"], out=d / PLAN_REVIEW) + P.BRIEF
     text = P.language_rule(ctx["note_lang"]) + P.COMMON.format(
@@ -62,6 +66,8 @@ def render(ref: str, lang: str, ctx: dict) -> str:
                             report=d / ARTIFACT["build"], work=d / "work")
     if phase == "plan" and kind != "release":          # a release plan is a checklist, not a build to be sized
         text += P.PLAN_SIZE.replace("{max}", str(MAX_PLAN_TASKS))
+        if kind in fanout.FAN_OUT_KINDS and not ctx.get("part"):       # JSON braces: appended after .format, like PLAN_SIZE
+            text += P.SPLIT_FORMAT
     text += P.BRIEF
     if not ctx.get("has_vault", True):
         text += P.NO_VAULT_NOTE

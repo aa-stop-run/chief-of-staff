@@ -88,7 +88,7 @@ class CheckFlow:
         step = self._step_by_phase(f, "plan-validation")
         task = prompt_refs.render(step["prompt"]["ref"], self._lang(f), {
             "title": f["title"], "fid": f["id"], "project": f["project"], "desc": f["desc"], "dir": d,
-            "note_lang": self._note_lang})
+            "note_lang": self._note_lang, "part": bool(f.get("part"))})
         try:
             w = self._spawn(f, "plan-validation", task, [str(d)], f"{_slug(f['title'])[:30].strip('-')}-validate-plan")
         except Exception as e:
