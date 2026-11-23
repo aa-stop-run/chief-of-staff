@@ -22,7 +22,7 @@ import prompts_kinds
 import prompts_pt
 import prompts_qa
 from feature_checks import (AWAITING, CANCELLED, CHECK_EVENTS, DONE, FAILED, GATE_REASONS, PLAN_REVIEW, WORKING,  # noqa: F401
-                           CheckFlow, COMMIT_TYPES, FeatureError, _slug, commit_message)  # noqa: F401
+                           CheckFlow, COMMIT_TYPES, FeatureError, _now, _slug, commit_message)  # noqa: F401
 
 STAGES = ("spec", "plan", "build", "review")
 ARTIFACT = {"spec": "spec.md", "plan": "plan.md", "build": "report.md", "review": "review.md"}
@@ -93,10 +93,6 @@ def load_questions(path):
 from gates import (parse_review, parse_tests, ship_gate, release_plan_gate, release_verdict, release_gate,  # noqa: F401,E402
                    review_tests_gate, SHIP_PUSH_OK, SHIP_DEFAULT_BRANCHES, RELEASE_SECTIONS, RELEASE_SHA)
 
-
-
-def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
 
 
 _TASKS = re.compile(r"^\W*(?:TASKS|TAREFAS)\s*:\s*(\d{1,4})\b", re.I | re.M)
@@ -616,6 +612,7 @@ class Features(CheckFlow):
     def _send_fixes(self, fs: list, f: dict, comment: str, automatic: bool, selected: bool = False) -> None:
         """Send the review findings back to the implementer (same worktree) and return to the implementation phase."""
         review = self._dir(f["id"]) / ARTIFACT["review"]
+        f.pop("commit", None)        # back at work: the earlier commit no longer describes the request
         self._log(f, "automatic fixes" if automatic else "fixes requested", "review", comment)
         p = self._pipe(f)[0]
         cur = self._stage_step(f)
@@ -642,6 +639,7 @@ class Features(CheckFlow):
             fs = self._load()
             f = self._get(fs, fid)
             self._need(f, AWAITING)
+            f.pop("commit", None)
             self._log(f, "changes requested", f["stage"], comment)
             check = self._step_by_phase(f, "plan-validation")
             if check and f["stage"] == "plan":

@@ -2,6 +2,7 @@
 engine's decision. `Features` inherits these methods; the shared names (statuses, FeatureError) live here so both import cleanly."""
 import re
 import unicodedata
+from datetime import datetime
 from pathlib import Path
 
 import engine
@@ -15,6 +16,10 @@ WORKING, AWAITING, FAILED, DONE, CANCELLED = "working", "awaiting", "failed", "d
 
 class FeatureError(Exception):
     pass
+
+
+def _now() -> str:
+    return datetime.now().isoformat(timespec="seconds")
 
 
 COMMIT_TYPES = {"fix": "fix", "maintenance": "chore"}        # conventional-commit type per kind of request; anything else is «feat»
@@ -182,4 +187,5 @@ class CheckFlow:
             ok, info = self._committer(work, commit_message(f, verdict))
         except Exception as e:  # noqa: BLE001 - the commit is an extra: it never brings the feature down
             ok, info = False, str(e)
+        f["commit"] = {"ok": bool(ok), "at": _now()}      # D4 of the split plan reads this: «ready» = committed by the pipeline
         self._log(f, "committed" if ok else "commit failed", "review", info)

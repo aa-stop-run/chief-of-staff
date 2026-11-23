@@ -305,3 +305,51 @@ def test_manual_plan_changes_restart_the_rounds_and_get_validated_again(auto):
     fs.revise(f["id"], "use another approach")
     f = finish_stage(fs, fake, root, f["id"], "plan.md", "# plan v2")
     assert f["pv"]["checking"] and f["status"] == "working"
+
+
+# ---- f["commit"]: the one field that says the pipeline's commit was attempted and how it ended (split fan-out, D4) ----
+def test_a_successful_commit_is_recorded(auto):
+    fs, fake, root, commit = auto
+    f = feature_in_build(fs, fake, root)
+    finish_stage(fs, fake, root, f["id"], "report.md")
+    g = finish_stage(fs, fake, root, f["id"], "review.md", REVIEW_OK)
+    assert g["commit"]["ok"] is True and g["commit"]["at"]
+
+
+def test_a_failed_or_raising_commit_is_recorded_as_not_ok(tmp_path):
+    for result in ((False, "boom"), RuntimeError("disk")):
+        fake = Fake()
+
+        def committer(path, message, result=result):
+            if isinstance(result, Exception):
+                raise result
+            return result
+        fs = Features(tmp_path / str(id(result)), fake.launch, fake.is_active, auto_review=True, committer=committer)
+        root = tmp_path / str(id(result))
+        f = feature_in_build(fs, fake, root)
+        finish_stage(fs, fake, root, f["id"], "report.md")
+        g = finish_stage(fs, fake, root, f["id"], "review.md", REVIEW_OK)
+        assert g["commit"]["ok"] is False and any(h["event"] == "commit failed" for h in g["history"])
+
+
+def test_no_worktree_means_no_commit_key(auto):
+    fs, fake, root, _ = auto
+    f = feature_in_build(fs, fake, root, work=False)
+    finish_stage(fs, fake, root, f["id"], "report.md")
+    g = finish_stage(fs, fake, root, f["id"], "review.md", REVIEW_OK)
+    assert "commit" not in g and any(h["event"] == "nothing to commit" for h in g["history"])
+
+
+def test_a_request_that_goes_back_to_work_loses_its_commit(auto):
+    fs, fake, root, _ = auto
+    f = feature_in_build(fs, fake, root)
+    finish_stage(fs, fake, root, f["id"], "report.md")
+    assert finish_stage(fs, fake, root, f["id"], "review.md", REVIEW_OK)["commit"]["ok"]
+    assert "commit" not in fs.request_fixes(f["id"], "also handle X")
+    # and the same for «Request changes»
+    f2 = fs.create("Alfa", "Other", "desc", None)
+    finish_stage(fs, fake, root, f2["id"], "spec.md")
+    data = fs._load()
+    next(x for x in data if x["id"] == f2["id"])["commit"] = {"ok": True, "at": "2026-01-01T00:00:00"}
+    fs._save(data)
+    assert "commit" not in fs.revise(f2["id"], "change the title")
