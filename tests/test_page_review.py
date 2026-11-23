@@ -109,3 +109,25 @@ def test_split_label_on_the_plan_card():
 def test_the_card_shows_the_split_note_and_pt_has_the_strings():
     assert "${sizeNote(f)}${splitNote(f)}" in SRC
     assert '"Split: {n} parts":"Divisão: {n} partes"' in SRC
+
+
+def test_split_block_helpers():
+    parts = [{"title": "A", "stage": "build", "status": "working", "ready": False},
+             {"title": "B", "stage": "review", "status": "awaiting", "ready": True}]
+    rows = call(f"partsRows({json.dumps({'parts': parts})},t)")
+    assert [r["text"] for r in rows] == ["A — build · working", "B — review · awaiting ✓"] and rows[1]["ready"] is True
+    assert call("partsRows({},t)") == []
+    labels = [call(f'splitStateLabel({{split_state:"{k}"}},t)') for k in ("running", "partial", "ready", "integrating", "integrated")]
+    assert all(labels) and len(set(labels)) == 5
+    assert call("splitStateLabel({},t)") is None and call('splitStateLabel({split_state:"x"},t)') is None
+    summ = {"integration_summary": {"parts": {"a": "APPROVED"}, "conflicts": 0, "tests": "10 passed, 0 failed"}}
+    assert call(f"integrationLine({json.dumps(summ)},t)") == "Combined: 0 conflict(s), tests: 10 passed, 0 failed"
+    assert call("integrationLine({},t)") is None
+
+
+def test_no_follow_up_on_a_fanned_out_parent_and_the_page_renders_the_block():
+    assert call('canFollowUp({status:"done"})') is True
+    assert call('canFollowUp({status:"done",split:{tasks:[]}})') is False
+    assert call('canFollowUp({status:"working"})') is False
+    assert "const follow=canFollowUp(f)?" in SRC and "${splitNote(f)}${splitBlock(f)}" in SRC
+    assert '"Parts combined":"Partes combinadas"' in SRC

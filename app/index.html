@@ -575,6 +575,7 @@ const T="__TOKEN__";
 // ---------- languages: English is the key; Portuguese is an optional translation; switching reloads the page ----------
 const PT = {
   "Split: {n} parts":"Divisão: {n} partes","Split: 1 part":"Divisão: 1 parte","The split block could not be read: fix it or ask for changes":"Não foi possível ler o bloco de divisão: corrige-o ou pede alterações",
+  "Parts under way":"Partes em curso","Some parts were cancelled or failed":"Algumas partes foram canceladas ou falharam","All parts are ready to be combined":"Todas as partes estão prontas a combinar","Combining the parts":"A combinar as partes","Parts combined":"Partes combinadas","Combined: {c} conflict(s), tests: {tests}":"Combinado: {c} conflito(s), testes: {tests}",
   "Today":"Hoje","Projects":"Projetos","Views":"Vistas",
   "Needs attention":"Pede atenção","Open":"Aberto","No open requests":"Sem pedidos abertos","Not a git repo":"Sem git",
   "{n} uncommitted":"{n} por comitar","Git info as of {t}":"Informação do git de há {t}",
@@ -1312,6 +1313,18 @@ const canChangeKind=(f,stages)=>{const k=stages[f.kind]?f.kind:"feature";
 const splitLabel=(f,t)=>{const p=f&&f.stage==="plan"?f.plan_split:null;if(!p)return null;
   if(p.errors>0)return {text:t("The split block could not be read: fix it or ask for changes"),warn:true};
   return {text:p.n===1?t("Split: 1 part"):t("Split: {n} parts",{n:p.n}),warn:false};};
+// the parts of a fanned-out request, one plain-text row each; [] when there are none
+const partsRows=(f,t)=>(f&&f.parts||[]).map(p=>({title:p.title,stage:p.stage,status:p.status,ready:!!p.ready,
+  text:p.title+" — "+t(String(p.stage))+" · "+t(String(p.status))+(p.ready?" ✓":"")}));
+// where a fanned-out request stands as a whole
+const SPLIT_STATES={running:"Parts under way",partial:"Some parts were cancelled or failed",ready:"All parts are ready to be combined",
+  integrating:"Combining the parts",integrated:"Parts combined"};
+const splitStateLabel=(f,t)=>f&&SPLIT_STATES[f.split_state]?t(SPLIT_STATES[f.split_state]):null;
+// the integration report in one line
+const integrationLine=(f,t)=>{const i=f&&f.integration_summary;if(!i)return null;
+  return t("Combined: {c} conflict(s), tests: {tests}",{c:i.conflicts==null?"?":i.conflicts,tests:i.tests||"?"});};
+// a fanned-out request is closed by design: it leads to its parts, not to a follow-up
+const canFollowUp=f=>!f.split&&f.status==="done";
 // </review>
 let ROUTE={view:"today",q:""};
 function readHash(){
@@ -2254,6 +2267,7 @@ const lastWords=f=>f.last_message&&f.last_message.text?`</p><p class="lastmsg"><
 const waitChip=f=>f.status==="awaiting"&&waitedS(f,Date.now())>=60?`<span class="wait" title="${esc(tt("How long this request has been waiting for your decision"))}">${esc(tt("waiting {t}",{t:fmtDuration(waitedS(f,Date.now()))}))}</span>`:"";
 const parentLine=f=>f.parent_title?`<p class="cnote2">${esc(tt("Follows: {t}",{t:f.parent_title}))}</p>`:"";
 const splitNote=f=>{const s=splitLabel(f,tt);return s?`<p class="cnote2${s.warn?" warn":""}">${esc(s.text)}</p>`:"";};
+const splitBlock=f=>{const rows=partsRows(f,tt),st=splitStateLabel(f,tt),il=integrationLine(f,tt);if(!rows.length&&!st&&!il)return "";return `<div class="cnote2">${st?`<b>${esc(st)}</b>`:""}${rows.length?`<ul>${rows.map(r=>`<li>${esc(r.text)}</li>`).join("")}</ul>`:""}${il?`<p>${esc(il)}</p>`:""}</div>`;};
 const sizeNote=f=>f.stage==="plan"&&f.status==="awaiting"&&f.plan_tasks&&f.plan_tasks.n>f.plan_tasks.max?`<p class="cnote2 warn">${tt("This plan has <b>{n} steps</b> (more than {max}). Large builds tend not to pass the review in one go: consider asking the planner to keep the first self-contained part and leave the rest as follow-up requests.",{n:+f.plan_tasks.n,max:+f.plan_tasks.max})}</p>`:"";
 const diffLine=f=>f.diff&&!["done","cancelled"].includes(f.status)?`<p class="cnote2">${esc(tt(f.diff.committed?"Change in the worktree: {d} (committed by the pipeline).":"Change under review: {d} (not committed yet).",{d:diffText(f.diff,tt)}))}</p>`:"";
 function kindSwitch(f){
@@ -2265,7 +2279,7 @@ function kindSwitch(f){
 function finishHtml(f){
   if(!["done","cancelled"].includes(f.status))return "";
   const id=esc(f.id),x=f.finish;
-  const follow=f.status==="done"?`<button class="btn" data-act="followup" data-id="${id}" type="button">${tt("Create follow-up request")}</button>`:"";
+  const follow=canFollowUp(f)?`<button class="btn" data-act="followup" data-id="${id}" type="button">${tt("Create follow-up request")}</button>`:"";
   if(!x)return follow?`<div class="acts">${follow}</div>`:"";
   const br=`<b class="path">${esc(x.branch)}</b>`,into=`<b>${esc(x.into||"?")}</b>`;
   const dirty=x.dirty?" "+tt("{n} uncommitted file(s).",{n:+x.dirty}):"";
@@ -2284,7 +2298,7 @@ function featCard(f){
   const hist=f.history.map(h=>`<li>${esc(ago(h.at,Date.now(),tt))} · ${esc(h.stage)} · ${esc(up1(tt(h.event)))}${h.note?" — "+esc(h.note):""}</li>`).join("");
   return `<article class="feat s-${esc(f.status)}" data-fid="${esc(f.id)}"><div class="ftop"><h3>${esc(f.title)}</h3>${projLink(f.project)}<span class="kind">${esc(KIND_LABEL[f.kind]||KIND_LABEL.feature)}</span>${costChip(f)}${(()=>{const pr=S.projects.find(q=>q.name===f.project),d=pr?dom(pr):"other";return `<span class="dom d-${esc(d)}">${esc(cap(d))}</span>`;})()}
     ${waitChip(f)}<span class="fst">${esc(ST_LABEL[f.status]||f.status)}</span></div>
-    <p class="fdesc">${esc(f.desc)}</p>${parentLine(f)}${stepper(f)}${statusLine(f)}${pausedNote(f)}${sizeNote(f)}${splitNote(f)}${diffLine(f)}${threadHtml(f)}${artifacts(f)}${kindSwitch(f)}${finishHtml(f)}${actions(f)}${qaHtml(f)}
+    <p class="fdesc">${esc(f.desc)}</p>${parentLine(f)}${stepper(f)}${statusLine(f)}${pausedNote(f)}${sizeNote(f)}${splitNote(f)}${splitBlock(f)}${diffLine(f)}${threadHtml(f)}${artifacts(f)}${kindSwitch(f)}${finishHtml(f)}${actions(f)}${qaHtml(f)}
     <details class="hist"><summary>${tt("History")}</summary><ul>${hist}</ul></details></article>`;
 }
 let featHtml="";
