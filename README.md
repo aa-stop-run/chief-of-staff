@@ -154,6 +154,8 @@ Approved specs and plans are also copied into the project (`docs/specs/`, `docs/
 
 **Plans have a size.** The planner counts its steps; above 12 it plans the first self-contained part and lists the rest as follow-up requests, and the validator says so when it does not. Large builds rarely pass a review in one go.
 
+**Pipelines are data.** The dashboard's Pipelines tab shows the sequence of steps each kind of request goes through, and lets you create your own pipeline (from scratch or as a copy of a built-in one), edit its steps and delete it. Using your own pipeline for a request comes later.
+
 **A plan can split.** When a plan's work divides into independent parts (2 to 10, each owning its own files), the planner declares them in a «Split» section; the server checks the block, and only your «Approve» turns each part into its own request, run in parallel in its own worktree; a part that needs an earlier part waits for it and then builds on its code. When every part is committed and reviewed, one integration request merges their branches in a throw-away worktree and runs the whole suite there. Merging into your project stays yours.
 
 **From the terminal.** While the dashboard server runs, `python scripts/chief.py requests` lists what is waiting, and `approve`, `revise`, `ask` and `cancel` act on a request through the same API as the page, so the same gates apply.
