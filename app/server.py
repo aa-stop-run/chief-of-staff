@@ -44,6 +44,10 @@ import home  # noqa: E402
 import sessions  # noqa: E402
 import settings  # noqa: E402
 import fanout  # noqa: E402
+import gates  # noqa: E402
+import pipelines  # noqa: E402
+import pipelines_store  # noqa: E402
+import prompt_refs  # noqa: E402
 import prompts_integration  # noqa: E402
 import splitplan  # noqa: E402
 from alerts import Alerts  # noqa: E402
@@ -165,6 +169,14 @@ def _limited_workers(sessions: list) -> list:
             out.append({"id": s["id"], "kind": n.get("kind", "session"), "auto": bool(n.get("auto")),
                         "resumes_in_s": planusage.resumes_in(n, now)})
     return out
+
+
+def pipeline_catalog() -> dict:
+    """What the pipeline editor may offer: the closed sets the validator accepts (so the form can never invent a value)."""
+    return {"modes": list(pipelines.MODES), "risky_modes": list(pipelines.RISKY_MODES), "types": ["worker", "check", "approval"],
+            "gates": sorted(gates.GATES), "prompt_refs": list(prompt_refs.REFS), "verdicts": list(pipelines.VERDICTS),
+            "input_names": list(pipelines.INPUT_NAMES), "end": pipelines.END, "max_steps": pipelines.MAX_STEPS,
+            "max_rounds": pipelines.MAX_ROUNDS, "id_pattern": pipelines.PIPELINE_ID.pattern, "step_pattern": pipelines.STEP_ID.pattern}
 
 
 def _in_scope(f: dict, session_id: str, every=()) -> bool:
@@ -419,6 +431,11 @@ class Handler(BaseHTTPRequestHandler):
             if not _token_ok(parse_qs(u.query), self.headers):
                 return self._send(403, b"token", "text/plain")
             return self._json(200, settings.snapshot())
+        if u.path == "/api/pipelines" or (u.path.startswith("/api/pipelines/") and u.path.count("/") == 3):
+            if not _token_ok(parse_qs(u.query), self.headers):
+                return self._send(403, b"token", "text/plain")
+            self._lang = request_lang(self.headers.get("X-Lang"))
+            return self._pipeline_get(u.path)
         if u.path in ("/api/projects", "/api/project", "/api/project/doc"):
             q = parse_qs(u.query)
             if not _token_ok(q, self.headers):
@@ -426,6 +443,38 @@ class Handler(BaseHTTPRequestHandler):
             self._lang = request_lang(self.headers.get("X-Lang"))
             return self._project_route(u.path, q)
         self._send(404, b"not found", "text/plain")
+
+    # ---- pipelines (the user's own, in <home>/pipelines): list, read, create, update, delete ----
+    PIPELINE_STATUS = {"invalid": 422, "exists": 409, "builtin": 403, "notfound": 404, "inuse": 409}
+
+    def _pipeline_get(self, path: str) -> None:
+        try:
+            rows = pipelines_store.list_entries(chief.HOME)
+            if path == "/api/pipelines":
+                used = pipelines_store.usage(FEATURES.list())
+                return self._json(200, {"pipelines": [{**r, "used": used.get(r["id"], 0)} for r in rows], "catalog": pipeline_catalog(),
+                                        "home_hint": str(pipelines_store.user_dir(chief.HOME))})
+            one = pipelines_store.get(chief.HOME, path.rsplit("/", 1)[1])
+            return self._json(200, {**one, "used": pipelines_store.usage(FEATURES.list()).get(one["id"], 0)})
+        except pipelines_store.StoreError as e:
+            self._pipeline_error(e)
+
+    def _pipeline_error(self, e) -> None:
+        body = {"error": translate(str(e), self._lang)}
+        if e.count:
+            body["count"] = e.count
+        self._json(self.PIPELINE_STATUS.get(e.code, 400), body)
+
+    def _pipeline_post(self, parts: list, body: dict):
+        if parts == ["api", "pipelines"]:
+            return pipelines_store.create(chief.HOME, body.get("data"), body.get("forked_from") or None)
+        pid, action = parts[2], parts[3]
+        if action == "update":
+            return pipelines_store.update(chief.HOME, pid, body.get("data"))
+        if action == "delete":
+            pipelines_store.delete(chief.HOME, pid, FEATURES.list())
+            return {"ok": True}
+        raise FeatureError("unknown action")
 
     def _project_route(self, path: str, q: dict) -> None:
         try:
@@ -472,6 +521,8 @@ class Handler(BaseHTTPRequestHandler):
             result = self._route(urlparse(self.path).path, body)
             invalidate_cache()
             self._json(200, result)
+        except pipelines_store.StoreError as e:
+            self._pipeline_error(e)
         except (FeatureError, PendingError, ProposalError) as e:
             self._err(400, str(e))
         except Exception:
@@ -552,6 +603,8 @@ class Handler(BaseHTTPRequestHandler):
             return {"ok": True, "name": p["name"], "extraction": translate(_onboard(p), self._lang)}
         if DEMO and parts == ["api", "demo", "limit"]:        # demo only: pretend a worker hit (or left) a usage limit
             return {"limit": demo_runtime.set_limit(str(body.get("worker", "")), bool(body.get("on", True)), bool(body.get("auto")))}
+        if parts == ["api", "pipelines"] or (parts[:2] == ["api", "pipelines"] and len(parts) == 4):
+            return self._pipeline_post(parts, body)
         if parts == ["api", "session", "end"]:
             return _end_session()
         if parts == ["api", "inbox", "curate"]:
