@@ -32,7 +32,7 @@ Change nothing except the report: no product code, no commit, no push, no deleti
 Write the report to {report}, exactly in this format:
 {sections}
 Under «## Combined tests» write the lines «BASELINE: <command and result>» and «FINAL RESULT: <passed, failed, skipped>».
-Under «## Cross-part conflicts» list each conflict or write "None.". Under «## Look at first» put what the user should check first.
+Under «## Cross-part conflicts» list ONE bullet per real conflict, or write exactly "None." and nothing else there (put notes under «## Look at first»). Under «## Look at first» put what the user should check first.
 End with [DONE], or [BLOCKED] if you could not run the suite."""
 
 _PT = """És o worker de INTEGRAÇÃO do pedido «{title}» ({pid}). O plano foi dividido em partes que foram construídas e revistas cada uma
@@ -54,7 +54,7 @@ Não alteres nada além do relatório: nem código do produto, nem commit, nem p
 Escreve o relatório em {report}, exatamente neste formato:
 {sections}
 Em «## Testes combinados» escreve as linhas «LINHA DE BASE: <comando e resultado>» e «RESULTADO FINAL: <passaram, falharam, saltados>».
-Em «## Conflitos entre partes» lista cada conflito ou escreve "Nenhum.". Em «## Ver primeiro» põe o que o utilizador deve ver primeiro.
+Em «## Conflitos entre partes» lista UM ponto por conflito real, ou escreve exatamente "Nenhum." e mais nada aí (as notas vão para «## Ver primeiro»). Em «## Ver primeiro» põe o que o utilizador deve ver primeiro.
 Termina com [DONE], ou [BLOCKED] se não conseguiste correr a suite."""
 
 
@@ -89,7 +89,8 @@ def parse_report(text: str) -> dict:
     sec = _section(text, ("Cross-part conflicts", "Conflitos entre partes"))
     if sec.strip():
         items = [ln for ln in sec.splitlines() if ln.strip()]
-        if len(items) == 1 and items[0].strip().lower().rstrip(".") in ("none", "nenhum", "nenhuma"):
+        first = re.sub(r"^[-*\s]+", "", items[0]).strip().lower().rstrip(".")
+        if first in ("none", "nenhum", "nenhuma"):      # «None.» first: any notes after it are not conflicts
             conflicts = 0
         else:
             conflicts = sum(1 for ln in items if re.match(r"\s*([-*]|\d+[.)])\s", ln)) or len(items)

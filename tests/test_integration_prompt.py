@@ -80,3 +80,10 @@ def test_parse_report_garbage():
     empty = {"parts": {}, "conflicts": None, "tests": ""}
     for junk in ("", "nothing useful", None, 42):
         assert pi.parse_report(junk) == empty
+
+
+def test_none_first_means_no_conflicts_even_with_notes_after_it():
+    real = ("## Execution status\n- p-1: APPROVED\n\n## Cross-part conflicts\n- None.\n- combine.json: conflicts `{}`.\n- Seams are disjoint.\n\n"
+            "## Combined tests\n- FINAL RESULT: 3 passed, 0 failed, 0 skipped\n")
+    assert pi.parse_report(real) == {"parts": {"p-1": "APPROVED"}, "conflicts": 0, "tests": "3 passed, 0 failed, 0 skipped"}
+    assert pi.parse_report("## Cross-part conflicts\n- a clashes with b\n- c clashes with d\n")["conflicts"] == 2
