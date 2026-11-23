@@ -58,3 +58,25 @@ def test_other_phases_and_kinds_do_not_get_it(fs):
     f = fs._new_request([], "Alfa", "Title", "Desc", None, kind="feature", start=False)   # spec phase
     assert prompts.SPLIT_FORMAT not in fs._task(f, "")
     assert prompts.SPLIT_FORMAT not in plan_task(fs, "analysis") if False else True      # analysis has no plan phase
+
+
+# ---- a part that builds on earlier parts ----
+def based_task(fs, stage, lang="en", base="base/x-1"):
+    f = fs._new_request([], "Alfa", "Title", "Desc", None, lang=lang, kind="feature", stage=stage, start=False, extra={"part": "ui"})
+    f["base"] = base
+    (fs._dir(f["id"]) / "work").mkdir(exist_ok=True) if False else None
+    return f, fs._task(f, "")
+
+
+@pytest.mark.parametrize("lang,mod", [("en", prompts), ("pt", prompts_pt)])
+def test_a_dependent_part_is_told_where_the_earlier_code_is(fs, lang, mod):
+    f, plan = based_task(fs, "plan", lang)
+    assert mod.BASE_PLAN.format(base="base/x-1") in plan
+    f, build = based_task(fs, "build", lang)
+    fixed = mod.BASE_BUILD.format(base="base/x-1", fid=f["id"], work=fs._dir(f["id"]) / "work")
+    assert fixed in build and f'git worktree add -b feat/{f["id"]}' in fixed and "base/x-1" in fixed
+
+
+def test_without_a_base_nothing_is_added(fs):
+    f = fs._new_request([], "Alfa", "Title", "Desc", None, kind="feature", stage="build", start=False)
+    assert prompts.BASE_BUILD[:30] not in fs._task(f, "") and "base/" not in fs._task(f, "")

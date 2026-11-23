@@ -68,6 +68,10 @@ def render(ref: str, lang: str, ctx: dict) -> str:
         text += P.PLAN_SIZE.replace("{max}", str(MAX_PLAN_TASKS))
         if kind in fanout.FAN_OUT_KINDS and not ctx.get("part"):       # JSON braces: appended after .format, like PLAN_SIZE
             text += P.SPLIT_FORMAT
+    if ctx.get("base") and phase == "plan":          # a part that builds on earlier parts: where their code is
+        text += P.BASE_PLAN.format(base=ctx["base"])
+    if ctx.get("base") and phase == "build" and not (d / "work").exists():
+        text += P.BASE_BUILD.format(base=ctx["base"], fid=ctx["fid"], work=d / "work")
     text += P.BRIEF
     if not ctx.get("has_vault", True):
         text += P.NO_VAULT_NOTE

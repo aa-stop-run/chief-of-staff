@@ -214,6 +214,10 @@ SPLIT_FORMAT = ("\nDivisão (opcional): quando o trabalho se divide em partes qu
 SPLIT_CHECK = ("9. Divisão: se o plano tem uma secção «Divisão», o servidor já confere ids, ficheiros e sobreposição; tu só "
                "confirmas que cada parte é autónoma (pode ser construída e revista sozinha) e assinalas estado oculto partilhado "
                "entre partes como achado MEDIUM com o título \"split-coupling\".")
+BASE_PLAN = ("\nEsta parte parte de partes anteriores da mesma divisão: o código delas NÃO está na pasta do projeto, está no ramo "
+             "`{base}`. Lê-o a partir daí (`git show {base}:<caminho>`, `git diff HEAD...{base}`) e planeia sobre ele, não sobre o HEAD.")
+BASE_BUILD = ("\nIMPORTANTE: esta parte parte de partes anteriores, cujo código está no ramo `{base}`. Cria o worktree A PARTIR desse ramo, "
+              "não do HEAD, para começares com o código delas: git worktree add -b feat/{fid} \"{work}\" {base}")
 
 FEEDBACK_SELECTED = ("A revisão independente (ficheiro {review}) apontou achados e o utilizador decidiu um a um. Corrige SÓ os "
                      "achados listados em «Achados a corrigir»; os «aceites» foram aceites como estão e não lhes tocas. "

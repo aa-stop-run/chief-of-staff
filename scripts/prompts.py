@@ -213,6 +213,10 @@ SPLIT_FORMAT = ("\nSplit (optional): when the work divides into parts that each 
 SPLIT_CHECK = ("9. Split: if the plan has a \"Split\" section, the server already checks ids, files and overlap; you only check "
                "that each part is self-contained (it could be built and reviewed alone) and flag shared hidden state between "
                "parts as a MEDIUM finding titled \"split-coupling\".")
+BASE_PLAN = ("\nThis part builds on earlier parts of the same split: their code is NOT in the project's checkout, it is on the branch "
+             "`{base}`. Read it from there (`git show {base}:<path>`, `git diff HEAD...{base}`) and plan against it, not against HEAD.")
+BASE_BUILD = ("\nIMPORTANT: this part builds on earlier parts, whose code is on the branch `{base}`. Create your worktree FROM that branch, "
+              "not from HEAD, so you start with their code: git worktree add -b feat/{fid} \"{work}\" {base}")
 
 FEEDBACK_SELECTED = ("The independent review (file {review}) raised findings and the user decided on them one by one. Fix ONLY the "
                      "findings listed under “Findings to fix”; the “accepted” ones were accepted as they are and you must not touch "
