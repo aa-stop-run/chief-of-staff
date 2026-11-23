@@ -130,7 +130,7 @@ def test_a_request_can_be_created_from_your_pipeline_and_its_card_brings_the_pha
 def test_a_builtin_request_card_has_no_pipeline_name(srv):
     status, f = srv.post("/api/features", {"project": "Dotfiles", "title": "Tidy", "desc": "tidy", "kind": "feature"})
     card = next(c for c in srv.get("/api/state")[1]["features"] if c["id"] == f["id"])
-    assert "pipeline_name" not in card and "stages" not in card
+    assert "pipeline_name" not in card and card["stages"] == ["concept", "spec", "plan", "build", "review"]     # the demo server runs the shipped feature type
 
 
 def test_a_pipeline_that_does_not_exist_or_cannot_start_a_request_is_a_400(srv):

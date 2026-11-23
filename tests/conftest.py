@@ -24,6 +24,7 @@ SERVER_TESTS = ("test_demo.py", "test_demo_server.py", "test_project_routes.py",
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "slow: starts a demo server (deselect with -m \"not slow\" for a fast run)")
+    config.addinivalue_line("markers", "with_concept: uses the shipped built-in pipelines (feature and maintenance start with the concept phase)")
 
 
 def pytest_collection_modifyitems(items):
@@ -40,6 +41,20 @@ def isolated_chief(monkeypatch, tmp_path):
     monkeypatch.setattr(chief, "VAULT_LANG", "en")
     monkeypatch.setattr(chief, "SCHEMA", chief.VAULT_SCHEMA["en"])
     monkeypatch.setattr(chief, "DRAFT_TEXT", chief.DRAFT_TEXTS["en"])
+
+
+LEGACY_PIPELINES = Path(__file__).resolve().parent / "legacy_pipelines"
+
+
+@pytest.fixture(autouse=True)
+def legacy_pipelines(request, monkeypatch):
+    """The built-in feature and maintenance pipelines now start with the concept phase. The long-standing tests of the flow
+    without it (still supported: older requests, and your own pipelines without the concept) run on the version-1 definitions kept in
+    tests/legacy_pipelines; a test that is about the concept flow, or about the shipped files, opts out with `with_concept`."""
+    if request.node.get_closest_marker("with_concept"):
+        return
+    import pipelines
+    monkeypatch.setattr(pipelines, "builtin_dir", lambda: LEGACY_PIPELINES)
 
 
 def test_the_suite_never_points_at_the_real_data_folder():

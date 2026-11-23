@@ -39,6 +39,18 @@ provisional version of the artifact, with your assumptions flagged, and the ques
 End with [DONE]."""
 
 STAGE_TEXT = {
+    "concept": """## Phase 0: solution analysis (concept)
+You analyse the SOLUTION before anyone writes a spec or a plan. You are a background worker and cannot talk to the user: do NOT ask
+questions in chat (record each doubt in "Open questions", in the format above, with your recommendation); do NOT write product code,
+do NOT commit and write nothing in the repo (the artifact is the file indicated above, outside the repo).
+Read the request, the project's vault note, CLAUDE.md and README, and the code the request touches. Search the repo (grep, git log)
+for what already exists BEFORE proposing anything new.
+Be direct: lead with what is wrong, missing or risky; no praise; plain words, no buzzwords; do not accept the request's framing
+by default, say what the user may not be seeing.
+Sections (use these exact headings): Overview · Goals · Non-goals · Approaches considered (two or three REAL approaches, the
+recommended one first, each with its trade-offs and why it was kept or rejected) · Recommendation and decisions (numbered D1, D2…,
+each with its reason) · What already exists in the repo (file:line) · What could break (stored data and migrations, requests in
+flight, configuration, other features, irreversible actions) · Smallest useful version · Open questions.""",
     "spec": """## Phase 1: specification
 Use the `superpowers:brainstorming` skill (Skill tool) to explore the request and design the spec. Mandatory adaptations, because
 you are a background worker and cannot talk to the user: do NOT ask questions in chat or wait for answers (record each doubt in
@@ -184,6 +196,55 @@ CRITICAL = the plan would lead to data loss, a security failure or something con
 make the implementation fail or come out wrong; MEDIUM = ambiguity or risk; LOW = style.
 If there are no findings write "None."
 End with [DONE]."""
+
+CONCEPTCHECK = """Request «{title}» (id {fid}) in project {project}.
+
+## User request
+{desc}
+
+## Phase 0b: independent concept validation
+You are the independent validator of a solution concept: you did NOT write it and must not trust it. It is READ-ONLY: do NOT
+change code or the concept, do NOT commit or check out and do NOT install anything; you only read and run verification commands
+(ls, git log, grep). Do not read or print .env*, keys, tokens or secret files. Work only inside the project's repo and the
+artifacts folder.
+Concept to validate: {concept}. Read it and check it against the real repo. Lead with what is wrong, missing or risky; no praise;
+plain words.
+Check through these four lenses, in this order:
+1. Reuse and simplicity: search the repo before accepting anything new. Does a module, helper, setting or page already do most of
+   this? Is anything speculative, built for a need nobody has yet? Is the "smallest useful version" really small? Would it be hard
+   to keep working in a year?
+2. Alternatives and the hidden trade-off: are there at least two real approaches (not one real and one straw man), each with honest
+   trade-offs? What trade-off does the recommendation accept as unavoidable, and is there a known way to avoid it? Every remedy you
+   suggest must come with its own cost.
+3. What breaks: stored data and its migrations, requests already in flight, the user's configuration, other features it touches,
+   irreversible actions or actions on shared or production systems, secrets.
+4. Fit with the request: does it solve what was asked, for this user, and no more? For dashboard changes, is it simple to use? How
+   would anyone know it works (criteria that can be tested)? Are the open questions real, and is each decision (D1…) justified?
+Write the result to {out} (not to chat), exactly in this format:
+## Verdict
+APPROVED, WITH RESERVATIONS or BLOCKED, and one sentence. (BLOCKED if there is any CRITICAL or HIGH.)
+## Checks
+The commands you ran and what you found.
+## Findings
+- **[CRITICAL|HIGH|MEDIUM|LOW] concept section — title:** what is wrong and how to fix it
+CRITICAL = the concept would lead to data loss, a security failure or something that contradicts the request; HIGH = a gap or error
+that would make the spec or the plan come out wrong (a missing approach, a reusable component ignored, a break left unhandled);
+MEDIUM = ambiguity or risk; LOW = style.
+If there are no findings write "None."
+End with [DONE]."""
+
+FEEDBACK_CONCEPT = ("The independent concept validation (file {path}) blocked it. Read it and fix the concept: the CRITICAL and HIGH "
+                    "ones first, then the rest where it makes sense. Keep the structure and the sections.")
+# Appended to the spec and plan prompts only when the request has an approved concept (a request without one gets the old prompts).
+CONCEPT_BLOCK = ("\n\n## Approved concept\nThe user approved the solution concept in {concept}. Read it first and carry out its "
+                 "decisions (D1, D2…) and its smallest useful version; cite the decision numbers where they apply. Do not reopen a "
+                 "decision: if you disagree, write it as an open question that cites the decision.")
+
+# Added to the independent plan validation and to the reviews of code (the reviewers' stance, adapted from the Elephant-Goldfish Model).
+PLANCHECK_REUSE = ("10. Reuse and simplicity: search the repo (grep, git log) for modules, helpers or settings that already do part of "
+                   "what the plan builds. New code that duplicates something that exists is a MEDIUM finding titled \"reuse\" that "
+                   "names what to reuse; work nobody asked for (built for a future need) is a MEDIUM finding titled \"yagni\".")
+CRITIQUE_FIRST = "\nLead with what is wrong, missing or risky; no praise, and do not accept the framing of the work by default."
 
 # How big a plan may be before it should be split: a build that is too large does not converge (its review keeps finding what
 # was left undone). The planner counts its steps; the validator proposes the split. features.MAX_PLAN_TASKS is the number.

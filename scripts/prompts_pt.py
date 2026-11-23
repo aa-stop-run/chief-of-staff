@@ -41,6 +41,18 @@ escreve na mesma a melhor versão provisória do artefacto, com as tuas suposiç
 Termina com [DONE]."""
 
 STAGE_TEXT = {
+    "concept": """## Fase 0: análise da solução (conceito)
+Analisas a SOLUÇÃO antes de alguém escrever uma spec ou um plano. És um worker em segundo plano e não podes falar com o utilizador:
+NÃO faças perguntas em chat (regista cada dúvida em «Perguntas em aberto», no formato indicado, com a tua recomendação); NÃO escrevas
+código de produto, NÃO faças commits e não escrevas nada no repo (o artefacto é o ficheiro indicado acima, fora do repo).
+Lê o pedido, a nota do projeto no vault, o CLAUDE.md e o README, e o código em que o pedido toca. Pesquisa no repo (grep, git log) o que
+já existe ANTES de propores seja o que for de novo.
+Sê direto: começa pelo que está mal, em falta ou arriscado; sem elogios; palavras simples, sem chavões; não aceites o enquadramento do
+pedido por defeito, diz o que o utilizador pode não estar a ver.
+Secções (usa exatamente estes títulos): Visão geral · Objetivos · Não-objetivos · Abordagens consideradas (duas ou três abordagens
+REAIS, a recomendada primeiro, cada uma com os seus compromissos e porque foi mantida ou rejeitada) · Recomendação e decisões
+(numeradas D1, D2…, cada uma com a sua razão) · O que já existe no repo (ficheiro:linha) · O que pode partir (dados guardados e
+migrações, pedidos em curso, configuração, outras funcionalidades, ações irreversíveis) · Menor versão útil · Perguntas em aberto.""",
     "spec": """## Fase 1: especificação
 Usa a skill `superpowers:brainstorming` (ferramenta Skill) para explorar o pedido e desenhar a spec. Adaptações obrigatórias, porque
 és um worker em segundo plano e não podes conversar com o utilizador: NÃO faças perguntas em chat nem esperes por respostas (regista
@@ -169,6 +181,48 @@ implementação falhar ou sair errada; MEDIUM = ambiguidade ou risco; LOW = esti
 Se não houver achados escreve «Nenhum.»
 Termina com [DONE]."""
 
+CONCEPTCHECK = """Pedido «{title}» (id {fid}) no projeto {project}.
+
+## Pedido do utilizador
+{desc}
+
+## Fase 0b: validação independente do conceito
+És o validador independente de um conceito de solução: NÃO foste tu que o escreveste e não deves confiar nele. É SÓ LEITURA: NÃO
+alteres código nem o conceito, NÃO faças commits nem checkouts e NÃO instales nada; só lês e corres comandos de verificação (ls, git
+log, grep). Não leias nem imprimas .env*, chaves, tokens ou ficheiros de segredos. Trabalha só dentro do repo do projeto e da pasta
+dos artefactos.
+Conceito a validar: {concept}. Lê-o e confere-o com o repo real. Começa pelo que está mal, em falta ou arriscado; sem elogios; palavras
+simples.
+Verifica através destas quatro lentes, por esta ordem:
+1. Reutilização e simplicidade: pesquisa no repo antes de aceitares algo novo. Já existe um módulo, função, definição ou página que
+   faz quase isto? Há algo especulativo, feito para uma necessidade que ainda ninguém tem? A «menor versão útil» é mesmo pequena? Seria
+   difícil de manter a funcionar daqui a um ano?
+2. Alternativas e o compromisso escondido: há pelo menos duas abordagens reais (não uma real e uma de palha), cada uma com compromissos
+   honestos? Que compromisso a recomendação aceita como inevitável, e existe uma forma conhecida de o evitar? Cada remédio que
+   sugerires tem de vir com o seu próprio custo.
+3. O que pode partir: dados guardados e as suas migrações, pedidos já em curso, a configuração do utilizador, outras funcionalidades em
+   que toca, ações irreversíveis ou em sistemas partilhados ou de produção, segredos.
+4. Adequação ao pedido: resolve o que foi pedido, para este utilizador, e não mais? Nas alterações ao dashboard, é simples de usar? Como
+   se saberá que funciona (critérios testáveis)? As perguntas em aberto são reais e cada decisão (D1…) está justificada?
+Escreve o resultado em {out} (não no chat), exatamente neste formato:
+## Veredicto
+APROVADO, COM RESERVAS ou BLOQUEADO, e uma frase. (BLOQUEADO se houver algum CRITICAL ou HIGH.)
+## Verificações
+Os comandos que correste e o que encontraste.
+## Achados
+- **[CRITICAL|HIGH|MEDIUM|LOW] secção do conceito — título:** o que está mal e como corrigir
+CRITICAL = o conceito levaria a perda de dados, falha de segurança ou a algo que contradiz o pedido; HIGH = lacuna ou erro que faria a
+spec ou o plano sair errado (uma abordagem em falta, um componente reutilizável ignorado, uma rutura sem tratamento);
+MEDIUM = ambiguidade ou risco; LOW = estilo.
+Se não houver achados escreve «Nenhum.»
+Termina com [DONE]."""
+
+FEEDBACK_CONCEPT = ("A validação independente do conceito (ficheiro {path}) bloqueou-o. Lê-a e corrige o conceito: primeiro os CRITICAL e "
+                    "HIGH, depois o resto que fizer sentido. Mantém a estrutura e as secções.")
+CONCEPT_BLOCK = ("\n\n## Conceito aprovado\nO utilizador aprovou o conceito da solução em {concept}. Lê-o primeiro e cumpre as suas "
+                 "decisões (D1, D2…) e a sua menor versão útil; cita os números das decisões onde se aplicarem. Não reabras uma "
+                 "decisão: se discordas, escreve-o como uma pergunta em aberto que cita a decisão.")
+
 BUILD_RESUME = """## Fase 3: implementação (continuação)
 O worktree desta implementação já existe em "{work}" (ramo feat/{fid}): trabalha lá com `cd "{work}"` ou caminhos absolutos. NÃO uses a ferramenta EnterWorktree (pede licença ao utilizador e um worker em segundo plano não a pode dar, ficaria bloqueado). NÃO o voltes a criar nem
 faças checkout na pasta principal do repo. Spec: {spec}. Plano: {plan}.
@@ -185,6 +239,12 @@ Seguida de «Verificado por mim» (cada coisa com o comando que correste e o res
 outra pessoa ou de acesso que não tens). Se não correste nada que prove o resultado, o estado é NÃO EXECUTADO: um relatório de
 passos «para executares» é um runbook, não uma implementação. Só termina com [DONE] se o estado for EXECUTADO E VERIFICADO;
 caso contrário termina com [BLOCKED] e diz o que falta. Se o projeto não é um repositório git, não há worktree: diz-o no relatório."""
+
+# Acrescentado à validação independente do plano e às revisões de código (a postura dos revisores, adaptada do Elephant-Goldfish Model).
+PLANCHECK_REUSE = ("10. Reutilização e simplicidade: pesquisa no repo (grep, git log) módulos, funções ou definições que já fazem parte "
+                   "do que o plano constrói. Código novo que duplica algo que existe é um achado MEDIUM com o título «reuse» que diz "
+                   "o que reutilizar; trabalho que ninguém pediu (feito para uma necessidade futura) é um achado MEDIUM com o título «yagni».")
+CRITIQUE_FIRST = "\nComeça pelo que está mal, em falta ou arriscado; sem elogios, e não aceites por defeito o enquadramento do trabalho."
 
 # O tamanho que um plano pode ter antes de dever ser partido (ver prompts.PLAN_SIZE).
 PLAN_SIZE = ("\nTamanho: depois dos passos ordenados escreve a linha «TASKS: <número de passos ordenados>». Se o trabalho precisar de "

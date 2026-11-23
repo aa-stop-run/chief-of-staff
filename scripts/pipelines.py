@@ -23,7 +23,7 @@ VERDICTS = ("approved", "reserves", "blocked", "unknown")
 END = "end"
 # The {fields} a prompt may use (what the prompts are formatted with today).
 MARKERS = frozenset({"title", "fid", "project", "desc", "path", "qpath", "spec", "plan", "report", "work", "out",
-                     "feedback", "prev", "review", "comment"})
+                     "feedback", "prev", "review", "comment", "concept"})
 _COMMON = {"id", "type", "label", "next", "notes"}
 _WORKER = _COMMON | {"phase", "artifact", "mode", "prompt", "skills", "questions", "model", "effort", "permissions",
                      "archive", "report_gate", "inputs", "keep_questions_on_next"}
@@ -284,7 +284,7 @@ def validate(data: dict, *, filename_id: str | None = None, builtin: bool = Fals
 
 _FREE = frozenset({"id", "label", "notes", "next", "model", "effort"})      # what a user may change in a step taken from a built-in
 _INPUT_PHASE = {"spec": "spec", "plan": "plan", "report": "build"}          # the phase whose artifact an input names
-_NEEDS = {"plan-validation": "plan", "review": "build"}
+_NEEDS = {"concept-validation": "concept", "plan-validation": "plan", "review": "build"}
 _ROUNDS = frozenset({"max_rounds", "retry"})      # how many automatic rounds a check may use is the user's to set
 
 
@@ -331,6 +331,8 @@ def runnable(data: dict) -> list:
         if ph in seen:
             problems.append(f"step «{sid}»: the phase «{ph}» is used twice")
             continue
+        if ph == "concept" and ("spec" in seen or "plan" in seen):
+            problems.append(f"step «{sid}»: the concept must come before the spec and the plan")
         if _canon(s, names) != _canon(ref, base_names):
             problems.append(f"step «{sid}»: it must be the built-in «{ph}» step (only its id, label, model, effort and rounds may change)")
         needs = [_INPUT_PHASE[i] for i in ref.get("inputs", []) if i in _INPUT_PHASE] + ([_NEEDS[ph]] if ph in _NEEDS else [])

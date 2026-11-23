@@ -289,8 +289,9 @@ def _card_extras(f: dict, titles: dict, every=()) -> dict:
     if f.get("parent") in titles:
         out["parent_title"] = titles[f["parent"]]
     mine = FEATURES.pipeline_view(f)
-    if mine:
-        out["pipeline_name"], out["stages"] = mine["name"], mine["stages"]
+    out["stages"] = mine["stages"]
+    if mine["name"]:
+        out["pipeline_name"] = mine["name"]
     if f["status"] == "failed" and f.get("worker_id"):
         said = chief.worker_last_message(f["worker_id"])
         if said:

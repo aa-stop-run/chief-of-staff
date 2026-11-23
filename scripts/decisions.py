@@ -9,7 +9,7 @@ from pathlib import Path
 FILE = "decisions.md"
 SKIP = frozenset({"worker launched"})                                  # noise: the history keeps it, the trail does not
 HASHED = frozenset({"approved", "approved automatically", "committed", "changes requested"})
-ARTIFACTS = ("spec.md", "plan.md", "plan-review.md", "report.md", "review.md")
+ARTIFACTS = ("concept.md", "concept-review.md", "spec.md", "plan.md", "plan-review.md", "report.md", "review.md")
 
 
 def digest(path: Path) -> str:

@@ -132,6 +132,7 @@ The Chief is a small local web server plus a set of scripts. It does not run mod
 
 <p align="center"><img src="docs/img/pipeline.svg" alt="Spec, plan, plan validation, implementation, review, commit and merge, with your approval at each gate" width="900"></p>
 
+0. **Concept** (features and maintenance). Before any spec or plan, a worker analyses the **solution**: two or three real approaches with their trade-offs, what already exists in the repository, what could break, the smallest useful version, and numbered decisions. An independent validator (fresh context, read-only) challenges it through four lenses (reuse and simplicity, alternatives and the hidden trade-off, what breaks, fit with the request) and **you approve the concept** before the spec (or the plan, for maintenance) is written; it builds on the decisions and does not reopen them. Adapted from the brainstorm step of Google's [Elephant-Goldfish Model](https://github.com/google/elephant-goldfish-model) (Apache 2.0).
 1. **Spec.** A worker reads the code and your request and writes the spec, with its doubts as questions that have options and a recommendation. You answer them in the page and approve, or ask for changes (the same phase runs again with your comment).
 2. **Plan.** A worker writes the plan, tests first. **Before you see it**, an independent validator checks coverage of the spec, that the files and commands it names exist, the order of the steps, scope and the tests section. If it finds a critical or high problem, the findings go back to the planner automatically, once; minor findings do not send the plan back, they arrive with it for you to fix or accept.
 3. **Implementation**, in its own `git worktree` (branch `feat/<id>`, kept in your data folder, never in your checkout). The worker runs the project's **whole** test suite *before* touching anything (the baseline), writes tests first, runs it again at the end, and leaves the work **uncommitted**.
@@ -143,9 +144,9 @@ Every report must say what was actually executed and verified (`EXECUTED AND VER
 
 | Kind | Phases | Notes |
 |---|---|---|
-| **Feature** | spec → plan → implementation → review | |
+| **Feature** | concept → spec → plan → implementation → review | |
 | **Bug fix** | diagnosis → plan → fix → review | The plan's first step is a test that reproduces the bug and fails; the reviewer checks it. |
-| **Maintenance** | plan → execution → review | Behaviour must not change: the suite stays equal to the baseline. No spec. |
+| **Maintenance** | concept → plan → execution → review | Behaviour must not change: the suite stays equal to the baseline. No spec. |
 | **Analysis** | read-only report → independent verification | No worktree, no commit. The approved report is archived in the project's `docs/analyses/` and in the vault. |
 
 Approved specs and plans are also copied into the project (`docs/specs/`, `docs/plans/`), uncommitted and never overwriting anything.

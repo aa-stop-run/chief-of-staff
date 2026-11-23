@@ -5,8 +5,8 @@ OVERRIDE[(language, kind, phase)] replaces the phase text; EXTRA[(language, kind
 
 KINDS = ("feature", "fix", "analysis", "maintenance", "ship", "release")
 # phases of each kind (the files are the usual ones: spec.md, plan.md, report.md and review.md)
-KIND_STAGES = {"feature": ("spec", "plan", "build", "review"), "fix": ("spec", "plan", "build", "review"),
-               "maintenance": ("plan", "build", "review"), "analysis": ("build", "review"),
+KIND_STAGES = {"feature": ("concept", "spec", "plan", "build", "review"), "fix": ("spec", "plan", "build", "review"),
+               "maintenance": ("concept", "plan", "build", "review"), "analysis": ("build", "review"),
                "release": ("plan", "build", "review"),   # release: plan = what goes to production and how; build = independent regression; review = the promotion
                "ship": ("build", "review")}   # ship: build = prepare the commit locally; review = publish (push / PR) after the user approves
 
@@ -120,6 +120,10 @@ If there are no findings write "None.\"""",
 }
 
 EXTRA = {
+    ("pt", "maintenance", "concept"): """Manutenção: o comportamento NÃO muda. Diz que comportamento fica preservado e como o vais provar (que testes ou
+comandos). Não há spec: o pedido do utilizador é o requisito, e este conceito é a análise que o plano vai seguir.""",
+    ("en", "maintenance", "concept"): """Maintenance: behaviour does NOT change. Say which behaviour is preserved and how it will be proven (which
+tests or commands). There is no spec: the user's request is the requirement, and this concept is the analysis the plan will follow.""",
     # ---------------------------------------------------------------- Portuguese (translation)
     ("pt", "fix", "plan"): """Correção de bug: o plano ataca a CAUSA RAIZ do diagnóstico (não o sintoma), com a alteração mínima, sem refactors nem
 funcionalidades extra. O PRIMEIRO passo tem de ser um teste que reproduz o bug e falha (diz que saída esperas dele), e só depois a correção.""",

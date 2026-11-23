@@ -7,10 +7,11 @@ import prompts
 import prompts_kinds
 import prompts_pt
 
-ARTIFACT = {"spec": "spec.md", "plan": "plan.md", "build": "report.md", "review": "review.md"}
+ARTIFACT = {"concept": "concept.md", "spec": "spec.md", "plan": "plan.md", "build": "report.md", "review": "review.md"}
 QUESTIONS_FILE = "questions.json"
 PLAN_REVIEW = "plan-review.md"
-PHASES = ("spec", "plan", "build", "review", "plancheck")
+CONCEPT_REVIEW = "concept-review.md"
+PHASES = ("concept", "spec", "plan", "build", "review", "plancheck", "conceptcheck")
 MAX_PLAN_TASKS = 12   # above this many ordered steps the planner plans a first part and the validator proposes a split
 
 
@@ -23,6 +24,8 @@ def refs() -> tuple:
     out = []
     for kind, stages in prompts_kinds.KIND_STAGES.items():
         out += [f"builtin:{kind}.{s}" for s in stages]
+        if "concept" in stages:
+            out.append(f"builtin:{kind}.conceptcheck")
         if "plan" in stages and kind not in ("release",):
             out.append(f"builtin:{kind}.plancheck")
     return tuple(out)
@@ -43,6 +46,10 @@ def render(ref: str, lang: str, ctx: dict) -> str:
         raise KeyError(f"unknown prompt reference: {ref}")
     kind, phase = ref[len("builtin:"):].split(".")
     P, d = _module(lang), Path(ctx["dir"])
+    if phase == "conceptcheck":
+        return P.language_rule(ctx["note_lang"]) + P.CONCEPTCHECK.format(
+            title=ctx["title"], fid=ctx["fid"], project=ctx["project"], desc=ctx["desc"], concept=d / ARTIFACT["concept"],
+            out=d / CONCEPT_REVIEW) + P.BRIEF
     if phase == "plancheck":
         base = P.language_rule(ctx["note_lang"]) + P.PLANCHECK
         extra = prompts_kinds.EXTRA.get((lang, kind, "plancheck"))
@@ -51,7 +58,7 @@ def render(ref: str, lang: str, ctx: dict) -> str:
         size = P.PLANCHECK_SIZE.replace("{max}", str(MAX_PLAN_TASKS))
         if kind in fanout.FAN_OUT_KINDS and not ctx.get("part"):       # SPLIT_CHECK has no braces: it may go before .format
             size += "\n" + P.SPLIT_CHECK
-        base = base.replace(P.OUT_MARKER, size + "\n" + P.OUT_MARKER, 1)
+        base = base.replace(P.OUT_MARKER, size + "\n" + P.PLANCHECK_REUSE + "\n" + P.OUT_MARKER, 1)
         return base.format(title=ctx["title"], fid=ctx["fid"], project=ctx["project"], desc=ctx["desc"],
                            spec=spec_ref(kind, lang, d), plan=d / ARTIFACT["plan"], out=d / PLAN_REVIEW) + P.BRIEF
     text = P.language_rule(ctx["note_lang"]) + P.COMMON.format(
@@ -64,6 +71,8 @@ def render(ref: str, lang: str, ctx: dict) -> str:
         template += "\n" + extra
     text += template.format(fid=ctx["fid"], spec=spec_ref(kind, lang, d), plan=d / ARTIFACT["plan"],
                             report=d / ARTIFACT["build"], work=d / "work")
+    if phase in ("spec", "plan") and (d / ARTIFACT["concept"]).is_file():        # the user approved a solution concept: build on it
+        text += P.CONCEPT_BLOCK.format(concept=d / ARTIFACT["concept"])
     if phase == "plan" and kind != "release":          # a release plan is a checklist, not a build to be sized
         text += P.PLAN_SIZE.replace("{max}", str(MAX_PLAN_TASKS))
         if kind in fanout.FAN_OUT_KINDS and not ctx.get("part"):       # JSON braces: appended after .format, like PLAN_SIZE
@@ -72,6 +81,8 @@ def render(ref: str, lang: str, ctx: dict) -> str:
         text += P.BASE_PLAN.format(base=ctx["base"])
     if ctx.get("base") and phase == "build" and not (d / "work").exists():
         text += P.BASE_BUILD.format(base=ctx["base"], fid=ctx["fid"], work=d / "work")
+    if phase == "review" and kind in ("feature", "fix", "maintenance", "analysis"):
+        text += P.CRITIQUE_FIRST                        # the independent reviewers lead with the problems
     text += P.BRIEF
     if not ctx.get("has_vault", True):
         text += P.NO_VAULT_NOTE

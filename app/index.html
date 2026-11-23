@@ -608,7 +608,16 @@ const PT = {
   "This part starts by itself when the parts it follows are ready":"Esta parte arranca sozinha quando as partes que segue estiverem prontas","Combined: {c} conflict(s), tests: {tests}":"Combinado: {c} conflito(s), testes: {tests}",
   "Today":"Hoje","Projects":"Projetos","Views":"Vistas",
   "Pipelines":"Pipelines","Built-in":"Incluída","Custom":"Própria","New pipeline":"Nova pipeline",
-  "Name your pipeline":"Dá um nome à pipeline","Your pipeline":"A tua pipeline","Independent plan validation":"Validação independente do plano","Type of request":"Tipo de pedido","What kind of request is it for?":"Para que tipo de pedido é?",
+  "Name your pipeline":"Dá um nome à pipeline","Concept":"Conceito","Concept, spec, plan, build and review":"Conceito, spec, plano, implementação e revisão","Concept, plan, carry out and review; behaviour does not change":"Conceito, plano, execução e revisão; o comportamento não muda","Concept validation":"Validação do conceito","the concept":"o conceito",
+  "An independent validator is checking the concept against the request and the code":"Um validador independente está a conferir o conceito com o pedido e o código",
+  "The concept is being fixed after validation (round {n})":"O conceito está a ser corrigido depois da validação (ronda {n})",
+  "Concept validation: {vl}":"Validação do conceito: {vl}","Independent concept validation":"Validação independente do conceito",
+  "Validator findings: choose what the concept should fix and what you accept as is":"Achados do validador: escolhe o que o conceito deve corrigir e o que aceitas como está",
+  "Fix {n} concept finding{s}":"Corrigir {n} achado{s} do conceito",
+  "⚠ The validator still blocks the concept after the automatic round: read the findings and decide.":"⚠ O validador continua a bloquear o conceito depois da ronda automática: lê os achados e decide.",
+  "⚠ The concept validation did not produce a verdict I can read: read the concept and decide.":"⚠ A validação do conceito não trouxe um veredicto que eu consiga ler: lê o conceito e decide tu.",
+  "⚠ I could not launch the concept validation: {note}":"⚠ Não consegui lançar a validação do conceito: {note}",
+  "⚠ I could not send the concept back to the worker: {note}":"⚠ Não consegui devolver o conceito ao worker: {note}","Your pipeline":"A tua pipeline","Independent plan validation":"Validação independente do plano","Type of request":"Tipo de pedido","What kind of request is it for?":"Para que tipo de pedido é?",
   "The phases are the type's own; changing the type starts again from its phases. You choose each phase's model, effort and rounds, and whether the plan is validated.":"As fases são as do tipo; mudar o tipo recomeça a partir das fases dele. Escolhes o modelo, o esforço e as rondas de cada fase, e se o plano é validado.",
   "Rounds back when it finds problems":"Rondas de volta quando encontra problemas","(the request's model)":"(o modelo do pedido)","Effort":"Esforço",
   "Cannot be chosen for a request yet: open it and save it again.":"Ainda não se pode escolher num pedido: abre-a e guarda-a outra vez.","Choose the type of request.":"Escolhe o tipo de pedido.","Standard":"Padrão","Pipeline":"Pipeline","It follows your pipeline «{p}»: only the phases it lists, in its order.":"Segue a tua pipeline «{p}»: só as fases que ela indica, pela ordem dela.",
@@ -1020,6 +1029,14 @@ const PT = {
   "automatic fixes failed":"correções automáticas falharam",
   "cancelled":"cancelado",
   "plan validation":"validação do plano",
+  "concept validation":"validação do conceito",
+  "concept validated":"conceito validado",
+  "concept fixes":"correções do conceito",
+  "concept fixes limit":"limite de correções do conceito",
+  "concept fixes failed":"correções do conceito falharam",
+  "concept validation failed":"validação do conceito falhou",
+  "concept validation without verdict":"validação do conceito sem veredicto",
+  "concept validation repeated":"validação do conceito repetida",
   "plan validated":"plano validado",
   "plan fixes":"correções do plano",
   "plan fixes limit":"limite de correções do plano",
@@ -1217,10 +1234,10 @@ function fmtTokens(n){n=+n||0;return n>=1e6?(n/1e6).toFixed(1)+"M":n>=1e3?Math.r
 function ago(iso,now,t){t=t||_fmt;const ms=(now==null?Date.now():now)-Date.parse(iso);if(!(ms>=0))return "";const m=Math.floor(ms/60000);
   if(m<1)return t("just now",{});if(m<60)return t("{n} min ago",{n:m});const h=Math.floor(m/60);if(h<24)return t("{n} h ago",{n:h});
   const d=Math.floor(h/24);return t(d===1?"{n} day ago":"{n} days ago",{n:d});}
-const _PHASES=["spec","plan","plan-validation","build","review","qa","extraction","curation","other"];
+const _PHASES=["concept","concept-validation","spec","plan","plan-validation","build","review","qa","extraction","curation","other"];
 // the tooltip of a request's cost: each phase's share (×N when it ran N workers) and how far the request reached
 function costTip(c,t){t=t||_fmt;
-  const names={spec:"Spec",plan:"Plan","plan-validation":"Plan validation",build:"Implementation",review:"Review",qa:"Question",extraction:"Extraction",curation:"Curation",other:"Other"};
+  const names={concept:"Concept","concept-validation":"Concept validation",spec:"Spec",plan:"Plan","plan-validation":"Plan validation",build:"Implementation",review:"Review",qa:"Question",extraction:"Extraction",curation:"Curation",other:"Other"};
   const parts=_PHASES.filter(p=>c.by_phase&&c.by_phase[p]).map(p=>`${t(names[p],{})} ${fmtMoney(c.by_phase[p].cost_usd)}${c.by_phase[p].workers>1?` (×${c.by_phase[p].workers})`:""}`);
   const w=c.workers,s=c.sessions;
   return parts.join(" · ")+" — "+w+" "+t(w===1?"worker":"workers",{})+", "+s+" "+t(s===1?"work session":"work sessions",{});}
@@ -1431,12 +1448,29 @@ function pipeFromBuiltin(base,kind,keep){
   const c=pipeClone(base);c.kind=kind;delete c.based_on;delete c.description;
   c.id=(keep&&keep.id)||"";c.name=(keep&&keep.name)||"";c.steps.forEach(x=>delete x.label);return c;      // the page names the phases itself, in your language
 }
-const pipeCanAddCheck=(d,base)=>!!base&&!d.steps.some(s=>s.phase==="plan-validation")&&d.steps.some(s=>s.phase==="plan")&&base.steps.some(s=>s.phase==="plan-validation");
+const PIPE_PARENT={"plan-validation":"plan","concept-validation":"concept"};         // the phase an independent validation checks
+const pipeCanAddCheck=(d,base,phase)=>{phase=phase||"plan-validation";const par=PIPE_PARENT[phase];
+  return !!base&&!d.steps.some(s=>s.phase===phase)&&d.steps.some(s=>s.phase===par)&&base.steps.some(s=>s.phase===phase);};
 // put the independent plan validation back, right after the plan, as the built-in type has it
-function pipeAddCheck(d,base){
-  const c=pipeClone(d),ck=base.steps.find(s=>s.phase==="plan-validation"),pi=c.steps.findIndex(s=>s.phase==="plan");
-  if(!ck||pi<0||c.steps.some(s=>s.phase==="plan-validation"))return c;
+function pipeAddCheck(d,base,phase){
+  phase=phase||"plan-validation";
+  const c=pipeClone(d),ck=base.steps.find(s=>s.phase===phase),pi=c.steps.findIndex(s=>s.phase===PIPE_PARENT[phase]);
+  if(!ck||pi<0||c.steps.some(s=>s.phase===phase))return c;
   const st=pipeClone(ck);delete st.label;st.id=pipeUniqueId(c.steps,ck.id);c.steps.splice(pi+1,0,st);return c;
+}
+// the concept (with its validation and your approval) goes first, as the built-in type has it; taking it away takes its validation too
+const pipeCanAddConcept=(d,base)=>!!base&&!d.steps.some(s=>s.phase==="concept")&&base.steps.some(s=>s.phase==="concept");
+function pipeAddConcept(d,base){
+  const c=pipeClone(d);if(!pipeCanAddConcept(d,base))return c;
+  const bi=base.steps.findIndex(s=>s.phase==="concept"),add=base.steps.slice(bi,bi+3).map(pipeClone);
+  if(add.some(a=>c.steps.some(s=>s.id===a.id)))return c;
+  add.forEach(a=>delete a.label);c.steps.unshift(...add);return c;
+}
+function pipeRemovePhase(d,i){
+  const s=d.steps[i];let c=pipeClone(d);if(!s)return c;
+  if(s.phase!=="concept")return pipeRemove(c,i);
+  const j=c.steps.findIndex(x=>x.phase==="concept-validation");if(j>=0)c=pipeRemove(c,j);
+  return pipeRemove(c,c.steps.findIndex(x=>x.phase==="concept"));
 }
 const pipeFlow=(d,t,nm)=>d.steps.map(s=>s.type==="approval"?"✋ "+t("your approval"):(s.label||(nm?nm(d.kind,s.phase):s.id))).join(" → ");
 // the pipelines of the user that can start a request: [{id, label, kind}] from the rows of /api/pipelines
@@ -1714,7 +1748,7 @@ function pjCosts(c){
 }
 const LIVE=["working","running","blocked","idle","waiting"];
 function pjWorker(w){
-  const ph={spec:tt("Spec"),plan:tt("Plan"),"plan-validation":tt("Plan validation"),build:tt("Implementation"),review:tt("Review"),qa:tt("Question")}[w.phase]||"";
+  const ph={concept:tt("Concept"),"concept-validation":tt("Concept validation"),spec:tt("Spec"),plan:tt("Plan"),"plan-validation":tt("Plan validation"),build:tt("Implementation"),review:tt("Review"),qa:tt("Question")}[w.phase]||"";
   const live=LIVE.includes(w.state);
   return `<li class="pjw"><b>${esc(w.name||w.id)}</b><span class="pstt ${live?(["working","running"].includes(w.state)?"ok":"acc"):""}">${esc(W_LABEL[w.state]||cap(w.state||""))}</span>
     <span class="pmute">${esc([ph,w.model,w.started?ago(w.started,Date.now(),tt):""].filter(Boolean).join(" · "))}</span></li>`;
@@ -1856,12 +1890,12 @@ function pipeDetailsHtml(){
     ${!PIPES.valid?`<p class="cnote2 warn">${esc(PIPES.reason)}</p>`:""}
     <p class="pmute">${esc(d.description||"")} · v${esc(d.version)} · ${tt("{n} request(s)",{n:PIPES.used})}</p>${pipeStepsReadOnly(d)}`;
 }
-const PHASE_NAME=(k,ph)=>ph==="plan-validation"?tt("Independent plan validation"):((KIND_NAME[k]||{})[ph]||(STG.find(x=>x[0]===ph)||[0,ph])[1]);
+const PHASE_NAME=(k,ph)=>ph==="plan-validation"?tt("Independent plan validation"):ph==="concept-validation"?tt("Independent concept validation"):((KIND_NAME[k]||{})[ph]||(STG.find(x=>x[0]===ph)||[0,ph])[1]);
 function pipePhaseCard(d,i,n){
   const s=d.steps[i],cat=PIPES.catalog,models=(S&&S.models)||[],list=!s.model||models.includes(s.model)?models:models.concat([s.model]);
   const bl=s.type==="check"?(s.on||{}).blocked:null,rounds=bl&&typeof bl==="object"?bl.max_rounds:0,name=PHASE_NAME(d.kind,s.phase);
   return `<div class="pstep pfriendly"><div class="phd"><strong>${n}</strong><span class="ptitle">${esc(name)}</span><span class="grow"></span>
-      ${s.phase==="plan-validation"?`<button class="btn ghost" type="button" data-pa="rm" data-pi="${i}">${tt("Remove")}</button>`:""}</div>
+      ${["plan-validation","concept-validation","concept"].includes(s.phase)?`<button class="btn ghost" type="button" data-pa="rm" data-pi="${i}">${tt("Remove")}</button>`:""}</div>
     <div class="pbody">
       <label class="pf"><span>${tt("Step name")}</span><input data-pi="${i}" data-pk="label" value="${esc(s.label||"")}" placeholder="${esc(name)}"></label>
       <label class="pf"><span>${tt("Model")}</span><select data-pi="${i}" data-pk="model">${pOpts(list,s.model,tt("(the request's model)"))}</select></label>
@@ -1870,7 +1904,7 @@ function pipePhaseCard(d,i,n){
     </div></div>`;
 }
 function pipeChooserHtml(){
-  const info={feature:"Spec, plan, build and review",fix:"Diagnose, plan, fix and review",maintenance:"Plan, carry out and review; behaviour does not change",
+  const info={feature:"Concept, spec, plan, build and review",fix:"Diagnose, plan, fix and review",maintenance:"Concept, plan, carry out and review; behaviour does not change",
     analysis:"A read-only report, then a check of its facts"};
   const card=k=>`<button class="ptplc" type="button" data-pa="tpl" data-id="${k}"><strong>${esc(KIND_LABEL[k])}</strong><span>${esc(tt(info[k]))}</span></button>`;
   return `<div class="phead"><a class="btn ghost" href="${esc(routeHash({view:"pipelines"}))}">← ${tt("Pipelines")}</a><h2>${tt("New pipeline")}</h2></div>
@@ -1886,7 +1920,11 @@ function pipeEditorHtml(){
     <p class="pmute">${tt("The phases are the type's own; changing the type starts again from its phases. You choose each phase's model, effort and rounds, and whether the plan is validated.")}</p>
     <p class="pflow">${tt("The flow")}: <span id="pipeFlow">${esc(pipeFlow(d,tt,PHASE_NAME))}</span></p>
     <div class="psteps">${cards}</div>
-    ${pipeCanAddCheck(d,base)?`<div class="pbar"><button class="btn" type="button" data-pa="addcheck">+ ${tt("Independent plan validation")}</button></div>`:""}
+    ${(()=>{const b=[];
+      if(pipeCanAddConcept(d,base))b.push(`<button class="btn" type="button" data-pa="addconcept">+ ${tt("Concept")}</button>`);
+      if(pipeCanAddCheck(d,base,"concept-validation"))b.push(`<button class="btn" type="button" data-pa="addcheck" data-ph="concept-validation">+ ${tt("Independent concept validation")}</button>`);
+      if(pipeCanAddCheck(d,base,"plan-validation"))b.push(`<button class="btn" type="button" data-pa="addcheck" data-ph="plan-validation">+ ${tt("Independent plan validation")}</button>`);
+      return b.length?`<div class="pbar">${b.join(" ")}</div>`:"";})()}
     <div id="pipeProblems">${pipeProblemsHtml(probs)}</div>
     ${PIPES.err?`<p class="cnote2 warn">${esc(PIPES.err)}</p>`:""}
     <details class="padv"><summary>${tt("Advanced")}</summary><div class="ptop">
@@ -1975,8 +2013,9 @@ document.addEventListener("click",ev=>{
   else if(a==="tpl")pipeTemplate(b.dataset.id);
   else if(a==="cancel"){PIPES.draft=null;PIPES.forked="";}
   else if(a==="del")pipeDelete(b.dataset.id);
-  else if(a==="rm")pipeApply(pipeRemove(PIPES.data,i),true);
-  else if(a==="addcheck")pipeApply(pipeAddCheck(PIPES.data,PIPES.bases[PIPES.data.kind]),true);
+  else if(a==="rm")pipeApply(pipeRemovePhase(PIPES.data,i),true);
+  else if(a==="addconcept")pipeApply(pipeAddConcept(PIPES.data,PIPES.bases[PIPES.data.kind]),true);
+  else if(a==="addcheck")pipeApply(pipeAddCheck(PIPES.data,PIPES.bases[PIPES.data.kind],b.dataset.ph),true);
   else if(a==="save")pipeSave();
   else if(a==="raw"){try{const j=JSON.parse($("pipeRaw").value);if(!j||typeof j!=="object"||!Array.isArray(j.steps))throw new Error("steps");pipeApply(j,true);}
     catch(e){PIPES.err=tt("That is not a valid pipeline JSON.");renderPipelines();}}
@@ -2049,9 +2088,9 @@ function planMeters(p){if(!p||!p.connected)return "";return ["five_hour","seven_
 function limitBanner(L){return (L||[]).length?`<p class="banner">${tt("{n} worker(s) paused by a usage limit.",{n:L.length})} ${L.map(x=>x.resumes_in_s==null?"":(x.auto?tt("Continues by itself in {t}.",{t:fmtDuration(x.resumes_in_s)}):tt("The Chief restarts the phase in {t}.",{t:fmtDuration(x.resumes_in_s)}))).filter((v,i,a)=>v&&a.indexOf(v)===i).join(" ")}</p>`:"";}
 const pausedNote=f=>f.paused?`<p class="fdesc">⏸ ${tt("Paused by a usage limit")}${f.paused.until?"":""} — ${f.paused.auto?tt("Claude Code continues by itself."):tt("restarts once the limit has reset.")}${f.limit_resumes?" "+tt("Restarted {n} time(s).",{n:f.limit_resumes}):""}</p>`:"";
 const costChip=f=>f.cost&&f.cost.workers&&(f.cost.cost_usd>0||f.cost.unpriced)?`<span class="fcost" title="${esc(costTip(f.cost,tt))}">≈ ${esc(fmtMoney(f.cost.cost_usd))}${f.cost.unpriced?"+":""}</span>`:"";
-const STG=[["spec",tt("Spec")],["plan",tt("Plan")],["build",tt("Implementation")],["review",tt("Review")]];
+const STG=[["concept",tt("Concept")],["spec",tt("Spec")],["plan",tt("Plan")],["build",tt("Implementation")],["review",tt("Review")]];
 const KIND_LABEL={feature:tt("Feature"),fix:tt("Bug fix"),analysis:tt("Analysis"),maintenance:tt("Maintenance"),ship:tt("Publish"),release:tt("Release")};
-const KIND_STG={feature:["spec","plan","build","review"],fix:["spec","plan","build","review"],maintenance:["plan","build","review"],analysis:["build","review"],ship:["build","review"],release:["plan","build","review"]};
+const KIND_STG={feature:["concept","spec","plan","build","review"],fix:["spec","plan","build","review"],maintenance:["concept","plan","build","review"],analysis:["build","review"],ship:["build","review"],release:["plan","build","review"]};
 const KIND_NAME={fix:{spec:tt("Diagnosis"),build:tt("Fix@noun")},analysis:{build:tt("Analysis"),review:tt("Verification")},ship:{build:tt("Prepare commit"),review:tt("Publish")},release:{plan:tt("Release plan"),build:tt("Regression"),review:tt("Promotion")}};
 const stageIds=f=>f.stages&&f.stages.length?f.stages:(KIND_STG[f.kind]||KIND_STG.feature);       // a request on your own pipeline brings its phases
 const stg=f=>{const k=KIND_STG[f.kind]?f.kind:"feature";return stageIds(f).map(id=>[id,(KIND_NAME[k]||{})[id]||STG.find(x=>x[0]===id)[1]]);};
@@ -2079,13 +2118,14 @@ function stepper(f){
 function statusLine(f){
   const l=stg(f).find(s=>s[0]===f.stage)[1];
   const w=f.worker_id?` · ${cp("claude attach "+f.worker_id)}${f.worker_state?` <span class="chip ${["working","running"].includes(f.worker_state)?"ok":"warn"}">${esc(f.worker_state)}</span>`:""}`:"";
-  const what={spec:tt("the spec"),plan:tt("the plan"),build:tt("the report"),review:tt("the review")}[f.stage];
+  const what={concept:tt("the concept"),spec:tt("the spec"),plan:tt("the plan"),build:tt("the report"),review:tt("the review")}[f.stage];
   const parado=f.worker_state==="blocked"||f.worker_state==="idle"||f.worker_state==="waiting";
-  const checking=f.stage==="plan"&&f.pv&&f.pv.checking;
+  const checking=(f.stage==="plan"&&f.pv&&f.pv.checking)||(f.stage==="concept"&&f.cv&&f.cv.checking);
   const working=f.stage==="build"&&f.auto&&f.auto.fixes>0&&!parado?tt("{l}: fixing the review findings (round {n} of 3){w}",{l,n:f.auto.fixes,w})
     :parado?tt("{l}: the worker is idle waiting for you (permission or question){w}",{l,w})
     :tt("{l}: {what}{w}",{l,w,what:f.stage==="review"?tt("An independent reviewer is analysing the code")
-      :checking?tt("An independent validator is checking the plan against the spec and the code")
+      :checking?(f.stage==="concept"?tt("An independent validator is checking the concept against the request and the code"):tt("An independent validator is checking the plan against the spec and the code"))
+      :f.stage==="concept"&&f.cv&&f.cv.fixes>0&&f.history.some(h=>h.event==="concept fixes")?tt("The concept is being fixed after validation (round {n})",{n:f.cv.fixes})
       :f.stage==="plan"&&f.pv&&f.pv.fixes>0&&f.history.some(h=>h.event==="plan fixes")?tt("The plan is being fixed after validation (round {n} of 2)",{n:f.pv.fixes})
       :tt("A worker is writing")});
   const shipLine=f.kind==="ship"?(f.status==="working"?(f.stage==="build"?tt("{l}: a worker is preparing the commit locally (nothing is pushed){w}",{l,w}):tt("{l}: publishing what you approved (push / pull request){w}",{l,w}))
@@ -2467,23 +2507,29 @@ const NOTES={"committed":h=>tt("✓ The review passed and the changes were <b>co
   "automatic fixes failed":h=>tt("⚠ I could not send the fixes automatically: {note}",{note:esc(h.note)}),
   "review repeated":h=>tt("The review was repeated: {note}.",{note:esc(h.note)}),
   "reviewer's tests not confirmed":h=>tt("⚠ The tests were not confirmed by the reviewer, so I did not commit: {note}",{note:esc(h.note)})};
+const CHECKED={plan:"planreview",concept:"conceptreview"};        // the phase whose validation the card shows -> the artifact of that validation
+const CONCEPT_NOTES={"concept fixes limit":()=>tt("⚠ The validator still blocks the concept after the automatic round: read the findings and decide."),
+  "concept validation without verdict":()=>tt("⚠ The concept validation did not produce a verdict I can read: read the concept and decide."),
+  "concept validation failed":h=>tt("⚠ I could not launch the concept validation: {note}",{note:esc(h.note)}),
+  "concept fixes failed":h=>tt("⚠ I could not send the concept back to the worker: {note}",{note:esc(h.note)})};
 const PLAN_NOTES={"plan fixes limit":()=>tt("⚠ The validator still blocks the plan after the automatic rounds: read the findings and decide."),
   "validation without verdict":()=>tt("⚠ The plan validation did not produce a verdict I can read: read the plan and decide."),
   "plan validation failed":h=>tt("⚠ I could not launch the plan validation: {note}",{note:esc(h.note)}),
   "plan fixes failed":h=>tt("⚠ I could not send the plan back to the worker: {note}",{note:esc(h.note)})};
 function planCheckHtml(f,id){
-  const t=f.artifacts.planreview,last=f.history.filter(h=>h.stage==="plan"&&PLAN_NOTES[h.event]).slice(-1)[0];
-  const note=last&&f.history.indexOf(last)>f.history.length-8?`<p class="rnote">${PLAN_NOTES[last.event](last)}</p>`:"";
+  const isC=f.stage==="concept",NOTES2=isC?CONCEPT_NOTES:PLAN_NOTES;
+  const t=f.artifacts[CHECKED[f.stage]],last=f.history.filter(h=>h.stage===f.stage&&NOTES2[h.event]).slice(-1)[0];
+  const note=last&&f.history.indexOf(last)>f.history.length-8?`<p class="rnote">${NOTES2[last.event](last)}</p>`:"";
   if(!t)return note;
   const rv=parseReview(t),[vl,vc]=VERDICT[rv.verdict],c=rv.counts;
   const found=["CRITICAL","HIGH","MEDIUM","LOW"].filter(k=>c[k]).map(k=>`${c[k]} ${k}`).join(" · ")||tt("No findings");
   const fds=parseFindings(t);
-  return `<div class="verdict ${vc}"><strong>${tt("Plan validation: {vl}",{vl})}</strong><span>${found}</span></div>${note}
+  return `<div class="verdict ${vc}"><strong>${isC?tt("Concept validation: {vl}",{vl}):tt("Plan validation: {vl}",{vl})}</strong><span>${found}</span></div>${note}
     <details class="dbt"><summary>${tt("See the full validation")}</summary><div class="md sm">${md(t)}</div></details>
-    ${fds.length?`<div class="dhead">${tt("Validator findings: choose what the plan should fix and what you accept as is")}</div>${findingsHtml(f,fds)}`:""}`;
+    ${fds.length?`<div class="dhead">${isC?tt("Validator findings: choose what the concept should fix and what you accept as is"):tt("Validator findings: choose what the plan should fix and what you accept as is")}</div>${findingsHtml(f,fds)}`:""}`;
 }
 function planFixCount(f){
-  const fds=f.stage==="plan"&&f.artifacts?parseFindings(f.artifacts.planreview):[],u=fui(f.id);
+  const fds=CHECKED[f.stage]&&f.artifacts?parseFindings(f.artifacts[CHECKED[f.stage]]):[],u=fui(f.id);
   return fds.filter(x=>findingFix(x,u.fx)).length;
 }
 function reviewNotes(f){
@@ -2544,13 +2590,13 @@ function actions(f){
       ${qst==="form"?`<span class="dprog" data-prog="${id}">${tt("{n}/{total} answered",{n:st.n,total:st.total})}</span>`:qst==="none"?`<span class="dprog ok">${tt("✓ no open questions")}</span>`:""}</div>
       ${execBanner(f)}
       ${f.kind==="ship"&&f.stage==="build"?shipAuth(f):""}
-      ${f.stage==="plan"?planCheckHtml(f,id):""}
+      ${CHECKED[f.stage]?planCheckHtml(f,id):""}
       ${u.qs.length?`<div class="qs">${questionsHtml(f.id,u.qs)}</div>`:""}
       <label class="dhead" for="c-${id}">${label}</label>
       <textarea id="c-${id}" data-comment="${id}" maxlength="2000" rows="2" placeholder="${hold}">${esc(u.comment)}</textarea>
       <div class="dfoot"><span class="dhint">${tt("Ctrl+Enter sends the answers")}</span>
         <button class="btn ghost" data-act="cancel" data-id="${id}" type="button">${tt("Cancel request")}</button>
-        <button class="btn" data-act="revise" data-id="${id}" type="button"${st.any||planFixCount(f)?"":" disabled"}>${planFixCount(f)?tt("Fix {n} plan finding{s}",{n:planFixCount(f),s:planFixCount(f)===1?"":"s"}):qst==="form"?tt("Send answers"):tt("Ask for changes")}</button>
+        <button class="btn" data-act="revise" data-id="${id}" type="button"${st.any||planFixCount(f)?"":" disabled"}>${planFixCount(f)?tt(f.stage==="concept"?"Fix {n} concept finding{s}":"Fix {n} plan finding{s}",{n:planFixCount(f),s:planFixCount(f)===1?"":"s"}):qst==="form"?tt("Send answers"):tt("Ask for changes")}</button>
         <button class="btn pri" data-act="approve" data-id="${id}" type="button">${go}</button></div></div>`;
   }
   if(f.status==="failed")return `<div class="acts"><button class="btn pri" data-act="retry" data-id="${id}" type="button">${tt("Try again")}</button>
@@ -2787,7 +2833,7 @@ async function featClick(e){
   if(act==="cleanup"){body.force=b.dataset.force==="1";if(body.force&&!armed(b,tt("This deletes the worktree with its uncommitted work and the branch.")))return;}
   if(act==="rerun"){body.comment=tt("Run the regression tests again from scratch and report a new verdict.");}
   if(act==="revise"){
-    const ff=S.features.find(x=>x.id===id)||{artifacts:{}},pf=ff.stage==="plan"?parseFindings(ff.artifacts.planreview):[];
+    const ff=S.features.find(x=>x.id===id)||{artifacts:{}},pf=CHECKED[ff.stage]?parseFindings(ff.artifacts[CHECKED[ff.stage]]):[];
     body.comment=pf.length?[compileAnswers(u.qs||[],u.qa,"",ff.lang),compileFixes(pf,u.fx,u.comment,ff.lang)].filter(Boolean).join("\n\n").trim():compileAnswers(u.qs||[],u.qa,u.comment,ff.lang);
     if(!body.comment||(pf.length&&!planFixCount(ff)&&!decideState(id).any)){toast(tt("Answer a question, mark findings to fix, or write a note."),true);return;}}
   if(act==="fix"){
@@ -2897,7 +2943,7 @@ $("setClose").addEventListener("click",()=>$("setD").close());
 // ---------- sessions and costs ----------
 let COST=null,endArmed=false,endTimer=0;
 const costCell=v=>v.unpriced_tokens?(v.cost_usd?`${esc(fmtMoney(v.cost_usd))}+`:`<span class="m" title="${esc(tt("No price is known for this model, so only its tokens are counted. Add it under prices in projects.json."))}">${tt("no price")}</span>`):esc(fmtMoney(v.cost_usd));
-const PHASE_LABEL={spec:"Spec",plan:"Plan","plan-validation":"Plan validation",build:"Implementation",review:"Review",qa:"Question",extraction:"Extraction",curation:"Curation",other:"Other"};
+const PHASE_LABEL={concept:"Concept","concept-validation":"Concept validation",spec:"Spec",plan:"Plan","plan-validation":"Plan validation",build:"Implementation",review:"Review",qa:"Question",extraction:"Extraction",curation:"Curation",other:"Other"};
 function modelTable(by){
   const rows=Object.entries(by||{}).sort((a,b)=>b[1].cost_usd-a[1].cost_usd);
   if(!rows.length)return `<p class="cnote">${tt("No AI usage recorded yet.")}</p>`;

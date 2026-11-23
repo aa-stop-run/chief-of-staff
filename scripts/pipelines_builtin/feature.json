@@ -1,12 +1,68 @@
 {
  "format": 1,
  "id": "feature",
- "version": 1,
+ "version": 2,
  "name": "Feature",
  "limits": {
   "max_total_rounds": 12
  },
  "steps": [
+  {
+   "id": "concept",
+   "type": "worker",
+   "phase": "concept",
+   "mode": "read_only",
+   "artifact": "concept.md",
+   "prompt": {
+    "ref": "builtin:feature.concept"
+   },
+   "questions": true,
+   "inputs": [
+    "request"
+   ],
+   "report_gate": {
+    "use": "required_sections",
+    "args": {
+     "file": "concept.md",
+     "sections": [
+      [
+       "Approaches considered",
+       "Abordagens consideradas"
+      ],
+      [
+       "Recommendation and decisions",
+       "Recomendação e decisões"
+      ]
+     ]
+    }
+   }
+  },
+  {
+   "id": "conceptcheck",
+   "type": "check",
+   "phase": "concept-validation",
+   "mode": "read_only",
+   "artifact": "concept-review.md",
+   "prompt": {
+    "ref": "builtin:feature.conceptcheck"
+   },
+   "label": "Independent concept validation",
+   "on": {
+    "blocked": {
+     "goto": "concept",
+     "max_rounds": 1
+    },
+    "unknown": {
+     "retry": 2
+    }
+   }
+  },
+  {
+   "id": "ok-concept",
+   "type": "approval",
+   "of": "concept",
+   "requires_user": true
+  },
   {
    "id": "spec",
    "type": "worker",

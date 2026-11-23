@@ -174,6 +174,7 @@ import prompts_kinds  # noqa: E402
 from features import Features  # noqa: E402
 
 KINDS = tuple(prompts_kinds.KIND_STAGES)
+pytestmark = pytest.mark.with_concept          # these test the shipped built-in files, concept phase included
 
 
 @pytest.mark.parametrize("kind", KINDS)
@@ -197,7 +198,7 @@ def test_markers_cover_builtin_prompts():
             if ref:
                 assert ref in prompt_refs.REFS, ref
     for P in (prompt_refs.prompts, prompt_refs.prompts_pt):
-        texts = [P.COMMON, P.PLANCHECK, P.CHANGES_BLOCK, P.USER_INSTRUCTIONS, *P.STAGE_TEXT.values(), P.BUILD_RESUME]
+        texts = [P.COMMON, P.PLANCHECK, P.CONCEPTCHECK, P.CONCEPT_BLOCK, P.CHANGES_BLOCK, P.USER_INSTRUCTIONS, *P.STAGE_TEXT.values(), P.BUILD_RESUME]
         for t in texts:
             assert set(re.findall(r"\{([A-Za-z_]\w*)\}", t)) <= pipelines.MARKERS, t[:60]
 

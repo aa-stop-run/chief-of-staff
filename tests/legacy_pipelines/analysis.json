@@ -1,0 +1,63 @@
+{
+ "format": 1,
+ "id": "analysis",
+ "version": 1,
+ "name": "Analysis",
+ "limits": {
+  "max_total_rounds": 12
+ },
+ "steps": [
+  {
+   "id": "build",
+   "type": "worker",
+   "phase": "build",
+   "mode": "read_only",
+   "artifact": "report.md",
+   "prompt": {
+    "ref": "builtin:analysis.build"
+   },
+   "questions": true,
+   "keep_questions_on_next": true,
+   "inputs": [
+    "request"
+   ]
+  },
+  {
+   "id": "review",
+   "type": "check",
+   "phase": "review",
+   "mode": "read_only",
+   "artifact": "review.md",
+   "prompt": {
+    "ref": "builtin:analysis.review"
+   },
+   "on": {
+    "approved": {
+     "next": "accept",
+     "do": "commit_worktree"
+    },
+    "reserves": {
+     "next": "accept",
+     "do": "commit_worktree"
+    },
+    "blocked": {
+     "goto": "build",
+     "max_rounds": 3
+    },
+    "unknown": {
+     "retry": 2
+    }
+   },
+   "archive": "analysis",
+   "inputs": [
+    "report"
+   ]
+  },
+  {
+   "id": "accept",
+   "type": "approval",
+   "of": "review",
+   "requires_user": true
+  }
+ ]
+}

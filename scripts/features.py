@@ -31,8 +31,8 @@ import splitplan
 from feature_checks import (AWAITING, CANCELLED, CHECK_EVENTS, CONCEPT_REVIEW, DONE, FAILED, GATE_REASONS, PLAN_REVIEW, SUBCHECK_OF, SUBCHECKS, WORKING,  # noqa: F401,E501
                            CheckFlow, COMMIT_TYPES, FeatureError, _now, _slug, commit_message)  # noqa: F401
 
-STAGES = ("spec", "plan", "build", "review")
-ARTIFACT = {"spec": "spec.md", "plan": "plan.md", "build": "report.md", "review": "review.md"}
+STAGES = ("spec", "plan", "build", "review")      # the artifact versions every request starts counting (the concept's starts when it is used)
+ARTIFACT = {"concept": "concept.md", "spec": "spec.md", "plan": "plan.md", "build": "report.md", "review": "review.md"}
 # Any model name the user's Claude Code understands (an alias such as "opus", a full model id, a gateway's model name).
 # It is only ever passed as an argument to `claude --model`, never to a shell; this just keeps obvious junk out.
 MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,79}$")
@@ -296,13 +296,11 @@ class Features(CheckFlow):
         return got
 
     def pipeline_view(self, f: dict):
-        """{name, stages} of a request on one of the user's own pipelines (the phases it goes through, in order, as its snapshot says);
-        None for a built-in type, whose phases the page knows."""
+        """{name, stages} of a request: the phases it goes through, in order, as its snapshot says (the card's stepper), and the name
+        of the pipeline when it is one of the user's own ('' for a built-in type)."""
         p = self._pipe(f)[0]
-        if p.builtin:
-            return None
         phases = [s["phase"] for s in p.steps if s["type"] != "approval" and s["phase"] not in SUBCHECKS]
-        return {"name": p.data.get("name") or p.id, "stages": phases}
+        return {"name": "" if p.builtin else (p.data.get("name") or p.id), "stages": phases}
 
     def _step_by_phase(self, f: dict, phase: str):
         return next((s for s in self._pipe(f)[0].steps if s["type"] != "approval" and s.get("phase") == phase), None)

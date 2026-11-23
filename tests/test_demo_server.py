@@ -268,9 +268,9 @@ def test_asking_for_changes_runs_the_same_phase_again(fresh):
 def test_a_new_request_is_created_launched_and_tagged(fresh):
     status, out = fresh.post("/api/features", {"project": "Dotfiles", "title": "Tidy the git aliases", "desc": "Group them in one file.",
                                                "model": "my-gateway/some-model", "kind": "maintenance"})
-    assert status == 200 and out["kind"] == "maintenance" and out["stage"] == "plan" and out["model"] == "my-gateway/some-model" and out["lang"] == "en"
+    assert status == 200 and out["kind"] == "maintenance" and out["stage"] == "concept" and out["model"] == "my-gateway/some-model" and out["lang"] == "en"
     w = next(w for w in fresh.state()["workers"] if w["id"] == out["worker_id"])
-    assert w["request"] == out["id"] and w["phase"] == "plan" and w["model"] == "my-gateway/some-model"
+    assert w["request"] == out["id"] and w["phase"] == "concept" and w["model"] == "my-gateway/some-model"
 
 
 @pytest.mark.parametrize("body,error", [

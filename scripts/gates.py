@@ -140,8 +140,12 @@ class GateCtx:
 
 
 def required_sections(text: str, sections) -> list:
-    """The section headings (## or ###) in `sections` that `text` lacks."""
-    return [s for s in sections if not re.search(rf"^#{{2,3}}[ \t]+{re.escape(s)}\b", text or "", re.M | re.I)]
+    """The section headings (## or ###) in `sections` that `text` lacks. An entry may be a list of alternatives (the same heading in
+    English and in Portuguese): it is met when any of them is there, and reported by its first name."""
+    def has(heading) -> bool:
+        return bool(re.search(rf"^#{{2,3}}[ \t]+{re.escape(heading)}\b", text or "", re.M | re.I))
+
+    return [s if isinstance(s, str) else s[0] for s in sections if not (has(s) if isinstance(s, str) else any(has(x) for x in s))]
 
 
 def _g_execution_status(a, c):

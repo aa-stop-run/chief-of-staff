@@ -17,6 +17,12 @@ sys.path.insert(0, str(HERE.parent))
 import chief  # noqa: E402
 from features import FeatureError, Features  # noqa: E402
 from scenarios import SCENARIOS  # noqa: E402
+import pipelines  # noqa: E402
+
+# The traces are of the flows WITHOUT the concept phase (the version-1 definitions kept for the tests): feature and maintenance now
+# start with the concept, and the flow without it stays supported (older requests, pipelines of your own). The concept's own
+# behaviour is tested in tests/test_concept_flow.py.
+LEGACY = HERE.parent / "legacy_pipelines"
 
 GOLDEN = HERE.parent / "golden"
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?Z?)?")
@@ -69,6 +75,15 @@ def _state(f):
 
 
 def capture(kind: str, scenario: str) -> dict:
+    """The normalised trace of one scenario, run on the version-1 pipelines (only for the duration of the call)."""
+    saved, pipelines.builtin_dir = pipelines.builtin_dir, lambda: LEGACY
+    try:
+        return _capture(kind, scenario)
+    finally:
+        pipelines.builtin_dir = saved
+
+
+def _capture(kind: str, scenario: str) -> dict:
     steps = SCENARIOS[kind][scenario]
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
