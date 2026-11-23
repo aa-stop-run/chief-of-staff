@@ -209,6 +209,21 @@ dialog form{display:grid;gap:12px;padding:20px}
 dialog.wide{width:min(1040px,calc(100vw - 28px));max-height:calc(100vh - 40px);overflow:auto}
 .wait{font:600 11.5px var(--font-ui);color:var(--warn);background:color-mix(in srgb,var(--warn) 12%,transparent);padding:2px 8px;border-radius:99px;white-space:nowrap}
 .cnote2{margin:8px 0 0;font-size:12.5px;color:var(--mute)}.cnote2 b{color:var(--ink)}.cnote2.warn{color:var(--warn)}
+/* Pipelines page */
+#pipelinesView{padding:6px 0 40px}
+.phead{display:flex;align-items:center;gap:12px;margin:14px 0 8px}.phead h2{margin:0;font-family:var(--font-display);font-size:20px;flex:1}
+.plist{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-top:12px}
+.prow{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel)}.prow:last-child{border-bottom:0}
+.prow .pc{flex:1;min-width:0}.prow .pacts{flex:none;display:flex;gap:6px}
+.pst.valid{color:var(--ok)}.pst.invalid{color:var(--warn)}
+.psteps{margin:10px 0;padding-left:0;list-style:none;display:flex;flex-direction:column;gap:8px}ol.psteps{list-style:decimal;padding-left:22px;gap:4px;font-family:var(--font-mono);font-size:12.5px}
+.pstep{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);padding:10px 12px}
+.phd{display:flex;align-items:center;gap:8px}.phd .grow{flex:1}.phd input,.phd select,.pf input,.pf select{height:30px;border-radius:var(--rs);border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);padding:0 8px;font:inherit}
+.pbody{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:10px}.pf{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--mute)}
+.pchk{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;color:var(--ink);margin-right:8px}
+.ptop{display:flex;flex-wrap:wrap;gap:8px 16px;margin:10px 0}.pbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0}
+.pjson textarea{width:100%;font-family:var(--font-mono);font-size:12px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:var(--rs);padding:8px;margin:8px 0}
+.pmute{color:var(--mute);font-size:12.5px}
 .lastmsg{margin:8px 0 0;padding:8px 12px;border-left:3px solid var(--bad);background:color-mix(in srgb,var(--bad) 6%,transparent);border-radius:0 var(--rs) var(--rs) 0;font-size:12.5px;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
 .lastmsg b{color:var(--bad);font-weight:600}
 .finish{margin:12px 0 0;padding:10px 14px;border:1px solid var(--line);border-radius:var(--rs);background:var(--panel-2);font-size:13px}
@@ -493,6 +508,7 @@ a.plink:active{color:var(--acc);filter:brightness(1.15)}
   <nav class="tabs" id="tabs" aria-label="Views">
     <a href="#" id="tabToday" data-view="today">Today</a>
     <a href="#/projects" id="tabProjects" data-view="projects">Projects</a>
+    <a href="#/pipelines" id="tabPipelines" data-view="pipelines">Pipelines</a>
   </nav>
   <div class="bar">
     <label class="search" id="searchBox">
@@ -521,6 +537,7 @@ a.plink:active{color:var(--acc);filter:brightness(1.15)}
   <h2>Workers <em id="nWork"></em></h2><div id="workers"></div>
   </div>
   <div id="projectsView" hidden></div>
+  <div id="pipelinesView" hidden></div>
   <div id="projectView" hidden></div>
 </main>
 <dialog id="newF"><form method="dialog" id="newForm">
@@ -581,6 +598,18 @@ const PT = {
   "Starting soon: the parts it follows are ready.":"A arrancar: as partes que segue estão prontas.",
   "This part starts by itself when the parts it follows are ready":"Esta parte arranca sozinha quando as partes que segue estiverem prontas","Combined: {c} conflict(s), tests: {tests}":"Combinado: {c} conflito(s), testes: {tests}",
   "Today":"Hoje","Projects":"Projetos","Views":"Vistas",
+  "Pipelines":"Pipelines","Built-in":"Incluída","Custom":"Própria","New pipeline":"Nova pipeline","Edit pipeline":"Editar pipeline","Edit":"Editar",
+  "Use as template":"Usar como modelo","Click again to delete":"Clica outra vez para apagar","Delete":"Apagar","No pipelines.":"Sem pipelines.",
+  "{n} request(s)":"{n} pedido(s)","Your pipelines are files in":"As tuas pipelines são ficheiros em","approves":"aprova","A copy of":"Uma cópia de",
+  "Could not load the pipelines.":"Não foi possível carregar as pipelines.","Could not load the pipeline.":"Não foi possível carregar a pipeline.",
+  "Pipeline saved.":"Pipeline guardada.","Pipeline deleted.":"Pipeline apagada.","Save pipeline":"Guardar pipeline","Apply JSON":"Aplicar JSON",
+  "Add step":"Acrescentar passo","Remove":"Remover","Move up":"Subir","Move down":"Descer","Step id":"Id do passo","Step type":"Tipo de passo",
+  "Approves":"Aprova","Phase":"Fase","Mode":"Modo","Artifact":"Artefacto","Prompt":"Prompt","(choose)":"(escolher)","Asks questions":"Faz perguntas",
+  "Keep questions for the next step":"Manter as perguntas para o passo seguinte","Inputs":"Entradas","Gates":"Portões","Then":"Depois","(the next step)":"(o passo seguinte)",
+  "(default)":"(por omissão)","end":"fim","go back to {x}":"voltar a {x}","When {v}":"Quando {v}","rounds":"rondas","Name":"Nome","Max. automatic rounds":"Máx. de rondas automáticas",
+  "Fix the problems above first.":"Corrige primeiro os problemas acima.","That is not a valid pipeline JSON.":"Isso não é um JSON de pipeline válido.",
+  "No problems found here; the server checks again when you save.":"Sem problemas aqui; o servidor volta a verificar ao guardar.",
+  "A pipeline is the sequence of steps a kind of request goes through. Built-in ones cannot be changed: make a copy and edit that. Choosing your own pipeline in «+ New request» comes later; for now you can create, edit and delete them here.":"Uma pipeline é a sequência de passos por que passa um tipo de pedido. As incluídas não se alteram: faz uma cópia e edita-a. Escolher a tua pipeline em «+ Novo pedido» vem depois; por agora podes criá-las, editá-las e apagá-las aqui.",
   "Needs attention":"Pede atenção","Open":"Aberto","No open requests":"Sem pedidos abertos","Not a git repo":"Sem git",
   "{n} uncommitted":"{n} por comitar","Git info as of {t}":"Informação do git de há {t}",
   "Open requests":"Pedidos abertos","Identified fixes":"Correções identificadas","Sort projects":"Ordenar projetos","Name":"Nome",
@@ -1195,6 +1224,11 @@ const cp=t=>`<button type="button" class="cp" data-cp="${esc(t)}" title="${esc(t
 function parseRoute(hash){
   const h=String(hash||""),today=()=>({view:"today",q:h.startsWith("#/")?"":(new URLSearchParams(h.replace(/^#/,"")).get("q")||"")});
   if(h==="#/projects"||h==="#/projects/")return {view:"projects"};
+  if(h==="#/pipelines"||h==="#/pipelines/")return {view:"pipelines"};
+  if(h==="#/pipelines/new")return {view:"pipelines",id:"",new:true};
+  if(h.startsWith("#/pipelines/")){
+    try{const rest=h.slice(12).split("/"),id=decodeURIComponent(rest[0]);if(id)return rest[1]==="edit"?{view:"pipelines",id,edit:true}:{view:"pipelines",id};}catch(_){}
+  }
   if(h.startsWith("#/project/")){
     try{const name=decodeURIComponent(h.slice(10));if(name)return {view:"project",name};}catch(_){}
   }
@@ -1202,6 +1236,7 @@ function parseRoute(hash){
 }
 function routeHash(r){
   if(r.view==="projects")return "#/projects";
+  if(r.view==="pipelines")return r.new?"#/pipelines/new":r.id?"#/pipelines/"+encodeURIComponent(r.id)+(r.edit?"/edit":""):"#/pipelines";
   if(r.view==="project")return "#/project/"+encodeURIComponent(r.name);
   return r.q?"#"+new URLSearchParams({q:r.q}):"";
 }
@@ -1293,6 +1328,92 @@ function daysAgo(date,now,t){
   return d<=0?t("today",{}):d===1?t("yesterday",{}):t("{n} days ago",{n:d});
 }
 // </routes>
+// <pipelines>
+// the Pipelines page: pure helpers. Editing never mutates: every helper returns a new definition and the page keeps that one.
+const pipeClone=d=>JSON.parse(JSON.stringify(d));
+const pipeBlank=()=>({format:1,id:"",version:1,name:"",steps:[
+  {id:"work",type:"worker",phase:"work",mode:"read_only",artifact:"result.md",prompt:{ref:""}},
+  {id:"ok-work",type:"approval",of:"work",requires_user:true}]});
+const pipeUniqueId=(steps,base)=>{const ids=new Set(steps.map(s=>s.id));let n=1,id=base;while(ids.has(id))id=base+"-"+(++n);return id;};
+function pipeAddStep(d,type){
+  const c=pipeClone(d),id=pipeUniqueId(c.steps,{worker:"step",check:"check",approval:"approve"}[type]||"step"),last=c.steps[c.steps.length-1];
+  c.steps.push(type==="approval"?{id,type,of:last?last.id:"",requires_user:true}
+    :{id,type,phase:id.replace(/[^a-z-]/g,"-").slice(0,24),mode:"read_only",artifact:id+".md",prompt:{ref:""}});
+  return c;
+}
+function pipeMove(d,i,dir){
+  const c=pipeClone(d),j=i+dir;
+  if(i<0||j<0||i>=c.steps.length||j>=c.steps.length)return c;
+  [c.steps[i],c.steps[j]]=[c.steps[j],c.steps[i]];return c;
+}
+// forget a step id everywhere it is named (an approval of it goes with it)
+function pipeScrub(c,id){
+  c.steps=c.steps.filter(s=>!(s.type==="approval"&&s.of===id));
+  c.steps.forEach(s=>{if(s.next===id)delete s.next;
+    Object.keys(s.on||{}).forEach(v=>{const tr=s.on[v];if(tr===id||(tr&&(tr.goto===id||tr.next===id)))delete s.on[v];});});
+}
+function pipeRemove(d,i){const c=pipeClone(d),id=(c.steps[i]||{}).id;c.steps.splice(i,1);if(id)pipeScrub(c,id);return c;}
+function pipeRenameStep(d,i,name){
+  const c=pipeClone(d),old=c.steps[i].id;c.steps[i].id=name;
+  c.steps.forEach(s=>{if(s.of===old)s.of=name;if(s.next===old)s.next=name;
+    Object.keys(s.on||{}).forEach(v=>{const tr=s.on[v];if(tr===old)s.on[v]=name;else if(tr&&typeof tr==="object"){if(tr.goto===old)tr.goto=name;if(tr.next===old)tr.next=name;}});});
+  return c;
+}
+function pipeSetStep(d,i,key,val){
+  const c=pipeClone(d);
+  if(val===""||val==null||(Array.isArray(val)&&!val.length))delete c.steps[i][key];else c.steps[i][key]=val;
+  return c;
+}
+function pipeSetType(d,i,type){
+  const c=pipeClone(d),o=c.steps[i];
+  if(o.type===type)return c;
+  const keep={id:o.id,type};["label","notes","next"].forEach(k=>{if(o[k]!==undefined)keep[k]=o[k];});
+  if(type==="approval"){keep.of=i>0?c.steps[i-1].id:"";keep.requires_user=true;delete keep.next;}
+  else{keep.phase=o.phase||o.id.replace(/[^a-z-]/g,"-").slice(0,24);keep.mode=o.mode||"read_only";keep.artifact=o.artifact||o.id+".md";keep.prompt=o.prompt||{ref:""};}
+  c.steps[i]=keep;return c;
+}
+const pipeStepLine=(s,t)=>{
+  const gs=(s.gates||[]).map(g=>g.use).filter(Boolean);
+  if(s.type==="approval")return `${s.id} — approval · ${t("approves")} ${s.of||"?"}`;
+  return `${s.id} — ${s.type} · ${s.phase||""} · ${s.mode||"read_only"}${s.artifact?" · "+s.artifact:""}${gs.length?" · "+gs.join(", "):""}`;
+};
+const pipeRowFlags=(r,t)=>({badge:t(r.origin==="builtin"?"Built-in":"Custom"),state:r.valid?"valid":"invalid",
+  note:!r.valid?String(r.reason||""):(r.used>0?t("{n} request(s)",{n:r.used}):""),canEdit:r.origin==="user",canDelete:r.origin==="user"});
+const pipeArm=(cur,id)=>cur===id?{armed:null,go:true}:{armed:id,go:false};
+// what the server's validator would refuse, found without a round trip (the server still has the last word)
+function pipeProblems(d,cat){
+  const out=[],idRe=new RegExp(cat.id_pattern),stRe=new RegExp(cat.step_pattern),phRe=/^[a-z-]{1,24}$/,steps=Array.isArray(d.steps)?d.steps:[];
+  if(!idRe.test(String(d.id||""))||String(d.id).length<3)out.push("The id needs 3 to 40 characters: a-z, 0-9 and hyphens.");
+  if(!steps.length)out.push("At least one step is needed.");
+  if(steps.length>cat.max_steps)out.push("At most "+cat.max_steps+" steps.");
+  const ids=steps.map(s=>s.id),seen=new Set();
+  steps.forEach((s,i)=>{
+    const w="«"+(s.id||i+1)+"»";
+    if(!stRe.test(String(s.id||"")))out.push("Step "+(i+1)+": the id needs 1 to 30 characters: a-z, 0-9 and hyphens.");
+    else if(seen.has(s.id))out.push("Two steps have the id "+w+".");
+    seen.add(s.id);
+    if(!cat.types.includes(s.type)){out.push("Step "+w+": the type must be worker, check or approval.");return;}
+    if(s.type==="approval"){if(!ids.slice(0,i).includes(s.of))out.push("Approval "+w+": it must approve a step listed before it.");}
+    else{
+      if(!phRe.test(String(s.phase||"")))out.push("Step "+w+": the phase needs 1 to 24 letters or hyphens.");
+      if(!cat.modes.includes(s.mode||"read_only"))out.push("Step "+w+": unknown mode.");
+      const p=s.prompt||{};
+      if(!p.ref&&!p.pt&&!p.en)out.push("Step "+w+": choose a prompt.");
+      else if(p.ref&&!cat.prompt_refs.includes(p.ref))out.push("Step "+w+": unknown prompt.");
+      if(cat.risky_modes.includes(s.mode)&&(i===0||steps[i-1].type!=="approval"))out.push("Step "+w+": a «"+s.mode+"» step needs an approval by the user right before it.");
+      (s.gates||[]).forEach(g=>{if(!cat.gates.includes(g.use))out.push("Step "+w+": unknown gate.");});
+    }
+    const targets=[];
+    if(s.next)targets.push([s.next,false]);
+    Object.values(s.on||{}).forEach(tr=>{if(typeof tr==="string")targets.push([tr,false]);else if(tr&&typeof tr==="object"){
+      if(tr.goto)targets.push([tr.goto,"max_rounds" in tr]);if(tr.next)targets.push([tr.next,false]);}});
+    targets.forEach(([tg,bounded])=>{
+      if(tg!==cat.end&&!ids.includes(tg))out.push("Step "+w+": «"+tg+"» is not a step.");
+      else if(tg!==cat.end&&ids.indexOf(tg)<=i&&!bounded)out.push("Step "+w+": going back to «"+tg+"» needs a limit on rounds (max_rounds).");});
+  });
+  return out;
+}
+// </pipelines>
 // <review>
 // may the "/" shortcut take the key? never while the user is typing in a field
 const slashFocuses=(key,tag,editable)=>key==="/"&&!editable&&!["INPUT","TEXTAREA","SELECT"].includes(String(tag||"").toUpperCase());
@@ -1658,13 +1779,189 @@ async function saveAbout(name,what){
   finally{const n=$("projectView").querySelector(`[data-pjact="${what}"]`);if(n)n.disabled=false;}
 }
 // ---------- end project page ----------
+
+// ---------- Pipelines page ----------
+const PIPES={rows:[],catalog:null,busy:false,failed:false,home:"",arm:null,err:"",data:null,origin:"user",valid:true,reason:"",used:0,draft:null,forked:"",loaded:""};
+async function refreshPipelines(){
+  if(PIPES.busy)return;
+  PIPES.busy=true;
+  try{const r=await getJson("/api/pipelines");
+    if(!r)return;
+    if(!r.ok)throw new Error(String(r.status));
+    PIPES.rows=r.data.pipelines||[];PIPES.catalog=r.data.catalog;PIPES.home=r.data.home_hint||"";PIPES.failed=false;
+  }catch(e){if(!PIPES.failed)toast(tt("Could not load the pipelines."),true);PIPES.failed=true;}
+  finally{PIPES.busy=false;}
+  await loadPipelineRoute();
+  renderPipelines();
+}
+// the pipeline the route names (details / edit), or the draft of a new one
+async function loadPipelineRoute(){
+  const r=ROUTE;
+  if(r.new){if(!PIPES.draft){PIPES.draft=pipeBlank();PIPES.forked="";}PIPES.data=PIPES.draft;PIPES.origin="user";PIPES.loaded="";return;}
+  if(!r.id){PIPES.loaded="";return;}
+  if(PIPES.loaded===r.id&&PIPES.data)return;
+  try{const one=await getJson("/api/pipelines/"+encodeURIComponent(r.id));
+    if(!one||!one.ok)throw new Error("x");
+    Object.assign(PIPES,{data:one.data.data,origin:one.data.origin,valid:one.data.valid,reason:one.data.reason,used:one.data.used||0,loaded:r.id,err:""});
+  }catch(e){PIPES.data=null;PIPES.loaded="";toast(tt("Could not load the pipeline."),true);location.hash=routeHash({view:"pipelines"});}
+}
+const pOpts=(list,cur,blank)=>(blank!=null?`<option value="">${esc(blank)}</option>`:"")+list.map(v=>`<option value="${esc(v)}"${v===cur?" selected":""}>${esc(v)}</option>`).join("");
+function pipeListHtml(){
+  const rows=PIPES.rows.map(r=>{const f=pipeRowFlags(r,tt),id=esc(r.id),armed=PIPES.arm===r.id;
+    return `<div class="prow" role="row"><div class="pc"><a class="plink" href="${esc(routeHash({view:"pipelines",id:r.id}))}">${id}</a> <span class="chip">${esc(f.badge)}</span>
+      <span class="pst ${f.state}">${f.state==="valid"?"✓":"⚠"}</span>${f.note?`<span class="pmute"> ${esc(f.note)}</span>`:""}</div>
+      <div class="pc pacts">${f.canEdit?`<a class="btn" href="${esc(routeHash({view:"pipelines",id:r.id,edit:true}))}">${tt("Edit")}</a>
+        <button class="btn ghost" type="button" data-pa="del" data-id="${id}">${armed?tt("Click again to delete"):tt("Delete")}</button>`
+        :`<button class="btn" type="button" data-pa="fork" data-id="${id}">${tt("Use as template")}</button>`}</div></div>`;}).join("");
+  return `<div class="phead"><h2>${tt("Pipelines")}</h2><a class="btn pri" href="${esc(routeHash({view:"pipelines",new:true,id:""}))}">${tt("New pipeline")}</a></div>
+    <p class="cnote2">${tt("A pipeline is the sequence of steps a kind of request goes through. Built-in ones cannot be changed: make a copy and edit that. Choosing your own pipeline in «+ New request» comes later; for now you can create, edit and delete them here.")}</p>
+    <div class="plist" role="table">${rows||`<p class="pmute">${tt("No pipelines.")}</p>`}</div>
+    ${PIPES.home?`<p class="pmute">${tt("Your pipelines are files in")} ${esc(PIPES.home)}</p>`:""}`;
+}
+function pipeStepsReadOnly(d){return `<ol class="psteps">${d.steps.map(s=>`<li>${esc(pipeStepLine(s,tt))}</li>`).join("")}</ol>`;}
+function pipeDetailsHtml(){
+  const d=PIPES.data,back=`<a class="btn ghost" href="${esc(routeHash({view:"pipelines"}))}">← ${tt("Pipelines")}</a>`;
+  const edit=PIPES.origin==="user"?`<a class="btn" href="${esc(routeHash({view:"pipelines",id:ROUTE.id,edit:true}))}">${tt("Edit")}</a>`
+    :`<button class="btn" type="button" data-pa="fork" data-id="${esc(ROUTE.id)}">${tt("Use as template")}</button>`;
+  return `<div class="phead">${back}<h2>${esc(d.name||d.id)}</h2>${edit}</div>
+    ${!PIPES.valid?`<p class="cnote2 warn">${esc(PIPES.reason)}</p>`:""}
+    <p class="pmute">${esc(d.description||"")} · v${esc(d.version)} · ${tt("{n} request(s)",{n:PIPES.used})}</p>${pipeStepsReadOnly(d)}`;
+}
+function pipeStepEditor(s,i,steps,cat){
+  const ids=steps.map(x=>x.id),isA=s.type==="approval",chk=(k,label)=>`<label class="pchk"><input type="checkbox" data-pi="${i}" data-pk="${k}"${s[k]?" checked":""}> ${tt(label)}</label>`;
+  const fld=(k,label,v,w)=>`<label class="pf"><span>${tt(label)}</span><input data-pi="${i}" data-pk="${k}" value="${esc(v||"")}" ${w?`style="width:${w}"`:""}></label>`;
+  let body="";
+  if(isA)body=`<label class="pf"><span>${tt("Approves")}</span><select data-pi="${i}" data-pk="of">${pOpts(ids.slice(0,i),s.of,"")}</select></label>`;
+  else{
+    body=fld("phase","Phase",s.phase,"9rem")+`<label class="pf"><span>${tt("Mode")}</span><select data-pi="${i}" data-pk="mode">${pOpts(cat.modes,s.mode||"read_only")}</select></label>`
+      +fld("artifact","Artifact",s.artifact,"10rem")
+      +`<label class="pf"><span>${tt("Prompt")}</span><select data-pi="${i}" data-pk="prompt.ref">${pOpts(cat.prompt_refs,(s.prompt||{}).ref,tt("(choose)"))}</select></label>`
+      +chk("questions","Asks questions")+chk("keep_questions_on_next","Keep questions for the next step")
+      +`<div class="pf"><span>${tt("Inputs")}</span>${cat.input_names.map(n=>`<label class="pchk"><input type="checkbox" data-pi="${i}" data-pk="inputs" data-v="${n}"${(s.inputs||[]).includes(n)?" checked":""}> ${esc(n)}</label>`).join("")}</div>`;
+    if(s.type==="check"){
+      const on=s.on||{};
+      body+=`<div class="pf"><span>${tt("Gates")}</span>${cat.gates.map(g=>`<label class="pchk"><input type="checkbox" data-pi="${i}" data-pk="gates" data-v="${g}"${(s.gates||[]).some(x=>x.use===g)?" checked":""}> ${esc(g)}</label>`).join("")}</div>`
+        +cat.verdicts.map(v=>{const tr=on[v],cur=tr&&typeof tr==="object"?(tr.goto?"goto:"+tr.goto:tr.next?"next:"+tr.next:""):"";
+          const choices=[tt("(default)")].concat([]),opts=[`<option value="">${esc(tt("(default)"))}</option>`,`<option value="next:${cat.end}"${cur==="next:"+cat.end?" selected":""}>${esc(tt("end"))}</option>`]
+            .concat(ids.filter(x=>x!==s.id).map(x=>`<option value="goto:${esc(x)}"${cur==="goto:"+x?" selected":""}>${esc(tt("go back to {x}",{x}))}</option>`));
+          return `<label class="pf"><span>${esc(tt("When {v}",{v}))}</span><select data-pi="${i}" data-pk="on.${v}">${opts.join("")}</select>
+            ${cur.startsWith("goto:")?`<input type="number" min="1" max="${cat.max_rounds}" style="width:4rem" data-pi="${i}" data-pk="on.${v}.rounds" value="${esc((tr||{}).max_rounds||1)}"> ${tt("rounds")}`:""}</label>`;}).join("");
+    }
+    body+=`<label class="pf"><span>${tt("Then")}</span><select data-pi="${i}" data-pk="next">${pOpts([cat.end].concat(ids.filter(x=>x!==s.id)),s.next,tt("(the next step)"))}</select></label>`;
+  }
+  return `<div class="pstep"><div class="phd"><strong>${i+1}</strong>
+    <input data-pi="${i}" data-pk="id" value="${esc(s.id)}" style="width:9rem" aria-label="${esc(tt("Step id"))}">
+    <select data-pi="${i}" data-pk="type" aria-label="${esc(tt("Step type"))}">${pOpts(cat.types,s.type)}</select>
+    <span class="grow"></span>
+    <button class="btn ghost" type="button" data-pa="up" data-pi="${i}" ${i===0?"disabled":""} aria-label="${esc(tt("Move up"))}">↑</button>
+    <button class="btn ghost" type="button" data-pa="down" data-pi="${i}" ${i===steps.length-1?"disabled":""} aria-label="${esc(tt("Move down"))}">↓</button>
+    <button class="btn ghost" type="button" data-pa="rm" data-pi="${i}">${tt("Remove")}</button></div><div class="pbody">${body}</div></div>`;
+}
+function pipeEditorHtml(){
+  const d=PIPES.data,cat=PIPES.catalog,isNew=!!ROUTE.new,probs=pipeProblems(d,cat);
+  return `<div class="phead"><a class="btn ghost" href="${esc(routeHash({view:"pipelines"}))}">← ${tt("Pipelines")}</a><h2>${isNew?tt("New pipeline"):tt("Edit pipeline")}</h2></div>
+    ${PIPES.forked?`<p class="pmute">${tt("A copy of")} «${esc(PIPES.forked)}»</p>`:""}
+    <div class="ptop"><label class="pf"><span>Id</span><input data-pf="id" value="${esc(d.id)}" ${isNew?"":"disabled"} style="width:14rem" placeholder="my-pipeline"></label>
+      <label class="pf"><span>${tt("Name")}</span><input data-pf="name" value="${esc(d.name||"")}" style="width:16rem"></label>
+      <label class="pf"><span>${tt("Max. automatic rounds")}</span><input data-pf="limits.max_total_rounds" type="number" min="1" max="100" value="${esc((d.limits||{}).max_total_rounds||"")}" style="width:5rem"></label></div>
+    <div class="psteps">${d.steps.map((s,i)=>pipeStepEditor(s,i,d.steps,cat)).join("")}</div>
+    <div class="pbar"><span>${tt("Add step")}:</span> ${cat.types.map(ty=>`<button class="btn" type="button" data-pa="add" data-ty="${ty}">${esc(ty)}</button>`).join(" ")}</div>
+    <div id="pipeProblems">${pipeProblemsHtml(probs)}</div>
+    ${PIPES.err?`<p class="cnote2 warn">${esc(PIPES.err)}</p>`:""}
+    <details class="pjson"><summary>JSON</summary><textarea id="pipeRaw" rows="14" spellcheck="false">${esc(JSON.stringify(d,null,1))}</textarea>
+      <button class="btn" type="button" data-pa="raw">${tt("Apply JSON")}</button></details>
+    <div class="pbar"><button class="btn pri" type="button" data-pa="save">${tt("Save pipeline")}</button>
+      <a class="btn ghost" href="${esc(routeHash({view:"pipelines"}))}">${tt("Cancel")}</a></div>`;
+}
+const pipeProblemsHtml=probs=>probs.length?`<ul class="cnote2 warn">${probs.map(p=>`<li>${esc(tt(p))}</li>`).join("")}</ul>`:`<p class="pmute">✓ ${tt("No problems found here; the server checks again when you save.")}</p>`;
+function renderPipelines(){
+  const v=$("pipelinesView");if(!v||ROUTE.view!=="pipelines")return;
+  const keep=v.querySelector("[data-pf]:focus,[data-pk]:focus");if(keep&&keep.matches("input,select"))return;   // never redraw under the user's cursor
+  if(ROUTE.new||ROUTE.edit)v.innerHTML=PIPES.data&&PIPES.catalog?pipeEditorHtml():"";
+  else if(ROUTE.id)v.innerHTML=PIPES.data?pipeDetailsHtml():"";
+  else v.innerHTML=pipeListHtml();
+}
+// the form writes into the definition with the pure helpers, then redraws (or only the problems list when the shape did not change)
+function pipeApply(next,structural){
+  PIPES.data=next;if(ROUTE.new)PIPES.draft=next;PIPES.err="";
+  if(structural)renderPipelines();else{const p=$("pipeProblems");if(p)p.innerHTML=pipeProblemsHtml(pipeProblems(next,PIPES.catalog));const raw=$("pipeRaw");if(raw)raw.value=JSON.stringify(next,null,1);}
+}
+function pipeOnChange(el){
+  const d=PIPES.data;
+  if(el.dataset.pf){
+    const k=el.dataset.pf,c=pipeClone(d);
+    if(k==="limits.max_total_rounds"){c.limits=c.limits||{};if(el.value==="")delete c.limits.max_total_rounds;else c.limits.max_total_rounds=+el.value;if(!Object.keys(c.limits).length)delete c.limits;}
+    else if(el.value==="")delete c[k];else c[k]=el.value.trim();
+    return pipeApply(c,false);
+  }
+  const i=+el.dataset.pi,k=el.dataset.pk,s=d.steps[i];if(!s)return;
+  if(k==="id")return pipeApply(pipeRenameStep(d,i,el.value.trim()),true);
+  if(k==="type")return pipeApply(pipeSetType(d,i,el.value),true);
+  if(k==="prompt.ref")return pipeApply(pipeSetStep(d,i,"prompt",el.value?{...(s.prompt||{}),ref:el.value}:undefined),false);
+  if(k==="inputs"||k==="gates"){
+    const v=el.dataset.v,cur=k==="gates"?(s.gates||[]):(s.inputs||[]);
+    const next=k==="gates"?(el.checked?cur.concat([{use:v}]):cur.filter(g=>g.use!==v)):(el.checked?cur.concat([v]):cur.filter(x=>x!==v));
+    return pipeApply(pipeSetStep(d,i,k,next),false);
+  }
+  if(k.startsWith("on.")){
+    const [,verdict,sub]=k.split("."),c=pipeClone(d),st=c.steps[i];st.on=st.on||{};
+    const old=st.on[verdict]&&typeof st.on[verdict]==="object"?st.on[verdict]:{};
+    if(sub==="rounds"){old.max_rounds=Math.max(1,Math.min(+el.value||1,PIPES.catalog.max_rounds));st.on[verdict]=old;return pipeApply(c,false);}
+    delete old.goto;delete old.next;delete old.max_rounds;
+    if(el.value.startsWith("goto:")){old.goto=el.value.slice(5);old.max_rounds=1;}else if(el.value.startsWith("next:"))old.next=el.value.slice(5);
+    if(Object.keys(old).length)st.on[verdict]=old;else delete st.on[verdict];
+    if(!Object.keys(st.on).length)delete st.on;
+    return pipeApply(c,true);
+  }
+  if(el.type==="checkbox")return pipeApply(pipeSetStep(d,i,k,el.checked?true:""),false);
+  return pipeApply(pipeSetStep(d,i,k,el.value.trim()),false);
+}
+async function pipeSave(){
+  const d=PIPES.data,probs=pipeProblems(d,PIPES.catalog);
+  if(probs.length){PIPES.err=tt("Fix the problems above first.");renderPipelines();return;}
+  try{
+    if(ROUTE.new)await api("/api/pipelines",{data:d,forked_from:PIPES.forked||undefined});
+    else await api("/api/pipelines/"+encodeURIComponent(ROUTE.id)+"/update",{data:d});
+    toast(tt("Pipeline saved."));PIPES.draft=null;PIPES.forked="";PIPES.loaded="";PIPES.data=null;
+    location.hash=routeHash({view:"pipelines"});
+  }catch(e){PIPES.err=e.message;renderPipelines();}
+}
+async function pipeFork(id){
+  try{const one=await getJson("/api/pipelines/"+encodeURIComponent(id));
+    if(!one||!one.ok)throw new Error("x");
+    const c=pipeClone(one.data.data);c.id="";c.name=(c.name||id)+" (copy)";delete c.based_on;
+    PIPES.draft=c;PIPES.forked=id;location.hash=routeHash({view:"pipelines",new:true,id:""});
+  }catch(e){toast(tt("Could not load the pipeline."),true);}
+}
+async function pipeDelete(id){
+  const a=pipeArm(PIPES.arm,id);PIPES.arm=a.armed;
+  if(!a.go){renderPipelines();return;}
+  try{await api("/api/pipelines/"+encodeURIComponent(id)+"/delete",{});toast(tt("Pipeline deleted."));}
+  catch(e){toast(e.message,true);}
+  await refreshPipelines();
+}
+document.addEventListener("click",ev=>{
+  const b=ev.target.closest&&ev.target.closest("#pipelinesView [data-pa]");if(!b)return;
+  const a=b.dataset.pa,i=+b.dataset.pi;
+  if(a==="fork")pipeFork(b.dataset.id);
+  else if(a==="del")pipeDelete(b.dataset.id);
+  else if(a==="up")pipeApply(pipeMove(PIPES.data,i,-1),true);
+  else if(a==="down")pipeApply(pipeMove(PIPES.data,i,1),true);
+  else if(a==="rm")pipeApply(pipeRemove(PIPES.data,i),true);
+  else if(a==="add")pipeApply(pipeAddStep(PIPES.data,b.dataset.ty),true);
+  else if(a==="save")pipeSave();
+  else if(a==="raw"){try{const j=JSON.parse($("pipeRaw").value);if(!j||typeof j!=="object"||!Array.isArray(j.steps))throw new Error("steps");pipeApply(j,true);}
+    catch(e){PIPES.err=tt("That is not a valid pipeline JSON.");renderPipelines();}}
+});
+document.addEventListener("change",ev=>{const el=ev.target;if(el.closest&&el.closest("#pipelinesView")&&(el.dataset.pf||el.dataset.pk)&&PIPES.data)pipeOnChange(el);});
+// ---------- end Pipelines page ----------
 function showView(){
   const v=ROUTE.view;
-  $("todayView").hidden=v!=="today";$("projectsView").hidden=v!=="projects";$("projectView").hidden=v!=="project";
+  $("todayView").hidden=v!=="today";$("projectsView").hidden=v!=="projects";$("projectView").hidden=v!=="project";$("pipelinesView").hidden=v!=="pipelines";
   document.querySelectorAll("#tabs a").forEach(a=>{
-    if(a.dataset.view===(v==="today"?"today":"projects"))a.setAttribute("aria-current","page");else a.removeAttribute("aria-current");});
+    if(a.dataset.view===(v==="today"?"today":v==="pipelines"?"pipelines":"projects"))a.setAttribute("aria-current","page");else a.removeAttribute("aria-current");});
   syncChrome();
-  if(v==="projects"){renderProjects();refreshProjects();}else if(v==="project")renderProject(ROUTE.name);
+  if(v==="projects"){renderProjects();refreshProjects();}else if(v==="project")renderProject(ROUTE.name);else if(v==="pipelines")refreshPipelines();
 }
 window.addEventListener("hashchange",()=>{readHash();$("q").value=F.q;showView();render();});
 const matchName=(s,q)=>String(s||"").toLowerCase().includes(q.toLowerCase());
