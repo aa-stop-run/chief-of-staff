@@ -248,3 +248,10 @@ def test_build_parts_is_pure_and_validates_every_part(env):
     boom = lambda *a: (_ for _ in ()).throw(FeatureError("bad"))             # noqa: E731
     with pytest.raises(FeatureError):
         fanout.build_parts(parent, split, SPEC, set(), datetime(2026, 1, 1), boom)
+
+
+def test_the_refusals_are_translated():
+    from i18n import translate
+    assert translate("The plan's split has problems (overlap, size): ask for changes.", "pt") == "A divisão do plano tem problemas (overlap, size): pede alterações."
+    reasons = [fanout.decide({"kind": "feature"}, plan([A, B]), None, set())["reason"]]
+    assert all(translate(r, "pt") != r for r in reasons)

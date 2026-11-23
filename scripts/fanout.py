@@ -217,3 +217,47 @@ def integration_due(parent: dict, feats, now: str = "", has_folder: bool = False
     if len(ready) < 2:
         return out(False, ready, skipped, "fewer than 2 parts to integrate")
     return out(True, ready, skipped)
+
+
+# --------------------------------------------------------------------------- R7 — the integration request (pure helpers)
+
+def reserve_id(parent_id: str, taken, now: datetime) -> str:
+    """`<parent id[:40]>-integration-<yymmddHHMMSS>`; `-2`, `-3`… on collision."""
+    base = f"{parent_id[:40].rstrip('-')}-integration-{now.strftime('%y%m%d%H%M%S')}"
+    taken = set(taken or ())
+    if base not in taken:
+        return base
+    n = 2
+    while f"{base}-{n}" in taken:
+        n += 1
+    return f"{base}-{n}"
+
+
+def due_parent(feats, now: str, has_folder=lambda fid: False):
+    """The first fanned-out parent whose integration is due, as (parent, due), or None. A parent whose reservation was lost
+    is returned with `due["due"]` false and reason «integration reservation lost» so the caller can record it once."""
+    for parent in feats or []:
+        if not (parent.get("split") or {}).get("tasks"):
+            continue
+        split = parent["split"]
+        due = integration_due(parent, feats, now, has_folder(split.get("integration") or ""))
+        if due["due"]:
+            return parent, due
+        if due["reason"] == "integration reservation lost" and not split.get("integration_error"):
+            return parent, due
+    return None
+
+
+def integration_kwargs(parent: dict, due: dict, feats) -> dict:
+    """Keyword arguments (project, title, desc, model, lang, path, parent) for the integration request of `parent`."""
+    by_id = _by_id(feats)
+    ready = [by_id[i] for i in due["ready"]]
+    lines = [f"Combine and test the parts of «{parent.get('title', '')}» ({parent['id']}).", "", "Parts to combine:"]
+    lines += [f"- {p['id']}: {p.get('title', '')}" for p in ready]
+    if due["skipped"]:
+        lines += ["", "Cancelled parts, not included:"] + [f"- {i}" for i in due["skipped"]]
+    desc = "\n".join(lines)
+    title = f"[{parent['id'][:24].rstrip('-')}/integration] {parent.get('title', '')}"
+    return {"project": parent["project"], "title": title if len(title) <= MAX_TITLE else title[:MAX_TITLE - 1].rstrip() + "…",
+            "desc": desc[:MAX_DESC], "model": parent.get("model") or "", "lang": parent.get("lang", "en"),
+            "path": parent.get("path", ""), "parent": parent["id"]}

@@ -110,3 +110,58 @@ def test_a_plan_with_a_split_block_exposes_plan_split(ro):
     assert server._card_extras(card, {})["plan_split"] == {"n": 2, "errors": 0}
     card["artifacts"]["plan"] = "none"
     assert "plan_split" not in server._card_extras(card, {})
+
+
+def _srv():
+    root = Path(__file__).resolve().parent.parent
+    for sub in ("scripts", "app"):
+        if str(root / sub) not in sys.path:
+            sys.path.insert(0, str(root / sub))
+    import server
+    return server
+
+
+def _parent(**over):
+    f = {"id": "par", "status": "done", "stage": "plan", "history": [], "artifacts": {}, "project": "Alfa",
+         "closed": {"at": "2026-01-01T00:00:00", "session": "ws-old"},
+         "split": {"tasks": [{"id": "a", "part_id": "pa"}, {"id": "b", "part_id": "pb"}], "status": "fanned-out",
+                   "integration": "", "integration_error": ""}}
+    f.update(over)
+    return f
+
+
+def _part(pid, status, ok=True):
+    return {"id": pid, "title": pid.upper(), "stage": "review", "status": status, "history": [], "artifacts": {},
+            **({"commit": {"ok": True, "at": "2026-01-01T01:00:00"}} if ok else {})}
+
+
+def test_a_fanned_out_parent_exposes_its_parts_and_state_and_a_plain_card_exposes_none(ro):
+    server = _srv()
+    parent = _parent()
+    every = [parent, _part("pa", "done"), _part("pb", "working", ok=False)]
+    out = server._card_extras(parent, {}, every)
+    assert [p["id"] for p in out["parts"]] == ["pa", "pb"] and out["split_state"] == "running"
+    plain = server._card_extras({"id": "x", "status": "awaiting", "stage": "spec", "history": [], "artifacts": {}}, {}, every)
+    assert not ({"parts", "split_state", "integration_summary"} & set(plain))
+
+
+def test_an_integration_request_with_a_report_exposes_its_summary(ro):
+    server = _srv()
+    report = "## Execution status\n- pa: APPROVED\n## Cross-part conflicts\nNone.\n## Combined tests\nFINAL RESULT: 9 passed, 0 failed\n"
+    card = {"id": "i", "status": "awaiting", "stage": "review", "history": [], "integration": True, "artifacts": {"build": report}}
+    out = server._card_extras(card, {}, [card])
+    assert out["integration_summary"] == {"parts": {"pa": "APPROVED"}, "conflicts": 0, "tests": "9 passed, 0 failed"}
+    card["artifacts"] = {}
+    assert "integration_summary" not in server._card_extras(card, {}, [card])
+
+
+def test_a_closed_parent_stays_in_scope_while_a_part_or_the_integration_is_open(ro):
+    server = _srv()
+    parent = _parent()
+    assert server._in_scope(parent, "ws-new", [parent, _part("pa", "working"), _part("pb", "done")]) is True
+    assert server._in_scope(parent, "ws-new", [parent, _part("pa", "done"), _part("pb", "done")]) is False
+    assert server._in_scope(parent, "ws-new", [parent, _part("pa", "cancelled"), _part("pb", "cancelled")]) is False
+    parent["split"]["integration"] = "int"
+    assert server._in_scope(parent, "ws-new", [parent, _part("pa", "done"), _part("pb", "done"), {"id": "int", "status": "working"}]) is True
+    assert server._in_scope(parent, "ws-new", [parent, _part("pa", "done"), _part("pb", "done"), {"id": "int", "status": "done"}]) is False
+    assert server._in_scope(parent, "ws-old", [parent]) is True          # its own session still shows it

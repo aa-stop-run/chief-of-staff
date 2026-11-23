@@ -7,12 +7,14 @@ a plan that left no questions («run until the review»). The last phase is alwa
 """
 import json
 import re
+import shutil
 import threading
 import unicodedata
 from datetime import datetime, timedelta
 from pathlib import Path
 
 import atomicio
+import combine
 import engine
 import fanout
 import gates
@@ -20,6 +22,7 @@ import pipelines
 import prompt_refs
 import prompts
 import prompts_kinds
+import prompts_integration
 import prompts_pt
 import prompts_qa
 import splitplan
@@ -363,6 +366,120 @@ class Features(CheckFlow):
     def _read_artifact(self, f: dict, stage: str) -> str:
         p = self._dir(f["id"]) / ARTIFACT[stage]
         return p.read_text(encoding="utf-8", errors="replace") if p.is_file() else ""
+
+    # ---- the integration request: one analysis request that merges the parts' branches and tests them together ----
+    CLEANUP_BACKOFF_S = 600
+
+    def maybe_integrate(self) -> None:
+        """Create the integration request of a fanned-out parent once every non-cancelled part is ready. Three steps so the lock
+        is never held during git: reserve the id (a second tick then does nothing), merge the branches, create the request."""
+        reserved = self._reserve_integration()
+        if not reserved:
+            return
+        parent_id, fid, path, ready, kw = reserved
+        error = self._combine_parts(fid, path, ready)
+        with self._lock:
+            fs = self._load()
+            parent = self._get(fs, parent_id)
+            if error:
+                shutil.rmtree(self._dir(fid), ignore_errors=True)
+                parent["split"].update(integration="", integration_error=error)
+                self._log(parent, "integration failed", parent["stage"], error)
+            else:
+                self._create_integration(fs, parent, fid, ready, kw)
+            self._save(fs)
+
+    def _reserve_integration(self):
+        with self._lock:
+            fs = self._load()
+            hit = fanout.due_parent(fs, _now(), lambda fid: bool(fid) and (self._dir(fid) / "integration").exists())
+            if not hit:
+                return None
+            parent, due = hit
+            split = parent["split"]
+            if not due["due"]:                          # a reservation that never became a request (the server died in between)
+                split["integration_error"] = due["reason"]
+                self._log(parent, "integration failed", parent["stage"], due["reason"])
+                self._save(fs)
+                return None
+            fid = fanout.reserve_id(parent["id"], {x["id"] for x in fs}, datetime.now())
+            split["integration"], split["integration_reserved_at"] = fid, _now()
+            kw = fanout.integration_kwargs(parent, due, fs)
+            self._save(fs)
+            return parent["id"], fid, parent.get("path", ""), due["ready"], kw
+
+    def _combine_parts(self, fid: str, path: str, ready: list) -> str:
+        """Merge the parts' branches into `<request>/integration/` and keep what the worker reads next to it. "" or the error."""
+        d = self._dir(fid)
+        try:
+            if not path:
+                raise combine.CombineError("the project's folder is not known")
+            d.mkdir(parents=True, exist_ok=True)
+            result = combine.run(path, [f"feat/{i}" for i in ready], str(d / "integration"))
+            (d / "combine.json").write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
+            (d / "parts").mkdir(exist_ok=True)
+            for i in ready:
+                for name in ("review.md", "report.md"):
+                    src = self._dir(i) / name
+                    if src.is_file():
+                        shutil.copyfile(src, d / "parts" / f"{i}.{name}")
+            return ""
+        except (combine.CombineError, OSError) as e:
+            if path:
+                combine.remove(path, str(d / "integration"))
+            return str(e) or "the parts could not be combined"
+
+    def _create_integration(self, fs: list, parent: dict, fid: str, ready: list, kw: dict) -> None:
+        by_id = {x["id"]: x for x in fs}
+        d = self._dir(fid)
+        info = {"title": parent["title"], "parts": [
+            {"id": i, "title": by_id[i]["title"], "branch": f"feat/{i}", "report": str(d / "parts" / f"{i}.review.md")} for i in ready]}
+        f = self._new_request(fs, kw.pop("project"), kw.pop("title"), kw.pop("desc"), kw.pop("model"), kind="analysis", fid=fid,
+                              start=False, extra={"integration": True, "int": info}, **kw)
+        try:
+            self._start(fs, f, "")
+        except Exception as e:  # noqa: BLE001 - the request is kept (failed) so «Try again» works
+            f["status"] = FAILED
+            self._log(f, "integration launch failed", f["stage"], str(e))
+        self._log(parent, "integration created", parent["stage"], fid)
+
+    def _integration_task(self, f: dict, feedback: str) -> str:
+        """The integration worker's prompt: it runs the suite in the merged worktree and reports; it is not the read-only analysis."""
+        P, d = self._prompts(f), self._dir(f["id"])
+        info = f["int"]
+        text = P.language_rule(self._note_lang) + prompts_integration.render(
+            self._lang(f), {"id": f["parent"], "title": info["title"]}, info["parts"], str(d / "combine.json"),
+            str(d / "integration"), str(d / ARTIFACT["build"]), str(self._dir(f["parent"]) / ARTIFACT["plan"])) + P.BRIEF
+        if not self._has_vault:
+            text += P.NO_VAULT_NOTE
+        if feedback:
+            prev = d / f"{Path(ARTIFACT['build']).stem}.v{f['rev'].get('build', 0)}.md"
+            text += P.CHANGES_BLOCK.format(feedback=feedback, prev=prev, path=d / ARTIFACT["build"])
+        return text
+
+    def remove_integration_worktrees(self) -> None:
+        """Remove `integration/` of integration requests that are finished or cancelled. A removal that fails (a lock on Windows)
+        is logged once and not tried again for ten minutes; this never raises into the ticker."""
+        try:
+            with self._lock:
+                fs, changed = self._load(), False
+                for f in fs:
+                    wt = self._dir(f["id"]) / "integration"
+                    if not f.get("integration") or f["status"] not in (DONE, CANCELLED) or not wt.exists():
+                        continue
+                    failed = f.get("integration_cleanup_failed_at")
+                    if failed and (datetime.now() - datetime.fromisoformat(failed)).total_seconds() < self.CLEANUP_BACKOFF_S:
+                        continue
+                    combine.remove(f.get("path", ""), str(wt))
+                    if wt.exists():
+                        if not failed:
+                            self._log(f, "integration cleanup failed", f["stage"], "the worktree could not be removed; it will be tried again")
+                        f["integration_cleanup_failed_at"] = _now()
+                        changed = True
+                if changed:
+                    self._save(fs)
+        except Exception:  # noqa: BLE001 - housekeeping must never bring the server's ticker down
+            pass
 
     def _split_decision(self, f: dict) -> dict:
         """What approving this plan means (`fanout.decide`); a refusal raises, so it leaves no log and no archive behind."""
@@ -973,6 +1090,8 @@ class Features(CheckFlow):
                  stage=first["phase"], rounds={})
 
     def _task(self, f: dict, feedback: str) -> str:
+        if f.get("integration") and f["stage"] == "build":
+            return self._integration_task(f, feedback)
         step = self._stage_step(f)
         ref = ((step or {}).get("prompt") or {}).get("ref")
         if not ref:

@@ -43,6 +43,8 @@ import features  # noqa: E402
 import home  # noqa: E402
 import sessions  # noqa: E402
 import settings  # noqa: E402
+import fanout  # noqa: E402
+import prompts_integration  # noqa: E402
 import splitplan  # noqa: E402
 from alerts import Alerts  # noqa: E402
 from curation import CurationError, Curator  # noqa: E402
@@ -165,9 +167,14 @@ def _limited_workers(sessions: list) -> list:
     return out
 
 
-def _in_scope(f: dict, session_id: str) -> bool:
-    """Open requests always belong on the dashboard; finished or cancelled ones only in the session that closed them."""
-    return report.in_scope(f, session_id)
+def _in_scope(f: dict, session_id: str, every=()) -> bool:
+    """Open requests always belong on the dashboard; finished or cancelled ones only in the session that closed them. A closed
+    request that was split stays while any of its parts, or its integration request, is still open (it leads to them)."""
+    if report.in_scope(f, session_id):
+        return True
+    split = f.get("split") or {}
+    ids = {t.get("part_id") for t in split.get("tasks") or []} | {split.get("integration")}
+    return any(x["id"] in ids and x["status"] not in ("done", "cancelled") for x in every)
 
 
 def _session_summary(session_id: str, in_scope: list) -> dict:
@@ -248,7 +255,7 @@ CARD_FACTS = projectpage.TtlCache(ttl_s=30)      # git facts of a card (what it 
 CLOSED = ("done", "cancelled")
 
 
-def _card_extras(f: dict, titles: dict) -> dict:
+def _card_extras(f: dict, titles: dict, every=()) -> dict:
     """What a card shows beyond the request itself: the size its plan declares, why its worker failed, the size of the change
     under review, and, once it is closed, what it left in the project's repo. Each is left out when there is nothing to say."""
     out = {}
@@ -259,6 +266,11 @@ def _card_extras(f: dict, titles: dict) -> dict:
     sp = splitplan.summary((f.get("artifacts") or {}).get("plan", ""))
     if sp:
         out["plan_split"] = sp
+    if f.get("split"):
+        out["parts"] = fanout.parts_view(f, every)
+        out["split_state"] = fanout.split_state(f, every)
+    if f.get("integration") and (f.get("artifacts") or {}).get("build"):
+        out["integration_summary"] = prompts_integration.parse_report(f["artifacts"]["build"])
     if f.get("parent") in titles:
         out["parent_title"] = titles[f["parent"]]
     if f["status"] == "failed" and f.get("worker_id"):
@@ -314,17 +326,17 @@ def _build_state_uncached() -> dict:
     # artifacts, questions and answers are read only for the requests the dashboard shows, not for every request ever made
     in_scope = [{**f, "worker_state": (_live["map"] or {}).get(f["worker_id"], ""), "cost": request_costs.get(f["id"]),
                  "artifacts": FEATURES.artifacts(f["id"]), "questions": FEATURES.questions(f["id"]), "qa": FEATURES.qa_of(f)}
-                for f in every[::-1] if f["project"] in visible and _in_scope(f, cur)]
+                for f in every[::-1] if f["project"] in visible and _in_scope(f, cur, every)]
     titles = {f["id"]: f["title"] for f in every}
     for f in in_scope:
         try:
-            f.update(_card_extras(f, titles))
+            f.update(_card_extras(f, titles, every))
         except Exception:  # noqa: BLE001 - these are extras: a git or log problem never hides the card
             traceback.print_exc(file=sys.stderr)
     state["features"] = in_scope
     # the page sends this back: while the cards are the same, the next answer leaves them out (they are most of the payload)
     state["features_hash"] = hashlib.sha1(json.dumps(in_scope, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
-    state["earlier_closed"] = sum(1 for f in every if f["project"] in visible and not _in_scope(f, cur))
+    state["earlier_closed"] = sum(1 for f in every if f["project"] in visible and not _in_scope(f, cur, every))
     # the workers' history is this session's: workers still running are always shown, finished ones only if launched in this session
     state["workers"] = [w for w in state["workers"] if w["project"] in visible and (w.get("state") in chief.ACTIVE or w.get("session") == cur)]
     state["pending"] = [x for x in PENDING.list() if x["project"] in visible]
@@ -609,6 +621,8 @@ def _ticker() -> None:
             SESSIONS.heartbeat()
             if chief.CFG.get("resume_after_limit", True):
                 FEATURES.auto_resume()
+            FEATURES.maybe_integrate()                  # a fanned-out request whose parts are all ready: one integration request
+            FEATURES.remove_integration_worktrees()
             ticks["n"] += 1
             if ticks["n"] % COST_EVERY == 0:
                 _reconcile()
