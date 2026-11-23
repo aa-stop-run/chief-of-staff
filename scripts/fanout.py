@@ -113,3 +113,87 @@ def autopilot_blocks(f: dict, plan_text: str) -> bool:
         return False
     sp = splitplan.parse_split(plan_text)
     return sp is not None and (len(sp["tasks"]) >= 2 or bool(sp["errors"]))
+
+
+# --------------------------------------------------------------------------- B3 — parts view, split state, integration due
+
+LOST_AFTER_S = 30 * 60   # a reserved integration id with nothing behind it for this long is lost
+
+
+def _by_id(feats) -> dict:
+    return {f.get("id"): f for f in (feats or []) if isinstance(f, dict)}
+
+
+def _launched_at(part: dict) -> str:
+    return max((h.get("at", "") for h in part.get("history") or [] if h.get("event") == "worker launched"), default="")
+
+
+def is_ready(part: dict) -> bool:
+    """A part is ready when its pipeline commit succeeded, it is not back at work, and it has not been relaunched since."""
+    commit = (part or {}).get("commit") or {}
+    if not commit.get("ok") or part.get("status") not in ("awaiting", "done"):
+        return False
+    return _launched_at(part) <= commit.get("at", "")
+
+
+def _parts(parent: dict, feats) -> list:
+    """The existing part requests of a fanned-out parent, in the order of its split tasks."""
+    by_id = _by_id(feats)
+    tasks = ((parent or {}).get("split") or {}).get("tasks") or []
+    return [by_id[t["part_id"]] for t in tasks if t.get("part_id") in by_id]
+
+
+def parts_view(parent: dict, feats) -> list:
+    """What the card lists: id, title, stage, status and `ready` of each part that still exists."""
+    return [{"id": p["id"], "title": p.get("title", ""), "stage": p.get("stage", ""),
+             "status": p.get("status", ""), "ready": is_ready(p)} for p in _parts(parent, feats)]
+
+
+def split_state(parent: dict, feats) -> str:
+    """running | partial | ready | integrating | integrated (derived on read, never stored)."""
+    split = (parent or {}).get("split") or {}
+    integ = _by_id(feats).get(split.get("integration") or None)
+    if integ is not None:
+        return "integrated" if integ.get("status") == "done" else "integrating"
+    parts = _parts(parent, feats)
+    if any(p.get("status") in ("cancelled", "failed") for p in parts):
+        return "partial"
+    return "ready" if parts and all(is_ready(p) for p in parts) else "running"
+
+
+def _seconds_since(stamp: str, now: str) -> float:
+    try:
+        return (datetime.fromisoformat(now) - datetime.fromisoformat(stamp)).total_seconds()
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def integration_due(parent: dict, feats, now: str = "", has_folder: bool = False) -> dict:
+    """Is it time to create the integration request? {"due", "ready": [part ids], "skipped": [part ids], "reason"}.
+
+    `now` is an ISO timestamp (only used to date a lost reservation); `has_folder` says whether the
+    reserved integration folder exists on disk."""
+    def out(due, ready=(), skipped=(), reason=""):
+        return {"due": due, "ready": list(ready), "skipped": list(skipped), "reason": reason}
+
+    split = (parent or {}).get("split") or {}
+    reserved = split.get("integration") or ""
+    if reserved:
+        if reserved in _by_id(feats) or has_folder:
+            return out(False, reason="integration already created")
+        if now and _seconds_since(split.get("integration_reserved_at", ""), now) > LOST_AFTER_S:
+            return out(False, reason="integration reservation lost")
+        return out(False, reason="integration being created")
+    if split.get("integration_error"):
+        return out(False, reason="integration failed earlier")
+    parts = _parts(parent, feats)
+    skipped = [p["id"] for p in parts if p.get("status") == "cancelled"]
+    live = [p for p in parts if p.get("status") != "cancelled"]
+    if any(p.get("status") == "failed" for p in live):
+        return out(False, skipped=skipped, reason="a part failed")
+    if any(not is_ready(p) for p in live):
+        return out(False, skipped=skipped, reason="parts still under way")
+    ready = [p["id"] for p in live]
+    if len(ready) < 2:
+        return out(False, ready, skipped, "fewer than 2 parts to integrate")
+    return out(True, ready, skipped)

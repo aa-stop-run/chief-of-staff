@@ -141,3 +141,95 @@ def test_autopilot_blocks():
     assert fanout.autopilot_blocks({"kind": "feature"}, "no split") is False
     assert fanout.autopilot_blocks({"kind": "feature", "part": "a"}, _plan([A, B])) is False
     assert fanout.autopilot_blocks({"kind": "release"}, _plan([A, B])) is False
+
+
+# --------------------------------------------------------------------------- B3 — parts view and split state
+
+def _part(pid, status="awaiting", ok=True, at="2026-11-23T10:00:00", launched="2026-11-23T09:00:00", stage="review"):
+    f = {"id": pid, "title": pid.upper(), "stage": stage, "status": status,
+         "history": [{"event": "worker launched", "at": launched}]}
+    if ok is not None:
+        f["commit"] = {"ok": ok, "at": at}
+    return f
+
+
+def _parent(*pids, **extra):
+    split = {"tasks": [{"id": p, "part_id": p} for p in pids], "status": "fanned-out", "integration": "", "integration_error": ""}
+    split.update(extra)
+    return {"id": "par", "split": split}
+
+
+def test_is_ready():
+    assert fanout.is_ready(_part("a"))
+    assert fanout.is_ready(_part("a", status="done"))
+    assert not fanout.is_ready(_part("a", status="working"))
+    assert not fanout.is_ready(_part("a", status="failed"))
+    assert not fanout.is_ready(_part("a", status="cancelled"))
+    assert not fanout.is_ready(_part("a", ok=None))
+    assert not fanout.is_ready(_part("a", ok=False))
+    # went back to work after its commit
+    assert not fanout.is_ready(_part("a", launched="2026-11-23T11:00:00"))
+
+
+def test_parts_view_order_and_missing_requests():
+    parent = _parent("b", "gone", "a")
+    view = fanout.parts_view(parent, [_part("a"), _part("b", status="working")])
+    assert [v["id"] for v in view] == ["b", "a"]
+    assert view[0] == {"id": "b", "title": "B", "stage": "review", "status": "working", "ready": False}
+    assert view[1]["ready"] is True
+
+
+def test_split_state_running_partial_ready():
+    parent = _parent("a", "b")
+    assert fanout.split_state(parent, [_part("a"), _part("b", status="working")]) == "running"
+    assert fanout.split_state(parent, [_part("a"), _part("b")]) == "ready"
+    assert fanout.split_state(parent, [_part("a"), _part("b", status="cancelled")]) == "partial"
+    assert fanout.split_state(parent, [_part("a"), _part("b", status="failed")]) == "partial"
+
+
+def test_split_state_integrating_and_integrated():
+    parent = _parent("a", "b", integration="int")
+    feats = [_part("a"), _part("b")]
+    assert fanout.split_state(parent, feats + [{"id": "int", "status": "working"}]) == "integrating"
+    assert fanout.split_state(parent, feats + [{"id": "int", "status": "failed"}]) == "integrating"
+    assert fanout.split_state(parent, feats + [{"id": "int", "status": "done"}]) == "integrated"
+
+
+def test_integration_due_two_ready_parts():
+    parent = _parent("a", "b")
+    d = fanout.integration_due(parent, [_part("a"), _part("b")])
+    assert d == {"due": True, "ready": ["a", "b"], "skipped": [], "reason": ""}
+
+
+def test_a_cancelled_part_does_not_block_but_a_failed_one_does():
+    parent = _parent("a", "b", "c")
+    d = fanout.integration_due(parent, [_part("a"), _part("b"), _part("c", status="cancelled")])
+    assert d["due"] and d["ready"] == ["a", "b"] and d["skipped"] == ["c"]
+    d = fanout.integration_due(parent, [_part("a"), _part("b"), _part("c", status="failed")])
+    assert not d["due"] and d["reason"] == "a part failed"
+
+
+def test_not_due_with_one_ready_part_or_a_part_under_way():
+    parent = _parent("a", "b")
+    d = fanout.integration_due(parent, [_part("a"), _part("b", status="cancelled")])
+    assert not d["due"] and d["reason"] == "fewer than 2 parts to integrate" and d["skipped"] == ["b"]
+    d = fanout.integration_due(parent, [_part("a"), _part("b", status="working")])
+    assert not d["due"] and d["reason"] == "parts still under way"
+    d = fanout.integration_due(parent, [_part("a"), _part("b", ok=None)])
+    assert not d["due"]
+
+
+def test_not_due_twice_or_after_an_error():
+    feats = [_part("a"), _part("b"), {"id": "int", "status": "working"}]
+    assert not fanout.integration_due(_parent("a", "b", integration="int"), feats)["due"]
+    assert not fanout.integration_due(_parent("a", "b", integration_error="boom"), feats[:2])["due"]
+
+
+def test_a_reservation_with_nothing_behind_it_is_lost_after_30_minutes():
+    parent = _parent("a", "b", integration="int", integration_reserved_at="2026-11-23T10:00:00")
+    feats = [_part("a"), _part("b")]
+    soon = fanout.integration_due(parent, feats, now="2026-11-23T10:10:00")
+    assert not soon["due"] and soon["reason"] == "integration being created"
+    late = fanout.integration_due(parent, feats, now="2026-11-23T10:31:00")
+    assert not late["due"] and late["reason"] == "integration reservation lost"
+    assert fanout.integration_due(parent, feats, now="2026-11-23T10:31:00", has_folder=True)["reason"] == "integration already created"
