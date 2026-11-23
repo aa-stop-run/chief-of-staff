@@ -80,6 +80,26 @@ def part_spec(parent_id: str, task: dict, desc: str) -> str:
     return f"# {task.get('title', '')}\n\n{desc}\n\nPart of {parent_id}.\n"
 
 
+def build_parts(parent: dict, split: dict, spec_text: str, taken_ids, now: datetime, validate) -> list:
+    """The requests a split becomes, as keyword-argument sets for `Features._new_request` (plus the part's `spec`, "" when the
+    kind has no spec). Every part is validated first (`validate(project, title, desc, model, lang, kind)` raises on a bad
+    one), so nothing is created when any of them is wrong. Pure: it neither writes nor mutates its arguments."""
+    criteria = criteria_section(spec_text) if (spec_text or "").strip() else (parent.get("desc") or "")
+    taken, out = set(taken_ids or ()), []
+    for task in split.get("tasks") or []:
+        fid = part_id(parent["id"], task["id"], taken, now)
+        taken.add(fid)
+        title = part_title(parent["id"], task)
+        desc = part_desc(parent.get("title", ""), task, criteria)
+        title, desc, kind = validate(parent["project"], title, desc, parent.get("model"), parent.get("lang", "en"),
+                                     parent.get("kind", "feature"))
+        out.append({"fid": fid, "project": parent["project"], "title": title, "desc": desc, "model": parent.get("model") or "",
+                    "lang": parent.get("lang", "en"), "kind": kind, "path": parent.get("path", ""), "parent": parent["id"],
+                    "stage": START_STAGE, "extra": {"part": task["id"]},
+                    "spec": part_spec(parent["id"], task, desc) if (spec_text or "").strip() else ""})
+    return out
+
+
 def decide(f: dict, plan_text: str, questions, repo_files) -> dict:
     """What approving this plan means: {"action": "linear"|"refuse"|"fan_out", "reason": str, "split": dict|None}.
 

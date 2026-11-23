@@ -14,6 +14,7 @@ from pathlib import Path
 
 import atomicio
 import engine
+import fanout
 import gates
 import pipelines
 import prompt_refs
@@ -21,6 +22,7 @@ import prompts
 import prompts_kinds
 import prompts_pt
 import prompts_qa
+import splitplan
 from feature_checks import (AWAITING, CANCELLED, CHECK_EVENTS, DONE, FAILED, GATE_REASONS, PLAN_REVIEW, WORKING,  # noqa: F401
                            CheckFlow, COMMIT_TYPES, FeatureError, _now, _slug, commit_message)  # noqa: F401
 
@@ -343,6 +345,9 @@ class Features(CheckFlow):
         if (not f.get("autopilot") or self._pipe(f)[0].id in pipelines.NO_AUTOPILOT or f["stage"] not in AUTOPILOT_STAGES
                 or f["status"] != AWAITING or step is None or self._next_after_approval(f, step).kind != "launch"):
             return                                # never the last phase: accepting the implementation is the user's
+        if f["stage"] == "plan" and fanout.autopilot_blocks(f, self._read_artifact(f, "plan")):
+            self._log(f, "autopilot stopped", f["stage"], "the plan has a split: approve it yourself to fan out")
+            return
         if not validated:
             self._log(f, "autopilot stopped", f["stage"], "the plan was not validated: read it and decide")
             return
@@ -354,6 +359,42 @@ class Features(CheckFlow):
             self._approve(fs, f)
         except FeatureError as e:
             self._log(f, "autopilot stopped", f["stage"], str(e))
+
+    def _read_artifact(self, f: dict, stage: str) -> str:
+        p = self._dir(f["id"]) / ARTIFACT[stage]
+        return p.read_text(encoding="utf-8", errors="replace") if p.is_file() else ""
+
+    def _split_decision(self, f: dict) -> dict:
+        """What approving this plan means (`fanout.decide`); a refusal raises, so it leaves no log and no archive behind."""
+        d = fanout.decide(f, self._read_artifact(f, "plan"), self.questions(f["id"]), splitplan.repo_files(f.get("path", "")))
+        if d["action"] == "refuse":
+            raise FeatureError(d["reason"])
+        return d
+
+    def _split_parts(self, fs: list, f: dict, split: dict) -> list:
+        return fanout.build_parts(f, split, self._read_artifact(f, "spec"), {x["id"] for x in fs}, datetime.now(), self._validate_request_fields)
+
+    def _fan_out(self, fs: list, f: dict, parts: list, split: dict) -> None:
+        """Create and start one request per part, then close the parent (it leads to its parts). A part that cannot start is
+        `failed` on its own and can be retried; the others keep running."""
+        made = []
+        for p in parts:
+            kw = dict(p)
+            spec = kw.pop("spec")
+            child = self._new_request(fs, kw.pop("project"), kw.pop("title"), kw.pop("desc"), kw.pop("model"), start=False, **kw)
+            if spec:
+                (self._dir(child["id"]) / ARTIFACT["spec"]).write_text(spec, encoding="utf-8")
+            try:
+                self._start(fs, child, "")
+            except Exception as e:  # noqa: BLE001 - one part failing to launch never stops the others
+                child["status"] = FAILED
+                self._log(child, "fan-out launch failed", child["stage"], str(e))
+            made.append(child)
+        f["split"] = {"tasks": [{**t, "part_id": c["id"]} for t, c in zip(split["tasks"], made)], "status": "fanned-out",
+                      "integration": "", "integration_error": ""}
+        f["status"], f["closed"] = DONE, self._closed()
+        self._log(f, "fanned out", f["stage"], f"{len(made)} parts")
+        self._release(f["worker_id"])
 
     def _tests_compared(self, f: dict) -> bool:
         """Did the gate really compare two results? Not when there is code, the reviewer gave numbers and the report gave none."""
@@ -559,9 +600,17 @@ class Features(CheckFlow):
         """Check the phase's gates and move the request on. `by_user`: the click (the automatic approval logs its own event)."""
         step = self._stage_step(f)
         self._check_report_gates(f, step)
+        decision = parts = None
+        if by_user and f["stage"] == "plan":          # a plan with a split: refuse or fan out, before anything is logged or written
+            decision = self._split_decision(f)
+            if decision["action"] == "fan_out":
+                parts = self._split_parts(fs, f, decision["split"])
         if by_user:
             self._log(f, "approved", f["stage"])
         self._publish(f, f["stage"])
+        if parts is not None:
+            self._fan_out(fs, f, parts, decision["split"])
+            return
         d = self._next_after_approval(f, step)
         if d.kind != "launch":
             f["status"] = DONE
