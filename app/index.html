@@ -225,6 +225,13 @@ dialog.wide{width:min(1040px,calc(100vw - 28px));max-height:calc(100vh - 40px);o
 .ptop{display:flex;flex-wrap:wrap;gap:8px 16px;margin:10px 0}.pbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0}
 .pjson textarea{width:100%;font-family:var(--font-mono);font-size:12px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line-2);border-radius:var(--rs);padding:8px;margin:8px 0}
 .pmute{color:var(--mute);font-size:12.5px}
+.pfriendly .phd input{flex:1;min-width:8rem;font-weight:600}.pwait{display:flex;margin:10px 0 0}
+.padv{margin-top:10px;font-size:12.5px}.padv summary{cursor:pointer;color:var(--mute)}.padv>.pbody{margin-top:8px}
+.pname input{height:36px;font-size:15px;border-radius:var(--rs);border:1px solid var(--line-2);background:var(--panel-2);color:var(--ink);padding:0 10px;font-family:inherit}
+.pflow{margin:8px 0 4px;padding:8px 12px;border-left:3px solid var(--acc);background:var(--panel-2);border-radius:0 var(--rs) var(--rs) 0;font-size:13px}
+.ptpl{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin:12px 0}
+.ptplc{display:flex;flex-direction:column;gap:4px;text-align:left;padding:12px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);color:var(--ink);font:inherit;cursor:pointer}
+.ptplc:hover,.ptplc:focus-visible{border-color:var(--acc)}.ptplc span{font-size:12.5px;color:var(--mute)}
 .lastmsg{margin:8px 0 0;padding:8px 12px;border-left:3px solid var(--bad);background:color-mix(in srgb,var(--bad) 6%,transparent);border-radius:0 var(--rs) var(--rs) 0;font-size:12.5px;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere}
 .lastmsg b{color:var(--bad);font-weight:600}
 .finish{margin:12px 0 0;padding:10px 14px;border:1px solid var(--line);border-radius:var(--rs);background:var(--panel-2);font-size:13px}
@@ -599,7 +606,21 @@ const PT = {
   "Starting soon: the parts it follows are ready.":"A arrancar: as partes que segue estão prontas.",
   "This part starts by itself when the parts it follows are ready":"Esta parte arranca sozinha quando as partes que segue estiverem prontas","Combined: {c} conflict(s), tests: {tests}":"Combinado: {c} conflito(s), testes: {tests}",
   "Today":"Hoje","Projects":"Projetos","Views":"Vistas",
-  "Pipelines":"Pipelines","Built-in":"Incluída","Custom":"Própria","New pipeline":"Nova pipeline","Edit pipeline":"Editar pipeline","Edit":"Editar",
+  "Pipelines":"Pipelines","Built-in":"Incluída","Custom":"Própria","New pipeline":"Nova pipeline",
+  "Name your pipeline":"Dá um nome à pipeline","Give your pipeline a name.":"Dá um nome à pipeline.","(copy)":"(cópia)","Start from":"Começar a partir de","Blank":"Em branco",
+  "One step and your approval, to build on":"Um passo e a tua aprovação, para construíres a partir daí",
+  "Spec, plan, build and review":"Spec, plano, implementação e revisão","Diagnose, plan, fix and review":"Diagnóstico, plano, correção e revisão",
+  "Plan, carry out and review; behaviour does not change":"Plano, execução e revisão; o comportamento não muda",
+  "A read-only report, then a check of its facts":"Um relatório só de leitura e a verificação dos factos",
+  "Plan, independent regression, promotion":"Plano, regressão independente e promoção",
+  "Prepare the commit, then publish after your click":"Preparar o commit e publicar depois do teu clique",
+  "Read and write a document":"Ler e escrever um documento","Change the code":"Alterar o código","Review the previous step":"Rever o passo anterior",
+  "Wait for my approval before going on":"Esperar pela minha aprovação antes de seguir","Step name":"Nome do passo","What it does":"O que faz",
+  "Instructions it follows":"Instruções que segue","If the review finds problems":"Se a revisão encontrar problemas",
+  "stop and ask me":"parar e perguntar-me","go back to «{x}»":"voltar a «{x}»","times at most":"vezes, no máximo","Advanced":"Avançado",
+  "Add a step":"Acrescentar um passo","The flow":"O fluxo","your approval":"a tua aprovação","Identifier":"Identificador",
+  "Feature@k":"Funcionalidade","Bug fix@k":"Correção de bug","Maintenance@k":"Manutenção","Analysis@k":"Análise","Release@k":"Release","Publish@k":"Publicar",
+  "write the spec@p":"escrever a spec","plan@p":"planear","validate the plan@p":"validar o plano","carry out@p":"executar","review@p":"rever","Write a document@s":"Escrever um documento","Build@s":"Implementar","Review@s":"Rever","Edit pipeline":"Editar pipeline","Edit":"Editar",
   "Use as template":"Usar como modelo","Click again to delete":"Clica outra vez para apagar","Delete":"Apagar","No pipelines.":"Sem pipelines.",
   "{n} request(s)":"{n} pedido(s)","Your pipelines are files in":"As tuas pipelines são ficheiros em","approves":"aprova","A copy of":"Uma cópia de",
   "Could not load the pipelines.":"Não foi possível carregar as pipelines.","Could not load the pipeline.":"Não foi possível carregar a pipeline.",
@@ -1333,7 +1354,7 @@ function daysAgo(date,now,t){
 // the Pipelines page: pure helpers. Editing never mutates: every helper returns a new definition and the page keeps that one.
 const pipeClone=d=>JSON.parse(JSON.stringify(d));
 const pipeBlank=()=>({format:1,id:"",version:1,name:"",steps:[
-  {id:"work",type:"worker",phase:"work",mode:"read_only",artifact:"result.md",prompt:{ref:""}},
+  {id:"work",type:"worker",phase:"work",mode:"read_only",artifact:"result.md",prompt:{ref:"builtin:feature.spec"},label:""},
   {id:"ok-work",type:"approval",of:"work",requires_user:true}]});
 const pipeUniqueId=(steps,base)=>{const ids=new Set(steps.map(s=>s.id));let n=1,id=base;while(ids.has(id))id=base+"-"+(++n);return id;};
 function pipeAddStep(d,type){
@@ -1414,6 +1435,73 @@ function pipeProblems(d,cat){
   });
   return out;
 }
+// the friendly editor: a step is a block in plain words (read and write / change the code / review); its approval is a tick box
+const PIPE_REFS={read:"builtin:feature.spec",change:"builtin:feature.build",review:"builtin:feature.review"};
+const PIPE_BASE={read:"write",change:"build",review:"review"};
+const PIPE_KINDN={feature:"Feature@k",fix:"Bug fix@k",maintenance:"Maintenance@k",analysis:"Analysis@k",release:"Release@k",ship:"Publish@k"};
+const PIPE_PHASEN={spec:"write the spec@p",plan:"plan@p",plancheck:"validate the plan@p",build:"carry out@p",review:"review@p"};
+const pipeKind=s=>s.type==="approval"?"approval":s.type==="check"?"review":((s.mode||"read_only")==="read_only"?"read":"change");
+const pipeSlug=n=>String(n||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,40);
+function pipePromptName(ref,t){
+  const m=/^builtin:([a-z]+)\.([a-z-]+)$/.exec(ref||"");if(!m)return ref||"";
+  return t(PIPE_KINDN[m[1]]||m[1])+" · "+t(PIPE_PHASEN[m[2]]||m[2]);
+}
+function pipeUniquePhase(steps,base){
+  const used=new Set(steps.map(s=>s.phase));let p=base,k=0;
+  while(used.has(p)){k++;p=base+"-"+String.fromCharCode(96+k);}return p;
+}
+// a «review» step sends the work back to the step before it when it finds problems (a few rounds, never forever)
+function pipeReviewOn(steps){
+  const on={unknown:{retry:2}},prev=[...steps].reverse().find(x=>x.type==="worker");
+  if(prev)on.blocked={goto:prev.id,max_rounds:2};return on;
+}
+function pipeBlock(d,kind,label){
+  const c=pipeClone(d),id=pipeUniqueId(c.steps,PIPE_BASE[kind]);
+  const st={id,type:kind==="review"?"check":"worker",phase:pipeUniquePhase(c.steps,PIPE_BASE[kind]),mode:kind==="change"?"worktree":"read_only",
+    artifact:id+".md",prompt:{ref:PIPE_REFS[kind]},label:label||id};
+  if(kind==="review")st.on=pipeReviewOn(c.steps);
+  c.steps.push(st);return c;
+}
+function pipeSetKind(d,i,kind){
+  const s=d.steps[i];
+  if(!s||kind==="approval"||pipeKind(s)===kind)return pipeClone(d);
+  const c=pipeSetType(d,i,kind==="review"?"check":"worker"),st=c.steps[i];
+  st.mode=kind==="change"?"worktree":"read_only";
+  if(kind==="review")st.on=pipeReviewOn(c.steps.slice(0,i));
+  return c;
+}
+// the approval of a worker step: the approval of it that follows it, with only checks (reviews) in between
+const pipeApprovalAt=(d,i)=>{
+  const st=d.steps,s=st[i];if(!s||s.type!=="worker")return -1;
+  let j=i+1;while(j<st.length&&st[j].type==="check")j++;
+  return st[j]&&st[j].type==="approval"&&st[j].of===s.id?j:-1;
+};
+const pipeHasApproval=(d,i)=>pipeApprovalAt(d,i)>=0;
+function pipeSetApproval(d,i,on){
+  const c=pipeClone(d),s=c.steps[i];if(!s||s.type!=="worker")return c;
+  const at=pipeApprovalAt(c,i);
+  if(on&&at<0){let j=i+1;while(j<c.steps.length&&c.steps[j].type==="check")j++;
+    c.steps.splice(j,0,{id:pipeUniqueId(c.steps,("ok-"+s.id).slice(0,30)),type:"approval",of:s.id,requires_user:true});}
+  else if(!on&&at>=0)c.steps.splice(at,1);
+  return c;
+}
+// [first, last] indexes of each unit: a step with the reviews that follow it and its approval; an approval on its own is a unit too
+function pipeGroups(d){
+  const g=[];
+  for(let i=0;i<d.steps.length;i++){
+    let e=i;
+    if(d.steps[i].type!=="approval"){while(e+1<d.steps.length&&d.steps[e+1].type==="check")e++;const at=pipeApprovalAt(d,i);if(at>=0)e=at;}
+    g.push([i,e]);i=e;
+  }
+  return g;
+}
+function pipeMoveBlock(d,i,dir){
+  const c=pipeClone(d),g=pipeGroups(c),k=g.findIndex(x=>x[0]===i),j=k+dir;
+  if(k<0||j<0||j>=g.length)return c;
+  const a=g[Math.min(k,j)],b=g[Math.max(k,j)],A=c.steps.slice(a[0],a[1]+1),B=c.steps.slice(b[0],b[1]+1);
+  c.steps.splice(a[0],b[1]-a[0]+1,...B,...A);return c;
+}
+const pipeFlow=(d,t)=>d.steps.map(s=>s.type==="approval"?"✋ "+t("your approval"):(s.label||s.id)).join(" → ");
 // </pipelines>
 // <review>
 // may the "/" shortcut take the key? never while the user is typing in a field
@@ -1798,7 +1886,7 @@ async function refreshPipelines(){
 // the pipeline the route names (details / edit), or the draft of a new one
 async function loadPipelineRoute(){
   const r=ROUTE;
-  if(r.new){if(!PIPES.draft){PIPES.draft=pipeBlank();PIPES.forked="";}PIPES.data=PIPES.draft;PIPES.origin="user";PIPES.loaded="";return;}
+  if(r.new){PIPES.data=PIPES.draft;PIPES.origin="user";PIPES.loaded="";return;}
   if(!r.id){PIPES.loaded="";return;}
   if(PIPES.loaded===r.id&&PIPES.data)return;
   try{const one=await getJson("/api/pipelines/"+encodeURIComponent(r.id));
@@ -1828,7 +1916,7 @@ function pipeDetailsHtml(){
     ${!PIPES.valid?`<p class="cnote2 warn">${esc(PIPES.reason)}</p>`:""}
     <p class="pmute">${esc(d.description||"")} · v${esc(d.version)} · ${tt("{n} request(s)",{n:PIPES.used})}</p>${pipeStepsReadOnly(d)}`;
 }
-function pipeStepEditor(s,i,steps,cat){
+function pipeStepEditor(s,i,steps,cat,bodyOnly){
   const ids=steps.map(x=>x.id),isA=s.type==="approval",chk=(k,label)=>`<label class="pchk"><input type="checkbox" data-pi="${i}" data-pk="${k}"${s[k]?" checked":""}> ${tt(label)}</label>`;
   const fld=(k,label,v,w)=>`<label class="pf"><span>${tt(label)}</span><input data-pi="${i}" data-pk="${k}" value="${esc(v||"")}" ${w?`style="width:${w}"`:""}></label>`;
   let body="";
@@ -1850,6 +1938,7 @@ function pipeStepEditor(s,i,steps,cat){
     }
     body+=`<label class="pf"><span>${tt("Then")}</span><select data-pi="${i}" data-pk="next">${pOpts([cat.end].concat(ids.filter(x=>x!==s.id)),s.next,tt("(the next step)"))}</select></label>`;
   }
+  if(bodyOnly)return body;
   return `<div class="pstep"><div class="phd"><strong>${i+1}</strong>
     <input data-pi="${i}" data-pk="id" value="${esc(s.id)}" style="width:9rem" aria-label="${esc(tt("Step id"))}">
     <select data-pi="${i}" data-pk="type" aria-label="${esc(tt("Step type"))}">${pOpts(cat.types,s.type)}</select>
@@ -1858,34 +1947,70 @@ function pipeStepEditor(s,i,steps,cat){
     <button class="btn ghost" type="button" data-pa="down" data-pi="${i}" ${i===steps.length-1?"disabled":""} aria-label="${esc(tt("Move down"))}">↓</button>
     <button class="btn ghost" type="button" data-pa="rm" data-pi="${i}">${tt("Remove")}</button></div><div class="pbody">${body}</div></div>`;
 }
+const pipeKindName=k=>({read:tt("Read and write a document"),change:tt("Change the code"),review:tt("Review the previous step")})[k];
+function pipeBackHtml(s,i,steps){
+  const tr=(s.on||{}).blocked,cur=tr&&typeof tr==="object"&&tr.goto?tr.goto:"",nm=x=>x.label||x.id;
+  const opts=[`<option value="">${esc(tt("stop and ask me"))}</option>`].concat(steps.slice(0,i).filter(x=>x.type!=="approval")
+    .map(x=>`<option value="goto:${esc(x.id)}"${cur===x.id?" selected":""}>${esc(tt("go back to «{x}»",{x:nm(x)}))}</option>`));
+  return `<div class="pf"><span>${tt("If the review finds problems")}</span><span><select data-pi="${i}" data-pk="on.blocked">${opts.join("")}</select>
+    ${cur?`<input type="number" min="1" max="${PIPES.catalog.max_rounds}" style="width:4rem;height:30px" data-pi="${i}" data-pk="on.blocked.rounds" value="${esc(tr.max_rounds||1)}"> ${tt("times at most")}`:""}</span></div>`;
+}
+function pipeCardHtml(d,a,n,cat){
+  const s=d.steps[a],steps=d.steps,k=pipeKind(s);
+  if(k==="approval")return pipeStepEditor(s,a,steps,cat);
+  const unit=pipeGroups(d).find(x=>x[0]===a),cur=(s.prompt||{}).ref||"",refs=cat.prompt_refs.map(r=>`<option value="${esc(r)}"${r===cur?" selected":""}>${esc(pipePromptName(r,tt))}</option>`).join("");
+  const arrows=unit&&k!=="review"?`<button class="btn ghost" type="button" data-pa="bup" data-pi="${a}" ${a===0?"disabled":""} aria-label="${esc(tt("Move up"))}">↑</button>
+      <button class="btn ghost" type="button" data-pa="bdown" data-pi="${a}" ${unit[1]===steps.length-1?"disabled":""} aria-label="${esc(tt("Move down"))}">↓</button>`:"";
+  return `<div class="pstep pfriendly"><div class="phd"><strong>${n}</strong>
+      <input data-pi="${a}" data-pk="label" value="${esc(s.label||"")}" placeholder="${esc(s.id)}" aria-label="${esc(tt("Step name"))}">
+      ${arrows}<button class="btn ghost" type="button" data-pa="rm" data-pi="${a}">${tt("Remove")}</button></div>
+    <div class="pbody">
+      <label class="pf"><span>${tt("What it does")}</span><select data-pi="${a}" data-pk="kind">${["read","change","review"].map(x=>`<option value="${x}"${x===k?" selected":""}>${esc(pipeKindName(x))}</option>`).join("")}</select></label>
+      <label class="pf"><span>${tt("Instructions it follows")}</span><select data-pi="${a}" data-pk="prompt.ref">${cur?"":`<option value="">${esc(tt("(choose)"))}</option>`}${refs}</select></label>
+      ${k==="review"?pipeBackHtml(s,a,steps):""}</div>
+    ${k==="read"||k==="change"?`<label class="pchk pwait"><input type="checkbox" data-pi="${a}" data-pk="approval"${pipeHasApproval(d,a)?" checked":""}> ${tt("Wait for my approval before going on")}</label>`:""}
+    <details class="padv"><summary>${tt("Advanced")}</summary><div class="pbody"><label class="pf"><span>${tt("Identifier")}</span><input data-pi="${a}" data-pk="id" value="${esc(s.id)}" style="width:9rem"></label>${pipeStepEditor(s,a,steps,cat,true)}</div></details></div>`;
+}
+function pipeChooserHtml(){
+  const info={feature:"Spec, plan, build and review",fix:"Diagnose, plan, fix and review",maintenance:"Plan, carry out and review; behaviour does not change",
+    analysis:"A read-only report, then a check of its facts",release:"Plan, independent regression, promotion",ship:"Prepare the commit, then publish after your click"};
+  const card=(id,name,desc)=>`<button class="ptplc" type="button" data-pa="tpl" data-id="${esc(id)}"><strong>${esc(name)}</strong><span>${esc(desc)}</span></button>`;
+  return `<div class="phead"><a class="btn ghost" href="${esc(routeHash({view:"pipelines"}))}">← ${tt("Pipelines")}</a><h2>${tt("New pipeline")}</h2></div>
+    <p class="cnote2">${tt("Start from")}:</p>
+    <div class="ptpl">${card("",tt("Blank"),tt("One step and your approval, to build on"))}${PIPES.rows.filter(r=>r.origin==="builtin"&&info[r.id]).map(r=>card(r.id,tt(PIPE_KINDN[r.id]||r.id),tt(info[r.id]))).join("")}</div>`;
+}
 function pipeEditorHtml(){
-  const d=PIPES.data,cat=PIPES.catalog,isNew=!!ROUTE.new,probs=pipeProblems(d,cat);
-  return `<div class="phead"><a class="btn ghost" href="${esc(routeHash({view:"pipelines"}))}">← ${tt("Pipelines")}</a><h2>${isNew?tt("New pipeline"):tt("Edit pipeline")}</h2></div>
+  const d=PIPES.data,cat=PIPES.catalog,isNew=!!ROUTE.new,probs=pipeShown(d,cat);
+  return `<div class="phead"><a class="btn ghost" href="${esc(routeHash({view:"pipelines"}))}" data-pa="cancel">← ${tt("Pipelines")}</a><h2>${isNew?tt("New pipeline"):tt("Edit pipeline")}</h2></div>
     ${PIPES.forked?`<p class="pmute">${tt("A copy of")} «${esc(PIPES.forked)}»</p>`:""}
-    <div class="ptop"><label class="pf"><span>Id</span><input data-pf="id" value="${esc(d.id)}" ${isNew?"":"disabled"} style="width:14rem" placeholder="my-pipeline"></label>
-      <label class="pf"><span>${tt("Name")}</span><input data-pf="name" value="${esc(d.name||"")}" style="width:16rem"></label>
-      <label class="pf"><span>${tt("Max. automatic rounds")}</span><input data-pf="limits.max_total_rounds" type="number" min="1" max="100" value="${esc((d.limits||{}).max_total_rounds||"")}" style="width:5rem"></label></div>
-    <div class="psteps">${d.steps.map((s,i)=>pipeStepEditor(s,i,d.steps,cat)).join("")}</div>
-    <div class="pbar"><span>${tt("Add step")}:</span> ${cat.types.map(ty=>`<button class="btn" type="button" data-pa="add" data-ty="${ty}">${esc(ty)}</button>`).join(" ")}</div>
+    <label class="pf pname"><span>${tt("Name your pipeline")}</span><input data-pf="name" value="${esc(d.name||"")}"></label>
+    <p class="pflow">${tt("The flow")}: <span id="pipeFlow">${esc(pipeFlow(d,tt))}</span></p>
+    <div class="psteps">${(()=>{let n=0;return d.steps.map((s,i)=>{const folded=d.steps.some((w,j)=>pipeApprovalAt(d,j)===i);return folded?"":pipeCardHtml(d,i,s.type==="approval"?0:++n,cat);}).join("");})()}</div>
+    <div class="pbar"><span>${tt("Add a step")}:</span> ${["read","change","review"].map(x=>`<button class="btn" type="button" data-pa="addk" data-ty="${x}">+ ${esc(pipeKindName(x))}</button>`).join(" ")}</div>
     <div id="pipeProblems">${pipeProblemsHtml(probs)}</div>
     ${PIPES.err?`<p class="cnote2 warn">${esc(PIPES.err)}</p>`:""}
-    <details class="pjson"><summary>JSON</summary><textarea id="pipeRaw" rows="14" spellcheck="false">${esc(JSON.stringify(d,null,1))}</textarea>
+    <details class="padv"><summary>${tt("Advanced")}</summary><div class="ptop">
+      <label class="pf"><span>${tt("Identifier")}</span><input id="pipeId" data-pf="id" value="${esc(d.id)}" ${isNew?"":"disabled"} style="width:14rem" placeholder="my-pipeline"></label>
+      <label class="pf"><span>${tt("Max. automatic rounds")}</span><input data-pf="limits.max_total_rounds" type="number" min="1" max="100" value="${esc((d.limits||{}).max_total_rounds||"")}" style="width:5rem"></label></div>
+      <p class="pmute">${tt("Add step")}: ${cat.types.map(ty=>`<button class="btn" type="button" data-pa="add" data-ty="${ty}">${esc(ty)}</button>`).join(" ")}</p>
+      <textarea id="pipeRaw" rows="14" spellcheck="false" style="width:100%;font-family:var(--font-mono);font-size:12px">${esc(JSON.stringify(d,null,1))}</textarea>
       <button class="btn" type="button" data-pa="raw">${tt("Apply JSON")}</button></details>
     <div class="pbar"><button class="btn pri" type="button" data-pa="save">${tt("Save pipeline")}</button>
-      <a class="btn ghost" href="${esc(routeHash({view:"pipelines"}))}">${tt("Cancel")}</a></div>`;
+      <a class="btn ghost" href="${esc(routeHash({view:"pipelines"}))}" data-pa="cancel">${tt("Cancel")}</a></div>`;
 }
+const pipeShown=(d,cat)=>{const p=pipeProblems(d,cat);return String(d.name||"").trim()?p:["Give your pipeline a name."].concat(p.filter(x=>!x.startsWith("The id needs 3")));};
 const pipeProblemsHtml=probs=>probs.length?`<ul class="cnote2 warn">${probs.map(p=>`<li>${esc(tt(p))}</li>`).join("")}</ul>`:`<p class="pmute">✓ ${tt("No problems found here; the server checks again when you save.")}</p>`;
-function renderPipelines(){
+function renderPipelines(force){
   const v=$("pipelinesView");if(!v||ROUTE.view!=="pipelines")return;
-  const keep=v.querySelector("[data-pf]:focus,[data-pk]:focus");if(keep&&keep.matches("input,select"))return;   // never redraw under the user's cursor
-  if(ROUTE.new||ROUTE.edit)v.innerHTML=PIPES.data&&PIPES.catalog?pipeEditorHtml():"";
+  const keep=v.querySelector("[data-pf]:focus,[data-pk]:focus");if(!force&&keep&&keep.matches("input,select"))return;   // never redraw under the user's cursor
+  if(ROUTE.new||ROUTE.edit)v.innerHTML=PIPES.data&&PIPES.catalog?pipeEditorHtml():(ROUTE.new&&PIPES.catalog?pipeChooserHtml():"");
   else if(ROUTE.id)v.innerHTML=PIPES.data?pipeDetailsHtml():"";
   else v.innerHTML=pipeListHtml();
 }
 // the form writes into the definition with the pure helpers, then redraws (or only the problems list when the shape did not change)
 function pipeApply(next,structural){
   PIPES.data=next;if(ROUTE.new)PIPES.draft=next;PIPES.err="";
-  if(structural)renderPipelines();else{const p=$("pipeProblems");if(p)p.innerHTML=pipeProblemsHtml(pipeProblems(next,PIPES.catalog));const raw=$("pipeRaw");if(raw)raw.value=JSON.stringify(next,null,1);}
+  if(structural)renderPipelines(true);else{const fl=$("pipeFlow");if(fl)fl.textContent=pipeFlow(next,tt);const p=$("pipeProblems");if(p)p.innerHTML=pipeProblemsHtml(pipeShown(next,PIPES.catalog));const raw=$("pipeRaw");if(raw)raw.value=JSON.stringify(next,null,1);}
 }
 function pipeOnChange(el){
   const d=PIPES.data;
@@ -1893,11 +2018,15 @@ function pipeOnChange(el){
     const k=el.dataset.pf,c=pipeClone(d);
     if(k==="limits.max_total_rounds"){c.limits=c.limits||{};if(el.value==="")delete c.limits.max_total_rounds;else c.limits.max_total_rounds=+el.value;if(!Object.keys(c.limits).length)delete c.limits;}
     else if(el.value==="")delete c[k];else c[k]=el.value.trim();
-    return pipeApply(c,false);
+    if(k==="name"&&ROUTE.new&&(!d.id||d.id===pipeSlug(d.name)))c.id=pipeSlug(c.name);
+    pipeApply(c,false);const idEl=$("pipeId");if(idEl&&k==="name")idEl.value=c.id||"";
+    return;
   }
   const i=+el.dataset.pi,k=el.dataset.pk,s=d.steps[i];if(!s)return;
   if(k==="id")return pipeApply(pipeRenameStep(d,i,el.value.trim()),true);
   if(k==="type")return pipeApply(pipeSetType(d,i,el.value),true);
+  if(k==="kind")return pipeApply(pipeSetKind(d,i,el.value),true);
+  if(k==="approval")return pipeApply(pipeSetApproval(d,i,el.checked),true);
   if(k==="prompt.ref")return pipeApply(pipeSetStep(d,i,"prompt",el.value?{...(s.prompt||{}),ref:el.value}:undefined),false);
   if(k==="inputs"||k==="gates"){
     const v=el.dataset.v,cur=k==="gates"?(s.gates||[]):(s.inputs||[]);
@@ -1927,10 +2056,20 @@ async function pipeSave(){
     location.hash=routeHash({view:"pipelines"});
   }catch(e){PIPES.err=e.message;renderPipelines();}
 }
+async function pipeTemplate(id){
+  try{
+    if(!id){PIPES.draft=pipeBlank();PIPES.forked="";}
+    else{const one=await getJson("/api/pipelines/"+encodeURIComponent(id));
+      if(!one||!one.ok)throw new Error("x");
+      const c=pipeClone(one.data.data);c.name=tt(PIPE_KINDN[id]||id)+" "+tt("(copy)");c.id=pipeSlug(c.name);delete c.based_on;
+      PIPES.draft=c;PIPES.forked=id;}
+    await loadPipelineRoute();renderPipelines(true);
+  }catch(e){toast(tt("Could not load the pipeline."),true);}
+}
 async function pipeFork(id){
   try{const one=await getJson("/api/pipelines/"+encodeURIComponent(id));
     if(!one||!one.ok)throw new Error("x");
-    const c=pipeClone(one.data.data);c.id="";c.name=(c.name||id)+" (copy)";delete c.based_on;
+    const c=pipeClone(one.data.data);c.name=(c.name||id)+" (copy)";c.id=pipeSlug(c.name);delete c.based_on;
     PIPES.draft=c;PIPES.forked=id;location.hash=routeHash({view:"pipelines",new:true,id:""});
   }catch(e){toast(tt("Could not load the pipeline."),true);}
 }
@@ -1945,6 +2084,11 @@ document.addEventListener("click",ev=>{
   const b=ev.target.closest&&ev.target.closest("#pipelinesView [data-pa]");if(!b)return;
   const a=b.dataset.pa,i=+b.dataset.pi;
   if(a==="fork")pipeFork(b.dataset.id);
+  else if(a==="tpl")pipeTemplate(b.dataset.id);
+  else if(a==="cancel"){PIPES.draft=null;PIPES.forked="";}
+  else if(a==="bup")pipeApply(pipeMoveBlock(PIPES.data,i,-1),true);
+  else if(a==="bdown")pipeApply(pipeMoveBlock(PIPES.data,i,1),true);
+  else if(a==="addk")pipeApply(pipeBlock(PIPES.data,b.dataset.ty,pipeKindName(b.dataset.ty)),true);
   else if(a==="del")pipeDelete(b.dataset.id);
   else if(a==="up")pipeApply(pipeMove(PIPES.data,i,-1),true);
   else if(a==="down")pipeApply(pipeMove(PIPES.data,i,1),true);
@@ -1954,6 +2098,7 @@ document.addEventListener("click",ev=>{
   else if(a==="raw"){try{const j=JSON.parse($("pipeRaw").value);if(!j||typeof j!=="object"||!Array.isArray(j.steps))throw new Error("steps");pipeApply(j,true);}
     catch(e){PIPES.err=tt("That is not a valid pipeline JSON.");renderPipelines();}}
 });
+document.addEventListener("input",ev=>{const el=ev.target;if(el.closest&&el.closest("#pipelinesView")&&el.dataset.pf==="name"&&PIPES.data)pipeOnChange(el);});
 document.addEventListener("change",ev=>{const el=ev.target;if(el.closest&&el.closest("#pipelinesView")&&(el.dataset.pf||el.dataset.pk)&&PIPES.data)pipeOnChange(el);});
 // ---------- end Pipelines page ----------
 function showView(){

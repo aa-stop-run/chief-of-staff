@@ -183,3 +183,62 @@ def test_the_page_wires_the_tab_the_view_and_portuguese():
     assert 'id="tabPipelines"' in SRC and 'id="pipelinesView"' in SRC and "renderPipelines" in SRC
     for needle in ('"Pipelines":"Pipelines"', '"Built-in":"Incluída"', '"Custom":"Própria"', '"New pipeline":"Nova pipeline"'):
         assert needle in SRC
+
+
+# ------------------------------------------------------------------ the friendly editor: blocks in plain words, the approval as a tick box
+
+def named(d, pid="my-flow"):
+    d["id"], d["name"] = pid, "My flow"
+    return d
+
+
+def test_every_block_makes_a_pipeline_the_server_accepts():
+    d = call("pipeBlank()")
+    for kind in ("read", "change", "review", "review", "read", "change"):
+        d = call(f"pipeBlock({json.dumps(d)},{json.dumps(kind)},'Step')")
+    d = named(d)
+    assert problems(d) == []
+    pipelines.validate(d)
+    phases = [s["phase"] for s in d["steps"] if s["type"] != "approval"]
+    assert len(set(phases)) == len(phases)
+
+
+def test_a_review_block_goes_back_to_the_worker_before_it_a_bounded_number_of_times():
+    d = call(f'pipeBlock({json.dumps(call("pipeBlank()"))},"review","R")')
+    rev = d["steps"][-1]
+    assert rev["type"] == "check" and rev["on"]["blocked"] == {"goto": "work", "max_rounds": 2}
+
+
+def test_change_the_kind_keeps_the_pipeline_valid():
+    d = named(call("pipeBlank()"))
+    d["steps"][0]["prompt"] = {"ref": "builtin:feature.spec"}
+    for kind in ("change", "review", "read"):
+        d = call(f"pipeSetKind({json.dumps(d)},0,{json.dumps(kind)})")
+        assert call(f"pipeKind({json.dumps(d['steps'][0])})") == kind
+        pipelines.validate(d) if kind != "change" else None
+
+
+def test_the_approval_is_a_tick_box_and_moves_with_its_step():
+    d = named(builtin("maintenance"))
+    first = d["steps"][0]["id"]
+    at = call(f"pipeApprovalAt({json.dumps(d)},0)")
+    assert d["steps"][at]["of"] == first and d["steps"][1]["type"] == "check"      # the review sits between the step and its approval
+    off = call(f"pipeSetApproval({json.dumps(d)},0,false)")
+    assert not call(f"pipeHasApproval({json.dumps(off)},0)") and all(s.get("of") != first for s in off["steps"])
+    on = call(f"pipeSetApproval({json.dumps(off)},0,true)")
+    assert call(f"pipeApprovalAt({json.dumps(on)},0)") == at and on == d
+    groups = call(f"pipeGroups({json.dumps(d)})")
+    assert groups[0] == [0, at]
+    start = groups[1][0]
+    moved = call(f"pipeMoveBlock({json.dumps(d)},{start},-1)")
+    assert moved["steps"][0]["id"] == d["steps"][start]["id"]                          # the next unit went first, whole
+    assert sorted(s["id"] for s in moved["steps"]) == sorted(s["id"] for s in d["steps"])
+    assert call(f"pipeMoveBlock({json.dumps(d)},0,-1)") == d
+
+
+def test_flow_sentence_and_names():
+    d = builtin("feature")
+    flow = call(f"pipeFlow({json.dumps(d)},t)")
+    assert flow.startswith("spec → ✋") and "plan" in flow
+    assert call("pipePromptName('builtin:feature.spec',t)") == "Feature@k · write the spec@p"
+    assert call("pipeSlug('Minha Pipeline Ótima!')") == "minha-pipeline-otima"
