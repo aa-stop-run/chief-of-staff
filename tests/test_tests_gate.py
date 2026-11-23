@@ -7,10 +7,12 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from features import MAX_REVIEW_RETRIES, parse_tests, review_tests_gate  # noqa: E402
+from features import parse_tests, review_tests_gate  # noqa: E402
 from test_auto_review import FakeCommit, feature_in_build, finish_stage  # noqa: E402
 from test_auto_review import auto  # noqa: E402,F401  (fixture)
 from test_questions_js import run  # noqa: E402
+
+MAX_REVIEW_RETRIES = 2   # the built-in pipeline's `retry` (data, no longer a constant of features.py)
 
 REPORT = ("## Execution status\nEXECUTED AND VERIFIED\n\n## Tests\nNO REGRESSIONS\n"
           "BASELINE: 100 passed, 2 failed\nFINAL RESULT: 104 passed, 2 failed\nNEW TESTS: 4\n")

@@ -87,6 +87,7 @@ FEATURES = Features(chief.STATE, chief.launch_worker, _is_active, grace_s=GRACE_
                     publisher=chief.archive_doc, note_lang=chief.SCHEMA["name"],
                     has_vault=chief.vault_enabled(), session=SESSIONS.current_id, on_launch=chief.tag_worker, limit=chief.worker_limit,
                     route=chief.route, tools=chief.tools_for, live_known=lambda: _live["map"] is not None,
+                    route_step=chief.route_step, tools_for_step=chief.tools_for_step,
                     cleaner=lambda *a: chief.cleanup_request(*a))
 TICK_S = 10
 PENDING = Pending(chief.STATE)

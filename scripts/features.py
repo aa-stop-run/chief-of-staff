@@ -13,20 +13,25 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import atomicio
+import engine
+import gates
+import pipelines
+import prompt_refs
 import prompts
 import prompts_kinds
 import prompts_pt
 import prompts_qa
+from feature_checks import (AWAITING, CANCELLED, CHECK_EVENTS, DONE, FAILED, GATE_REASONS, PLAN_REVIEW, WORKING,  # noqa: F401
+                           CheckFlow, COMMIT_TYPES, FeatureError, _slug, commit_message)  # noqa: F401
 
 STAGES = ("spec", "plan", "build", "review")
 ARTIFACT = {"spec": "spec.md", "plan": "plan.md", "build": "report.md", "review": "review.md"}
 # Any model name the user's Claude Code understands (an alias such as "opus", a full model id, a gateway's model name).
 # It is only ever passed as an argument to `claude --model`, never to a shell; this just keeps obvious junk out.
 MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/\[\]-]{0,79}$")
-KINDS = prompts_kinds.KINDS   # feature | fix | analysis | maintenance | ship (each one's phases: prompts_kinds.KIND_STAGES)
+KINDS = prompts_kinds.KINDS   # feature | fix | analysis | maintenance | ship (each one's phases are the steps of its pipeline: scripts/pipelines_builtin/<type>.json)
 LANGS = ("en", "pt")   # language the workers write the artifacts in (the dashboard's when the request was created)
 MAX_TITLE, MAX_DESC, MAX_COMMENT, MAX_ARTIFACT = 120, 4000, 6000, 40_000
-MAX_AUTO_FIXES, MAX_REVIEW_RETRIES = 3, 2   # automatic fix rounds; retries of a review without a verdict
 QUESTIONS_FILE = "questions.json"
 QA_DIR = "qa"                 # «Ask the worker»: one answer file per question (qa/<n>.md); the exchange itself is in feature["qa"]
 MAX_QUESTION, MAX_QA_CONTEXT = 2000, 3000   # characters; how much of an earlier answer a new question sees
@@ -35,16 +40,25 @@ ARCHIVE_EVENTS = {"spec": ("spec archived", "spec archiving failed"), "plan": ("
 PLAN_REVIEW = "plan-review.md"   # independent plan validation (a sub-step of the plan phase)
 MAX_PLAN_FIXES = 1               # automatic rounds plan -> validation -> plan fix (one: a validator always finds something)
 AUTOPILOT_STAGES = ("spec", "plan")   # what «run until the review» may approve by itself; never the last phase, never ship/release
-MAX_PLAN_TASKS = 12              # above this many ordered steps the planner plans a first part and the validator proposes a split
+MAX_PLAN_TASKS = prompt_refs.MAX_PLAN_TASKS   # above this many steps the planner plans a first part and the validator proposes a split
+PIPELINE_SNAPSHOT = "pipeline.json"   # the definition a request was created with (immune to later edits of the pipeline files)
+# What a refused approval says, by gate and code (the gate catalogue is closed: a pipeline only names the gate).
+GATE_REFUSALS = {
+    "ship_ready": {
+        "missing": "the report has no “Ready to publish” section: ask for changes so the worker writes it",
+        "notexecuted": "the report says the commit was not made: ask for changes or cancel",
+        "badpush": "the report's push command is not allowed: only “git push -u <remote name> <branch>” on a branch that is not main or master"},
+    "release_plan": {
+        "missing": "the promotion plan lacks a required section (Candidate, Regression tests, Promotion steps, Post-checks, Rollback): ask for changes",
+        "nosha": "the promotion plan has no “Candidate commit: <sha>” line: ask for changes"},
+    "release_verdict": {
+        "negative": "the regression verdict is NEGATIVE: the promotion cannot be approved; run the tests again or cancel",
+        "unknown": "the regression report has no readable POSITIVE or NEGATIVE verdict: run the tests again",
+        "mismatch": "the commit that was tested is not the planned candidate: run the tests again"}}
 MAX_LIMIT_RESUMES = 3            # how many times a request's phase is restarted after a usage limit
 LIMIT_GRACE_S = 180              # after a limit resets, wait this long for Claude Code to continue by itself before restarting
 MAX_QUESTIONS, MAX_OPTIONS, MAX_Q_TITLE, MAX_Q_TEXT, MAX_Q_OPTION = 20, 8, 120, 1500, 300
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,80}$")
-WORKING, AWAITING, FAILED, DONE, CANCELLED = "working", "awaiting", "failed", "done", "cancelled"
-
-class FeatureError(Exception):
-    pass
-
 
 def _clip(value, limit: int) -> str:
     return " ".join(str(value if value is not None else "").split())[:limit]
@@ -76,130 +90,13 @@ def load_questions(path):
     return out
 
 
-def parse_review(text: str):
-    """(verdict, count by severity) of a review.md. Verdict: approved | reserves | blocked | unknown."""
-    counts = {"CRITICAL": 0, "HIGH": 0, "MEDIUM": 0, "LOW": 0}
-    for m in re.finditer(r"\*\*\[\s*(CRITICAL|HIGH|MEDIUM|LOW)\s*\]", text or ""):
-        counts[m.group(1)] += 1
-    m = re.search(r"^#{2,3}\s+(?:veredicto|verdict)[^\n]*\n+(.*?)(?=^#{1,3}\s|\Z)", text or "", re.I | re.M | re.S)
-    head = re.sub(r"[*`_]", "", m.group(1)).strip().upper() if m else ""
-    if head.startswith(("BLOQUEAD", "BLOCKED")):
-        return "blocked", counts
-    if re.match(r"COM\s+RESERVAS|WITH\s+RESERVATIONS", head):
-        return "reserves", counts
-    if head.startswith(("APROVAD", "APPROVED")):
-        return "approved", counts
-    return "unknown", counts
+from gates import (parse_review, parse_tests, ship_gate, release_plan_gate, release_verdict, release_gate,  # noqa: F401,E402
+                   review_tests_gate, SHIP_PUSH_OK, SHIP_DEFAULT_BRANCHES, RELEASE_SECTIONS, RELEASE_SHA)
 
-
-_RESULT = r"(\d+)\s*(?:passam|passed|pass)\s*[,;]?\s*(\d+)\s*(?:falham|falhas|failed|fail)"
-_TEST_KEYS = {"base": r"(?:linha\s+de\s+base|baseline)", "final": r"(?:resultado\s+final|final\s+result)",
-              "reviewer": r"(?:resultado\s+do\s+revisor|reviewer\s+result)"}
-_TEST_STATES = (("regress", r"(?:COM\s+REGRESS|REGRESSIONS)"), ("ok", r"(?:SEM\s+REGRESS|NO\s+REGRESSIONS)"),
-                ("confirmed", r"(?:CONFIRMADOS|CONFIRMED)"), ("diverged", r"(?:DIVERGENTES|DIVERGENT)"),
-                ("notrun", r"(?:N[ÃA]O\s+CORRIDOS|NOT\s+RUN)"), ("notests", r"(?:SEM\s+TESTES|NO\s+TESTS)"))
-
-
-def parse_tests(text: str):
-    """(state, numbers) of the "Tests" section of a report or a review.
-
-    State from the first line: ok | regress | confirmed | diverged | notrun | notests | missing. Numbers: {base, final, reviewer}
-    as (passed, failed), only those written in the format "KEY: P passed, F failed"."""
-    m = re.search(r"^#{2,3}\s+(?:testes|tests)\s*$\n(.*?)(?=^#{1,3}\s|\Z)", text or "", re.I | re.M | re.S)
-    if not m:
-        return "missing", {}
-    body = m.group(1)
-    first = next((re.sub(r"[*`_]", "", ln).strip().upper() for ln in body.splitlines() if ln.strip()), "")
-    state = next((s for s, rx in _TEST_STATES if re.match(rx, first)), "missing")
-    nums = {}
-    for key, rx in _TEST_KEYS.items():
-        n = re.search(rf"^\W*{rx}\s*:\s*{_RESULT}", body, re.I | re.M)
-        if n:
-            nums[key] = (int(n.group(1)), int(n.group(2)))
-    return state, nums
-
-
-SHIP_PUSH_OK = re.compile(r"^git push -u [A-Za-z0-9][A-Za-z0-9._-]* [A-Za-z0-9][A-Za-z0-9._/-]*$")
-SHIP_DEFAULT_BRANCHES = {"main", "master", "develop", "trunk", "production", "prod", "release"}
-
-
-def ship_gate(report: str) -> str:
-    """Is a prepared commit's report fit to be approved for publication? ok | missing (no «Ready to publish» section) |
-    notexecuted (the commit was not made) | badpush (a `git push` that is not `git push -u <remote name> <branch>` on a non-default branch)."""
-    m = re.search(r"^#{2,3}[ \t]+Ready to publish[ \t]*$(.*?)(?=^#{2,3}[ \t]|\Z)", report or "", re.M | re.S | re.I)
-    if not m:
-        return "missing"
-    if re.search(r"^#{1,3}[ \t]+Execution status[ \t]*\n+\W*(?:NOT EXECUTED|NÃO EXECUTADO)", report, re.M | re.I):
-        return "notexecuted"
-    for cmd in re.findall(r"git\s+push\b[^`\n]*", m.group(1)):
-        c = " ".join(cmd.split())
-        if not SHIP_PUSH_OK.match(c) or c.split()[-1].lower() in SHIP_DEFAULT_BRANCHES:
-            return "badpush"
-    return "ok"
-
-
-RELEASE_SECTIONS = ("Candidate", "Regression tests", "Promotion steps", "Post-checks", "Rollback")
-RELEASE_SHA = re.compile(r"Candidate commit:\s*`?([0-9a-f]{7,40})\b", re.I)
-
-
-def release_plan_gate(plan: str) -> str:
-    """Is a promotion plan complete enough to be approved? ok | missing (a required section) | nosha (no `Candidate commit: <sha>`)."""
-    for name in RELEASE_SECTIONS:
-        if not re.search(rf"^#{{2,3}}[ \t]+{re.escape(name)}\b", plan or "", re.M | re.I):
-            return "missing"
-    return "ok" if RELEASE_SHA.search(plan) else "nosha"
-
-
-def release_verdict(report: str) -> str:
-    """The independent regression's verdict: positive | negative | unknown (missing, unreadable or contradictory)."""
-    m = re.search(r"^#{2,3}[ \t]+Regression verdict[ \t]*$(.*?)(?=^#{2,3}[ \t]|\Z)", report or "", re.M | re.S | re.I)
-    line = next((x for x in (m.group(1).splitlines() if m else []) if x.strip()), "")
-    words = {w.upper() for w in re.findall(r"\b(POSITIVE|NEGATIVE|POSITIVO|NEGATIVO)\b", line, re.I)}
-    pos, neg = words & {"POSITIVE", "POSITIVO"}, words & {"NEGATIVE", "NEGATIVO"}
-    return "positive" if pos and not neg else "negative" if neg and not pos else "unknown"
-
-
-def release_gate(plan: str, report: str) -> str:
-    """May the promotion be approved? ok | negative | unknown (no readable verdict) | mismatch (the tested commit is not the planned one)."""
-    verdict = release_verdict(report)
-    if verdict != "positive":
-        return verdict
-    a, b = RELEASE_SHA.search(plan or ""), RELEASE_SHA.search(report or "")
-    if not a or not b:
-        return "mismatch"
-    x, y = a.group(1).lower(), b.group(1).lower()
-    return "ok" if x.startswith(y) or y.startswith(x) else "mismatch"
-
-
-def review_tests_gate(report: str, review: str) -> str:
-    """Do the tests the reviewer ran confirm the report? ok | missing | diverged | notrun | regress."""
-    state, got = parse_tests(review)
-    if state in ("diverged", "notrun", "regress", "missing"):
-        return state
-    if state == "notests":
-        return "ok"
-    if "reviewer" not in got:
-        return "missing"                       # "CONFIRMED" without the real result the reviewer got
-    final = parse_tests(report)[1].get("final")
-    return "diverged" if final and final != got["reviewer"] else "ok"
 
 
 def _now() -> str:
     return datetime.now().isoformat(timespec="seconds")
-
-
-def _slug(s: str) -> str:
-    plain = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")      # «correção» -> «correcao»
-    return re.sub(r"[^a-z0-9]+", "-", plain.lower()).strip("-")[:40] or "feature"
-
-
-COMMIT_TYPES = {"fix": "fix", "maintenance": "chore"}        # conventional-commit type per kind of request; anything else is «feat»
-
-
-def commit_message(f: dict, verdict: str) -> str:
-    """The message of the pipeline's commit: the conventional type follows the kind of request."""
-    kind = COMMIT_TYPES.get(f.get("kind", "feature"), "feat")
-    return f"{kind}: {f['title']}\n\nRequest {f['id']}. Independent review: {verdict}."
 
 
 _TASKS = re.compile(r"^\W*(?:TASKS|TAREFAS)\s*:\s*(\d{1,4})\b", re.I | re.M)
@@ -232,10 +129,11 @@ def request_from_todo(item: dict, missing_label: str) -> tuple:
     return title, (desc or title)[:MAX_DESC]
 
 
-class Features:
+class Features(CheckFlow):
     def __init__(self, root, launcher, is_active, grace_s: int = 0, is_busy=None, on_release=None,
                  auto_review: bool = False, committer=None, publisher=None, note_lang: str = "English", has_vault: bool = True,
-                 session=None, on_launch=None, limit=None, route=None, tools=None, live_known=None, cleaner=None):
+                 session=None, on_launch=None, limit=None, route=None, tools=None, route_step=None, tools_for_step=None,
+                 live_known=None, cleaner=None):
         """is_active: the worker session exists; is_busy: it is really working (defaults to is_active).
 
         A worker may finish the phase and keep the session open waiting for input: active, but not busy."""
@@ -253,6 +151,9 @@ class Features:
         self._session_id = session or (lambda: "")    # id of the open work session (what "Done" and the history are scoped to)
         self._tools = tools              # tools(kind, stage) -> (allow, deny): narrow permission rules for the phases that run git commands
         self._route = route              # route(phase, request_model) -> (model, effort): which model and effort a phase runs with
+        self._route_step = route_step    # route_step(step, request_model) -> (model, effort); wins over `route` when given
+        self._tools_for_step = tools_for_step  # tools_for_step(step, kind) -> (allow, deny); wins over `tools` when given
+        self._pipes = {}                 # request id -> (Pipeline, Engine)
         self._on_launch = on_launch      # on_launch(worker_id, request=, phase=): lets the cost of a worker be attributed to a request
         self._limit = limit              # limit(worker_id) -> the usage-limit notice stopping that worker, or None
         self._live_known = live_known or (lambda: True)   # False while the host cannot ask Claude Code for its sessions
@@ -368,25 +269,73 @@ class Features:
                 self._save(fs)
         return restarted
 
-    # ---- automatic review: implementation -> review -> (fixes -> review)* -> commit ----
-    def _advance(self, fs: list, f: dict) -> None:
-        if f.get("kind") in ("ship", "release"):   # commit / push / PR and production promotions: no code review, no plan validation; the user approves each phase
-            return
-        if f["stage"] == "build":
-            f["stage"] = "review"
-            self._log(f, "automatic review", "review")
+    # ---- the request's pipeline: a definition (data) interpreted by the engine ----
+    def _pipe(self, f: dict):
+        """(Pipeline, Engine) of a request: the snapshot it was created with, else the built-in pipeline of its type (data from
+        before pipelines were files)."""
+        got = self._pipes.get(f["id"])
+        if got:
+            return got
+        p = None
+        snap = self._dir(f["id"]) / PIPELINE_SNAPSHOT
+        if snap.is_file():
             try:
-                self._start(fs, f, "")
-            except FeatureError as e:   # stays waiting on the report: the “Send to review” button keeps working
-                f["stage"], f["status"] = "build", AWAITING
-                self._log(f, "automatic review failed", "build", str(e))
-        elif f["stage"] == "review":
-            self._after_review(fs, f)
-        elif f["stage"] == "plan":
-            if f.get("pv", {}).get("checking"):
-                self._after_plancheck(fs, f)
-            else:
-                self._begin_plancheck(fs, f)
+                data = json.loads(snap.read_text(encoding="utf-8"))
+                p = pipelines.load(data, builtin=data.get("id") in pipelines.BUILTIN_IDS)
+            except (OSError, ValueError, pipelines.PipelineError):
+                p = None
+        if p is None:
+            kind = f.get("kind", "feature")
+            kind = kind if kind in pipelines.BUILTIN_IDS else "feature"
+            p = pipelines.load(pipelines.builtin_dir() / f"{kind}.json", builtin=True)
+        self._pipes[f["id"]] = got = (p, engine.Engine(p))
+        return got
+
+    def _step_by_phase(self, f: dict, phase: str):
+        return next((s for s in self._pipe(f)[0].steps if s["type"] != "approval" and s.get("phase") == phase), None)
+
+    def _stage_step(self, f: dict):
+        """The worker or check step of the phase the request is at (ignoring a running plan validation)."""
+        return self._step_by_phase(f, f["stage"])
+
+    def _cur(self, f: dict):
+        """The step the request is on: the plan validation while it runs, else the step of its stage."""
+        return self._step_by_phase(f, "plan-validation" if f.get("pv", {}).get("checking") else f["stage"])
+
+    def _rounds(self, f: dict) -> dict:
+        """f["rounds"]: automatic rounds used, by `<step>:<verdict>`. Requests from before it existed get it from pv / auto."""
+        if "rounds" not in f:
+            pv, auto = f.get("pv", {}), f.get("auto", {})
+            ids = {st["id"] for st in self._pipe(f)[0].steps}
+            old = {"plancheck:blocked": pv.get("fixes", 0), "plancheck:unknown": pv.get("retries", 0),
+                   "review:blocked": auto.get("fixes", 0), "review:unknown": auto.get("retries", 0)}
+            f["rounds"] = {k: v for k, v in old.items() if v and k.split(":")[0] in ids}
+        return f["rounds"]
+
+    def _mirror(self, f: dict) -> None:
+        """Keep the older pv / auto counters (what the page and the project view read) equal to the engine's rounds."""
+        r = self._rounds(f)
+        for st in self._pipe(f)[0].steps:
+            if st["type"] != "check":
+                continue
+            counts = {"fixes": r.get(f"{st['id']}:blocked", 0), "retries": r.get(f"{st['id']}:unknown", 0)}
+            if st.get("phase") == "plan-validation":
+                self._pv(f).update(counts)
+            elif st.get("phase") == "review":
+                f.setdefault("auto", {}).update(counts)
+
+    def _advance(self, fs: list, f: dict) -> None:
+        """A worker finished: when the next step is a check it starts by itself, when it is an approval the user decides."""
+        step = self._cur(f)
+        if step is None:
+            return
+        if step["type"] == "check":
+            self._after_check(fs, f, step)
+            return
+        d = self._pipe(f)[1].on_worker_finished(f, step)
+        nxt = self._pipe(f)[0].step(d.step) if d.kind == "launch" else None
+        if nxt and nxt["type"] == "check":
+            self._begin_check(fs, f, nxt)
         elif f["stage"] == "spec":
             self._autopilot(fs, f)
 
@@ -394,10 +343,10 @@ class Features:
     def _autopilot(self, fs: list, f: dict, validated: bool = True) -> None:
         """Approve a finished spec or plan by itself when the request asked for it. Stops (the user decides, as always) when the
         worker left questions, when the plan was not validated, at the last phase and for every publish or production request."""
-        stages = prompts_kinds.KIND_STAGES[f.get("kind", "feature")]
-        if (not f.get("autopilot") or f.get("kind") in ("ship", "release") or f["stage"] not in AUTOPILOT_STAGES
-                or f["status"] != AWAITING or stages.index(f["stage"]) + 1 >= len(stages)):
-            return
+        step = self._stage_step(f)
+        if (not f.get("autopilot") or self._pipe(f)[0].id in pipelines.NO_AUTOPILOT or f["stage"] not in AUTOPILOT_STAGES
+                or f["status"] != AWAITING or step is None or self._next_after_approval(f, step).kind != "launch"):
+            return                                # never the last phase: accepting the implementation is the user's
         if not validated:
             self._log(f, "autopilot stopped", f["stage"], "the plan was not validated: read it and decide")
             return
@@ -410,134 +359,6 @@ class Features:
         except FeatureError as e:
             self._log(f, "autopilot stopped", f["stage"], str(e))
 
-    # ---- independent plan validation: plan -> validator -> (plan fixes -> validator)* -> user ----
-    @staticmethod
-    def _pv(f: dict) -> dict:
-        return f.setdefault("pv", {"checking": False, "fixes": 0, "retries": 0, "rev": 0})
-
-    def _begin_plancheck(self, fs: list, f: dict) -> None:
-        self._pv(f).update(retries=0)
-        try:
-            self._start_plancheck(fs, f)
-        except FeatureError as e:   # the plan waits for the user, without validation
-            self._pv(f)["checking"] = False
-            self._log(f, "plan validation failed", "plan", str(e))
-
-    def _start_plancheck(self, fs: list, f: dict) -> None:
-        d = self._dir(f["id"])
-        pv = self._pv(f)
-        old, moved = d / PLAN_REVIEW, None
-        if old.is_file():
-            pv["rev"] = pv.get("rev", 0) + 1
-            moved = d / f"plan-review.v{pv['rev']}.md"
-            old.replace(moved)
-        lang, kind, P = self._lang(f), f.get("kind", "feature"), self._prompts(f)
-        base = P.language_rule(self._note_lang) + P.PLANCHECK
-        extra = prompts_kinds.EXTRA.get((lang, kind, "plancheck"))
-        if extra:
-            base = base.replace(P.OUT_MARKER, extra + "\n" + P.OUT_MARKER, 1)
-        base = base.replace(P.OUT_MARKER, P.PLANCHECK_SIZE.replace("{max}", str(MAX_PLAN_TASKS)) + "\n" + P.OUT_MARKER, 1)
-        task = base.format(title=f["title"], fid=f["id"], project=f["project"], desc=f["desc"],
-                           spec=self._spec_ref(f, d), plan=d / ARTIFACT["plan"], out=old) + P.BRIEF
-        try:
-            w = self._spawn(f, "plan-validation", task, [str(d)], f"{_slug(f['title'])[:30].strip('-')}-validate-plan")
-        except Exception as e:
-            if moved:
-                moved.replace(old)
-            raise FeatureError(f"could not launch the validator: {e}") from e
-        self._tag(w, f, "plan-validation")
-        previous = f["worker_id"]
-        pv["checking"] = True
-        f.update(status=WORKING, worker_id=w["id"], worker_name=w.get("name", ""))
-        if previous and previous != w["id"]:
-            self._release(previous)
-        self._log(f, "plan validation", "plan", w.get("name", ""))
-
-    def _after_plancheck(self, fs: list, f: dict) -> None:
-        path = self._dir(f["id"]) / PLAN_REVIEW
-        verdict, counts = parse_review(path.read_text(encoding="utf-8", errors="replace") if path.is_file() else "")
-        pv = self._pv(f)
-        if verdict == "blocked" and not (counts["CRITICAL"] or counts["HIGH"]) and (counts["MEDIUM"] or counts["LOW"]):
-            verdict = "reserves"             # only minor findings: they inform the user, they do not send the plan back
-        if verdict in ("approved", "reserves"):
-            pv["checking"] = False
-            self._log(f, "plan validated", "plan", "approved" if verdict == "approved" else "with reservations")
-            self._autopilot(fs, f)
-        elif verdict == "blocked":
-            pv["checking"] = False
-            if pv["fixes"] >= MAX_PLAN_FIXES:
-                self._log(f, "plan fixes limit", "plan", f"{MAX_PLAN_FIXES} rounds without approval: it is up to you")
-                self._autopilot(fs, f, validated=False)
-                return
-            pv["fixes"] += 1
-            self._log(f, "plan fixes", "plan", "the validator blocked the plan")
-            feedback = self._prompts(f).FEEDBACK_PLAN.format(path=path)
-            try:
-                self._start(fs, f, feedback)
-            except FeatureError as e:
-                self._log(f, "plan fixes failed", "plan", str(e))
-        elif pv["retries"] >= MAX_REVIEW_RETRIES:
-            pv["checking"] = False
-            self._log(f, "validation without verdict", "plan", "could not read a verdict: read the plan and decide")
-            self._autopilot(fs, f, validated=False)
-        else:
-            pv["retries"] += 1
-            self._log(f, "validation repeated", "plan", "no recognisable verdict")
-            try:
-                self._start_plancheck(fs, f)
-            except FeatureError as e:
-                pv["checking"] = False
-                self._log(f, "validation without verdict", "plan", str(e))
-
-    def _after_review(self, fs: list, f: dict) -> None:
-        path = self._dir(f["id"]) / ARTIFACT["review"]
-        verdict, _ = parse_review(path.read_text(encoding="utf-8", errors="replace") if path.is_file() else "")
-        auto = f.setdefault("auto", {"fixes": 0, "retries": 0})
-        why = "no recognisable verdict"
-        if verdict in ("approved", "reserves"):
-            gate = self._tests_gate(f)
-            if gate in ("diverged", "notrun", "regress"):   # the reviewer did not confirm the tests: nothing is committed automatically
-                reason = {"diverged": "the reviewer's numbers do not match the report's",
-                          "notrun": "the reviewer could not run the full suite",
-                          "regress": "the reviewer reported regressions"}[gate]
-                self._log(f, "reviewer's tests not confirmed", "review", f"{reason}: read the review and decide")
-                return
-            if gate == "missing":                            # review without the “Tests” section with the real result: it is repeated
-                verdict, why = "unknown", "the review has no “Tests” section with the full-suite result"
-        if verdict in ("approved", "reserves"):
-            if not self._tests_compared(f):
-                self._log(f, "tests not compared", "review",
-                          "the report has no «FINAL RESULT» line: the reviewer's numbers were not compared with the implementer's")
-            self._commit(f, verdict)
-        elif verdict == "blocked":
-            if auto["fixes"] >= MAX_AUTO_FIXES:
-                self._log(f, "automatic fixes limit", "review", f"{MAX_AUTO_FIXES} rounds without approval: it is up to you")
-                return
-            auto["fixes"] += 1
-            try:
-                self._send_fixes(fs, f, "", automatic=True)
-            except FeatureError as e:
-                f["stage"] = "review"
-                self._log(f, "automatic fixes failed", "review", str(e))
-        elif auto["retries"] >= MAX_REVIEW_RETRIES:
-            reason = why if why.startswith("the review") else "could not read a verdict"
-            self._log(f, "review without verdict", "review", f"{reason}: read the review and decide")
-        else:
-            auto["retries"] += 1
-            self._log(f, "review repeated", "review", why)
-            try:
-                self._start(fs, f, "")
-            except FeatureError as e:
-                self._log(f, "review without verdict", "review", str(e))
-
-    def _tests_gate(self, f: dict) -> str:
-        """There is code (and so tests) only when the feature's worktree exists; without it there is nothing to confirm."""
-        d = self._dir(f["id"])
-        if not (d / "work").is_dir():
-            return "ok"
-        read = lambda name: (d / name).read_text(encoding="utf-8", errors="replace") if (d / name).is_file() else ""  # noqa: E731
-        return review_tests_gate(read(ARTIFACT["build"]), read(ARTIFACT["review"]))
-
     def _tests_compared(self, f: dict) -> bool:
         """Did the gate really compare two results? Not when there is code, the reviewer gave numbers and the report gave none."""
         d = self._dir(f["id"])
@@ -546,18 +367,6 @@ class Features:
         read = lambda name: (d / name).read_text(encoding="utf-8", errors="replace") if (d / name).is_file() else ""  # noqa: E731
         state, got = parse_tests(read(ARTIFACT["review"]))
         return state == "notests" or "reviewer" not in got or "final" in parse_tests(read(ARTIFACT["build"]))[1]
-
-    def _commit(self, f: dict, verdict: str) -> None:
-        """The commit only happens here, after a review that passes (the implementer leaves the work uncommitted)."""
-        work = self._dir(f["id"]) / "work"
-        if not self._committer or not work.is_dir():
-            self._log(f, "nothing to commit", "review", "no code worktree")
-            return
-        try:
-            ok, info = self._committer(work, commit_message(f, verdict))
-        except Exception as e:  # noqa: BLE001 - the commit is an extra: it never brings the feature down
-            ok, info = False, str(e)
-        self._log(f, "committed" if ok else "commit failed", "review", info)
 
     def _settle(self, f: dict) -> str:
         """The phase's real state: artifact written and worker stopped = waiting for a decision."""
@@ -700,15 +509,16 @@ class Features:
                 raise FeatureError("the request this one follows was not found")
             fid = f"{_slug(title)}-{datetime.now():%y%m%d%H%M%S}"
             f = {"id": fid, "title": title, "desc": desc, "project": project, "model": model or "",
-                 "lang": lang or "en", "kind": kind, "stage": prompts_kinds.KIND_STAGES[kind][0], "status": WORKING, "worker_id": "", "worker_name": "",
+                 "lang": lang or "en", "kind": kind, "status": WORKING, "worker_id": "", "worker_name": "",
                  "created": _now(), "history": [], "rev": {s: 0 for s in STAGES}, "auto": {"fixes": 0, "retries": 0}}
-            if autopilot and kind not in ("ship", "release"):
+            if autopilot and kind not in pipelines.NO_AUTOPILOT:
                 f["autopilot"] = True
             if path:
                 f["path"] = str(path)
             if parent:
                 f["parent"] = parent
             self._dir(fid).mkdir(parents=True, exist_ok=True)
+            self._attach_pipeline(f, kind)
             self._start(fs, f, "")
             fs.append(f)
             self._save(fs)
@@ -725,48 +535,42 @@ class Features:
 
     def _approve(self, fs: list, f: dict, by_user: bool = False) -> None:
         """Check the phase's gates and move the request on. `by_user`: the click (the automatic approval logs its own event)."""
-        fid = f["id"]
-        read = lambda a: (self._dir(fid) / ARTIFACT[a]).read_text(encoding="utf-8", errors="replace") if (self._dir(fid) / ARTIFACT[a]).is_file() else ""  # noqa: E731
-        if f.get("kind") == "ship" and f["stage"] == "build":         # the click authorises the reported commands: they must be sane
-            gate = ship_gate(read("build"))
-            if gate == "missing":
-                raise FeatureError("the report has no “Ready to publish” section: ask for changes so the worker writes it")
-            if gate == "notexecuted":
-                raise FeatureError("the report says the commit was not made: ask for changes or cancel")
-            if gate == "badpush":
-                raise FeatureError("the report's push command is not allowed: only “git push -u <remote name> <branch>” on a branch that is not main or master")
-        if f.get("kind") == "release":
-            if f["stage"] == "plan":
-                gate = release_plan_gate(read("plan"))
-                if gate == "missing":
-                    raise FeatureError("the promotion plan lacks a required section (Candidate, Regression tests, Promotion steps, Post-checks, Rollback): ask for changes")
-                if gate == "nosha":
-                    raise FeatureError("the promotion plan has no “Candidate commit: <sha>” line: ask for changes")
-            elif f["stage"] == "build":
-                gate = release_gate(read("plan"), read("build"))
-                if gate == "negative":
-                    raise FeatureError("the regression verdict is NEGATIVE: the promotion cannot be approved; run the tests again or cancel")
-                if gate == "unknown":
-                    raise FeatureError("the regression report has no readable POSITIVE or NEGATIVE verdict: run the tests again")
-                if gate == "mismatch":
-                    raise FeatureError("the commit that was tested is not the planned candidate: run the tests again")
+        step = self._stage_step(f)
+        self._check_report_gates(f, step)
         if by_user:
             self._log(f, "approved", f["stage"])
         self._publish(f, f["stage"])
-        stages = prompts_kinds.KIND_STAGES[f.get("kind", "feature")]
-        nxt = stages.index(f["stage"]) + 1
-        if nxt >= len(stages):
+        d = self._next_after_approval(f, step)
+        if d.kind != "launch":
             f["status"] = DONE
             f["closed"] = self._closed()
             self._release(f["worker_id"])
             return
         approved = f["stage"]
-        f["stage"] = stages[nxt]
+        f["stage"] = self._pipe(f)[0].step(d.step)["phase"]
         try:
             self._start(fs, f, "")
         except FeatureError:
             f["stage"] = approved        # the next phase did not start: the request waits on the approved one, never on a phase without its artifact
             raise
+
+    def _check_report_gates(self, f: dict, step) -> None:
+        """The click on «Approve» authorises what the report says: the step's named gates must accept it."""
+        gate = (step or {}).get("report_gate")
+        d = self._dir(f["id"])
+        ctx = gates.GateCtx(d, (d / "work").is_dir())
+        for g in ([gate] if isinstance(gate, dict) else (gate or [])):
+            res = gates.run(g["use"], g.get("args", {}), ctx)
+            if res.code != "ok":
+                raise FeatureError(GATE_REFUSALS.get(g["use"], {}).get(res.code) or res.message or f"gate {g['use']}: {res.code}")
+
+    def _next_after_approval(self, f: dict, step) -> "engine.Decision":
+        """What follows the user's approval of the step the request is at: the approval step that names it, else the next step."""
+        p, eng = self._pipe(f)
+        if step is None:
+            return engine.Decision("done")
+        ap = next((s for s in p.steps if s["type"] == "approval" and s.get("of") == step["id"]), None)
+        return eng.on_approve(f, ap) if ap else eng.advance(step)
 
     def request_fixes(self, fid: str, comment: str = "", selected: bool = False) -> dict:
         """After the review: send the findings back to the implementation worker (which continues in the same worktree)."""
@@ -787,9 +591,17 @@ class Features:
         """Send the review findings back to the implementer (same worktree) and return to the implementation phase."""
         review = self._dir(f["id"]) / ARTIFACT["review"]
         self._log(f, "automatic fixes" if automatic else "fixes requested", "review", comment)
-        f["stage"] = "build"
+        p = self._pipe(f)[0]
+        cur = self._stage_step(f)
+        back = ((cur or {}).get("on") or {}).get("blocked")
+        target = back.get("goto") if isinstance(back, dict) else None
+        if not target:       # a step without a fix loop: the closest worker step before it
+            i = p.steps.index(cur) if cur in p.steps else len(p.steps)
+            target = next(s["id"] for s in reversed(p.steps[:i]) if s["type"] == "worker")
+        tstep = p.step(target)
+        f["stage"] = tstep["phase"]
         P = self._prompts(f)
-        if f.get("kind") == "analysis":
+        if tstep.get("mode") == "read_only":       # the work is a report, not code: the findings go back as a report review
             feedback = prompts_kinds.FEEDBACK_ANALYSIS[self._lang(f)].format(review=review)
         else:
             feedback = (P.FEEDBACK_SELECTED if selected else P.FEEDBACK_REVIEW).format(review=review)
@@ -805,8 +617,11 @@ class Features:
             f = self._get(fs, fid)
             self._need(f, AWAITING)
             self._log(f, "changes requested", f["stage"], comment)
-            if f["stage"] == "plan":
-                self._pv(f).update(fixes=0, retries=0)
+            check = self._step_by_phase(f, "plan-validation")
+            if check and f["stage"] == "plan":
+                for v in ("blocked", "unknown"):
+                    self._rounds(f).pop(f"{check['id']}:{v}", None)
+                self._mirror(f)
             self._start(fs, f, comment)
             self._save(fs)
             return f
@@ -887,21 +702,24 @@ class Features:
         with self._lock:
             fs = self._load()
             f = self._get(fs, fid)
-            old = f.get("kind", "feature")
-            if kind not in KINDS or kind in ("ship", "release") or old in ("ship", "release"):
+            p = self._pipe(f)[0]
+            old = p.id
+            if kind not in pipelines.CONVERTIBLE or old not in pipelines.CONVERTIBLE:
                 raise FeatureError("this kind of request cannot be converted")
-            if kind == old:
+            if old == kind:
                 raise FeatureError("the request already is of that kind")
-            if f["status"] not in (AWAITING, FAILED) or f["stage"] != prompts_kinds.KIND_STAGES[old][0]:
+            if f["status"] not in (AWAITING, FAILED) or f["stage"] != p.steps[0]["phase"]:
                 raise FeatureError("the kind can only be changed while the request waits on its first phase")
-            first = prompts_kinds.KIND_STAGES[kind][0]
             self._log(f, "kind changed", f["stage"], f"{old} -> {kind}")
-            f.update(kind=kind, stage=first)
+            before = {k: f.get(k) for k in ("kind", "pipeline", "step", "stage", "rounds")}
+            f["kind"] = kind
+            self._attach_pipeline(f, kind)      # the request follows the new type's definition from its first step
             f.pop("pv", None)
             try:
                 self._start(fs, f, "")
             except FeatureError:
-                f.update(kind=old, stage=prompts_kinds.KIND_STAGES[old][0])
+                self._attach_pipeline(f, old)
+                f.update(before)
                 raise
             self._save(fs)
             return f
@@ -925,14 +743,13 @@ class Features:
             return f
 
     # ---- archive of the approved specs and plans ----
-    @staticmethod
-    def _archive_target(f: dict, stage: str):
-        """(document kind, artifact phase) to archive when `stage` is approved; None if nothing is archived."""
-        if f.get("kind", "feature") in ("ship", "release"):        # nothing is archived in the user's repo for these
+    def _archive_target(self, f: dict, stage: str):
+        """(document kind, artifact phase) to archive when `stage` is approved; None if the step archives nothing."""
+        step = self._step_by_phase(f, stage)
+        doc = (step or {}).get("archive")
+        if not doc:
             return None
-        if f.get("kind", "feature") == "analysis":
-            return ("analysis", "build") if stage == "review" else None
-        return (stage, stage) if stage in ("spec", "plan") else None
+        return (doc, "build" if "report" in step.get("inputs", []) else stage)
 
     def _publish(self, f: dict, stage: str) -> None:
         """Approved document (spec, plan or analysis): a copy in the project's docs/ and a draft in the vault. Once per document; never fails the feature."""
@@ -992,7 +809,9 @@ class Features:
         moved_q = None
         # An analysis goes straight from its report to the verification, so the report's questions stay in place for the
         # user to answer next to the verdict (archiving them would leave the verification panel with no answer boxes).
-        keep_q = f.get("kind") == "analysis" and stage == "review" and not feedback
+        steps = self._pipe(f)[0].steps
+        cur = self._stage_step(f)
+        keep_q = bool(not feedback and cur in steps and steps.index(cur) > 0 and steps[steps.index(cur) - 1].get("keep_questions_on_next"))
         if old_q.is_file() and not keep_q:  # the previous round's questions are archived; the new worker writes its own
             n = f["rev"].get(stage, 0) + (0 if moved else 1)
             while (d / f"questions.{stage}.v{n}.json").exists():       # never over an archive that is already there
@@ -1013,6 +832,7 @@ class Features:
         f["feedback"] = {"stage": stage, "text": feedback}     # what this run was told to change: a retry or a resume repeats it
         if "pv" in f:
             f["pv"]["checking"] = False
+        f["step"] = cur["id"] if cur else stage
         if previous and previous != w["id"]:
             self._release(previous)  # the previous worker is obsolete: its session is closed (the conversation is kept)
         self._log(f, "worker launched", stage, w.get("name", ""))
@@ -1024,9 +844,17 @@ class Features:
     def _spawn(self, f: dict, phase: str, task: str, extra_dirs: list, label: str) -> dict:
         """Launch the worker for one phase of a request with the model and effort the routing gives that phase (by default the
         request's own model and Claude Code's default effort, which is what every phase used before)."""
-        model, effort = self._route(phase, f["model"] or "") if self._route else (f["model"] or None, None)
+        step = None if phase == "qa" else self._step_by_phase(f, phase)
+        if self._route_step and step:
+            model, effort = self._route_step(step, f["model"] or "")
+        else:
+            model, effort = self._route(phase, f["model"] or "") if self._route else (f["model"] or None, None)
         extra = {"effort": effort} if effort else {}
-        allow, deny = self._tools(f.get("kind", "feature"), phase) if self._tools else ((), ())
+        kind = f.get("kind", "feature")
+        if self._tools_for_step and step:
+            allow, deny = self._tools_for_step(step, kind)
+        else:
+            allow, deny = self._tools(kind, phase) if self._tools else ((), ())
         if allow:
             extra["allow"] = list(allow)
         if deny:
@@ -1062,33 +890,20 @@ class Features:
     def _prompts(self, f: dict):
         return prompts if self._lang(f) == "en" else prompts_pt
 
-    def _spec_ref(self, f: dict, d: Path):
-        """Path of the spec; for requests without a spec (maintenance, analysis) it says the requirement is the user's request."""
-        if f.get("kind", "feature") in ("feature", "fix"):
-            return d / ARTIFACT["spec"]
-        return prompts_kinds.NO_SPEC[self._lang(f)]
+    def _attach_pipeline(self, f: dict, kind: str) -> None:
+        """A new request keeps the definition it starts with (a snapshot file and its identity) and starts at its first step."""
+        p = pipelines.load(pipelines.builtin_dir() / f"{kind}.json", builtin=True)
+        (self._dir(f["id"]) / PIPELINE_SNAPSHOT).write_text(json.dumps(pipelines.snapshot(p), ensure_ascii=False, indent=1), encoding="utf-8")
+        self._pipes[f["id"]] = (p, engine.Engine(p))
+        first = p.steps[0]
+        f.update(pipeline={"id": p.id, "version": p.data.get("version", 1), "hash": pipelines.digest(p)}, step=first["id"],
+                 stage=first["phase"], rounds={})
 
     def _task(self, f: dict, feedback: str) -> str:
-        d = self._dir(f["id"])
-        stage = f["stage"]
-        P, lang = self._prompts(f), self._lang(f)
-        text = P.language_rule(self._note_lang) + P.COMMON.format(
-            title=f["title"], fid=f["id"], project=f["project"], desc=f["desc"],
-            path=d / ARTIFACT[stage], qpath=d / QUESTIONS_FILE) + "\n\n"
-        kind = f.get("kind", "feature")
-        template = prompts_kinds.OVERRIDE.get((lang, kind, stage)) or (
-            P.BUILD_RESUME if stage == "build" and (d / "work").exists() else P.STAGE_TEXT[stage])
-        extra = prompts_kinds.EXTRA.get((lang, kind, stage))
-        if extra:
-            template += "\n" + extra
-        text += template.format(fid=f["id"], spec=self._spec_ref(f, d), plan=d / ARTIFACT["plan"],
-                                report=d / ARTIFACT["build"], work=d / "work")
-        if stage == "plan" and kind != "release":          # a release plan is a checklist, not a build to be sized
-            text += P.PLAN_SIZE.replace("{max}", str(MAX_PLAN_TASKS))
-        text += P.BRIEF
-        if not self._has_vault:
-            text += P.NO_VAULT_NOTE
-        if feedback:
-            prev = d / f"{Path(ARTIFACT[stage]).stem}.v{f['rev'].get(stage, 0)}.md"
-            text += P.CHANGES_BLOCK.format(feedback=feedback, prev=prev, path=d / ARTIFACT[stage])
-        return text
+        step = self._stage_step(f)
+        ref = ((step or {}).get("prompt") or {}).get("ref")
+        if not ref:
+            raise FeatureError("this step has no built-in prompt")
+        return prompt_refs.render(ref, self._lang(f), {
+            "title": f["title"], "fid": f["id"], "project": f["project"], "desc": f["desc"], "dir": self._dir(f["id"]),
+            "rev": f["rev"].get(f["stage"], 0), "feedback": feedback, "note_lang": self._note_lang, "has_vault": self._has_vault})

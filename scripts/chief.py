@@ -323,6 +323,35 @@ def tools_for(kind: str, stage: str) -> tuple:
     return _tool_list(entry.get("allow")), _tool_list(entry.get("deny"))
 
 
+def route_step(step: dict, request_model: str = "") -> tuple:
+    """(model, effort) for a worker doing a pipeline step. `phase_models` / `phase_efforts` in projects.json win, then the step's own
+    `model` / `effort`, then the request's model, then the built-in default (the same order `route` gives for a phase)."""
+    phase = step.get("phase", step.get("id", ""))
+    model, effort = route(phase, request_model)
+    pm, pe = CFG.get("phase_models"), CFG.get("phase_efforts")
+    if not (isinstance(pm, dict) and phase in pm) and step.get("model") and _MODEL_OK.match(str(step["model"])):
+        model = step["model"]
+    if not (isinstance(pe, dict) and pe.get(phase) in EFFORTS) and step.get("effort") in EFFORTS:
+        effort = step["effort"]
+    return model, effort
+
+
+def tools_for_step(step: dict, kind: str = "") -> tuple:
+    """(allow, deny) permission rules for a pipeline step: the user's `phase_tools` entry or the built-in default for `<kind>:<phase>`,
+    else the step's own `permissions`; the pipeline engine's fixed denials (force-push, merging, `gh auth`) are always added."""
+    import engine
+    phase = step.get("phase", step.get("id", ""))
+    key = f"{kind}:{phase}"
+    cfg = CFG.get("phase_tools")
+    if (isinstance(cfg, dict) and isinstance(cfg.get(key), dict)) or key in DEFAULT_PHASE_TOOLS:
+        allow, deny = tools_for(kind, phase)
+    else:
+        allow, deny = engine.effective_permissions(step)
+        allow, deny = _tool_list(allow), _tool_list(deny)
+    deny = list(deny) + [d for d in engine.FIXED_DENY if d not in deny]
+    return allow, deny
+
+
 def models() -> list:
     """Models offered in the dashboard (`models` in projects.json). The empty choice always means "whatever Claude Code uses"."""
     return list(CFG.get("models") or DEFAULT_MODELS)

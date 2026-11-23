@@ -1,0 +1,450 @@
+{
+ "archived": [
+  [
+   "spec",
+   "Alfa",
+   "Login with 2FA",
+   "<fid>",
+   "<date>",
+   "# ok",
+   "pt"
+  ],
+  [
+   "plan",
+   "Alfa",
+   "Login with 2FA",
+   "<fid>",
+   "<date>",
+   "# ok",
+   "pt"
+  ]
+ ],
+ "commits": [
+  {
+   "message": "feat: Login with 2FA\n\nRequest <fid>. Independent review: approved.",
+   "path": "<home>/features/<fid>/work"
+  }
+ ],
+ "history": [
+  {
+   "event": "worker launched",
+   "note": "cos-w1",
+   "stage": "spec"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "spec"
+  },
+  {
+   "event": "approved",
+   "note": "",
+   "stage": "spec"
+  },
+  {
+   "event": "spec archived",
+   "note": "published",
+   "stage": "spec"
+  },
+  {
+   "event": "worker launched",
+   "note": "cos-w2",
+   "stage": "plan"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "plan"
+  },
+  {
+   "event": "plan validation",
+   "note": "cos-w3",
+   "stage": "plan"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "plan"
+  },
+  {
+   "event": "plan validated",
+   "note": "approved",
+   "stage": "plan"
+  },
+  {
+   "event": "approved",
+   "note": "",
+   "stage": "plan"
+  },
+  {
+   "event": "plan archived",
+   "note": "published",
+   "stage": "plan"
+  },
+  {
+   "event": "worker launched",
+   "note": "cos-w4",
+   "stage": "build"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "build"
+  },
+  {
+   "event": "automatic review",
+   "note": "",
+   "stage": "review"
+  },
+  {
+   "event": "worker launched",
+   "note": "cos-w5",
+   "stage": "review"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "review"
+  },
+  {
+   "event": "committed",
+   "note": "abc1234",
+   "stage": "review"
+  },
+  {
+   "event": "approved",
+   "note": "",
+   "stage": "review"
+  }
+ ],
+ "trace": [
+  {
+   "action": [
+    "create"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-spec",
+     "model": "m-spec",
+     "project": "Alfa",
+     "task": "(Exceção: qualquer nota que deixes na inbox do vault escreve-a em English, porque o vault está nessa língua.)\n\nFeature «Login with 2FA» (id <fid>) no projeto Alfa.\n\n## Pedido do utilizador\nI want 2FA\n\nEscreve o artefacto em <home>/features/<fid>/spec.md (cria o ficheiro; markdown em português europeu). O utilizador vai lê-lo no dashboard\ne aprovar ou pedir alterações, por isso escreve-o completo e autónomo.\n\nDúvidas que precises que o utilizador resolva (não adivinhes) escreves-as em DOIS sítios:\n1. Na secção «## Perguntas em aberto» do artefacto, legível por quem lê só o documento:\n   - **P1 — Título curto:** pergunta clara e fechada?\n     - [ ] Opção A (recomendada) — consequência numa frase\n     - [ ] Opção B — consequência numa frase\n2. No ficheiro <home>/features/<fid>/questions.json, que o dashboard usa para montar o formulário de respostas (JSON válido; `[]` se não houver dúvidas):\n   [{\"id\": \"P1\", \"title\": \"Título curto\", \"text\": \"Pergunta clara e fechada?\",\n     \"options\": [{\"label\": \"Opção A — consequência\", \"recommended\": true}, {\"label\": \"Opção B — consequência\"}]}]\nDá 2 a 4 opções concretas e mutuamente exclusivas e marca a tua recomendação com «recommended» (e «(recomendada)» no documento).\nO utilizador pode ainda escrever um comentário ou uma pergunta sobre cada questão. Se precisas de respostas antes de poderes concluir,\nescreve na mesma a melhor versão provisória do artefacto, com as tuas suposições assinaladas, e as perguntas nos dois sítios.\nTermina com [DONE].\n\n## Fase 1: especificação\nUsa a skill `superpowers:brainstorming` (ferramenta Skill) para explorar o pedido e desenhar a spec. Adaptações obrigatórias, porque\nés um worker em segundo plano e não podes conversar com o utilizador: NÃO faças perguntas em chat nem esperes por respostas (regista\ncada dúvida em «Perguntas em aberto», no formato indicado, com a tua recomendação); NÃO escrevas em docs/superpowers/specs nem faças\ncommits no repo (o artefacto é o ficheiro indicado acima, fora do repo); salta o passo de pedir a aprovação do documento (a aprovação\né feita no dashboard, pelo utilizador).\nLê o código e a nota do vault do projeto para ancorar a spec no que existe. NÃO escrevas código de produto.\nSecções: Objetivo e porquê · Fora de âmbito · Requisitos · Critérios de aceitação (verificáveis) · Riscos · Perguntas em aberto.\n\n## Como escrever (o utilizador lê isto num cartão pequeno)\n- Só tópicos: sem parágrafos de prosa, sem introdução, sem resumo final, e sem repetir o pedido do utilizador nem estas instruções.\n- Uma linha por tópico, no máximo 25 palavras; subtópicos só quando trazem um facto (um caminho, um comando, um número).\n- Mantém todas as secções, títulos, tabelas e linhas fixas que esta fase pede, exatamente como pedido: são lidos pelo servidor.\n  Tabelas só onde a fase pede uma.\n- Tamanho: aponta para 40 linhas, nunca mais de 80 (perguntas incluídas). Diz cada coisa uma vez.\n- Material longo (saída de comandos, código, detalhe passo a passo de que o worker seguinte precisa, logs) NÃO vai no artefacto:\n  escreve-o num ficheiro ao lado chamado `<nome do artefacto>-details.md` e aponta para ele com um tópico. Nunca coles segredos em nenhum dos dois.\n- A tua mensagem final no chat: [DONE], [BLOCKED] ou [QUESTION] e no máximo 5 tópicos curtos."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "spec",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "spec.md"
+   ],
+   "error": "",
+   "launches": [],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "spec",
+    "status": "awaiting"
+   }
+  },
+  {
+   "action": [
+    "approve"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-plan",
+     "model": "m-plan",
+     "project": "Alfa",
+     "task": "(Exceção: qualquer nota que deixes na inbox do vault escreve-a em English, porque o vault está nessa língua.)\n\nFeature «Login with 2FA» (id <fid>) no projeto Alfa.\n\n## Pedido do utilizador\nI want 2FA\n\nEscreve o artefacto em <home>/features/<fid>/plan.md (cria o ficheiro; markdown em português europeu). O utilizador vai lê-lo no dashboard\ne aprovar ou pedir alterações, por isso escreve-o completo e autónomo.\n\nDúvidas que precises que o utilizador resolva (não adivinhes) escreves-as em DOIS sítios:\n1. Na secção «## Perguntas em aberto» do artefacto, legível por quem lê só o documento:\n   - **P1 — Título curto:** pergunta clara e fechada?\n     - [ ] Opção A (recomendada) — consequência numa frase\n     - [ ] Opção B — consequência numa frase\n2. No ficheiro <home>/features/<fid>/questions.json, que o dashboard usa para montar o formulário de respostas (JSON válido; `[]` se não houver dúvidas):\n   [{\"id\": \"P1\", \"title\": \"Título curto\", \"text\": \"Pergunta clara e fechada?\",\n     \"options\": [{\"label\": \"Opção A — consequência\", \"recommended\": true}, {\"label\": \"Opção B — consequência\"}]}]\nDá 2 a 4 opções concretas e mutuamente exclusivas e marca a tua recomendação com «recommended» (e «(recomendada)» no documento).\nO utilizador pode ainda escrever um comentário ou uma pergunta sobre cada questão. Se precisas de respostas antes de poderes concluir,\nescreve na mesma a melhor versão provisória do artefacto, com as tuas suposições assinaladas, e as perguntas nos dois sítios.\nTermina com [DONE].\n\n## Fase 2: plano de implementação\nUsa a skill `superpowers:writing-plans` (ferramenta Skill) para escrever o plano. Adaptações: o plano é o ficheiro indicado acima,\nnão docs/superpowers/plans; sem commits no repo; não ofereças opções de execução (a execução é a fase seguinte, decidida pelo\nutilizador no dashboard); dúvidas vão para «Perguntas em aberto», não para o chat.\nA spec aprovada está em <home>/features/<fid>/spec.md. Lê-a. NÃO escrevas código de produto.\nSecções: Abordagem · Ficheiros a criar/alterar (caminhos reais do repo) · Testes · Passos ordenados, cada um com o teste que o valida\n(testes primeiro) · Riscos e reversão · Perguntas em aberto.\nA secção «Testes» é obrigatória e traz: (1) o comando que corre a suite COMPLETA do projeto (descobre-o no repo: README, scripts, CI) e\nonde ficam os testes, seguindo a convenção que o repo já usa; (2) uma tabela «Critério de aceitação | Cenário de teste | Onde\n(ficheiro::teste)», com pelo menos um teste por critério da spec e os casos de erro e limites relevantes; (3) a regra de regressão: o\nimplementador corre a suite completa ANTES de alterar nada (linha de base) e outra vez no fim, e nada que passava pode falhar.\nSe o repo NÃO tem testes, o primeiro passo do plano cria o mínimo para os ter (framework, comando para os correr, um teste real).\nExceção: repos sem código (documentação, infraestrutura): escreve «sem testes: <motivo>» e diz como se verifica à mão.\nTamanho: depois dos passos ordenados escreve a linha «TASKS: <número de passos ordenados>». Se o trabalho precisar de mais de 12 passos, ou de uma implementação que não se revê de uma vez, NÃO planeies tudo: planeia a primeira parte autónoma e lista o resto em «## Pedidos seguintes» (uma linha cada: um título e o que cobre), para que cada parte seja implementada e revista por si.\n\n## Como escrever (o utilizador lê isto num cartão pequeno)\n- Só tópicos: sem parágrafos de prosa, sem introdução, sem resumo final, e sem repetir o pedido do utilizador nem estas instruções.\n- Uma linha por tópico, no máximo 25 palavras; subtópicos só quando trazem um facto (um caminho, um comando, um número).\n- Mantém todas as secções, títulos, tabelas e linhas fixas que esta fase pede, exatamente como pedido: são lidos pelo servidor.\n  Tabelas só onde a fase pede uma.\n- Tamanho: aponta para 40 linhas, nunca mais de 80 (perguntas incluídas). Diz cada coisa uma vez.\n- Material longo (saída de comandos, código, detalhe passo a passo de que o worker seguinte precisa, logs) NÃO vai no artefacto:\n  escreve-o num ficheiro ao lado chamado `<nome do artefacto>-details.md` e aponta para ele com um tópico. Nunca coles segredos em nenhum dos dois.\n- A tua mensagem final no chat: [DONE], [BLOCKED] ou [QUESTION] e no máximo 5 tópicos curtos."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "plan",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "plan.md"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-validate-plan",
+     "model": "m-plan-validation",
+     "project": "Alfa",
+     "task": "(Exceção: qualquer nota que deixes na inbox do vault escreve-a em English, porque o vault está nessa língua.)\n\nFeature «Login with 2FA» (id <fid>) no projeto Alfa.\n\n## Pedido do utilizador\nI want 2FA\n\n## Fase 2b: validação independente do plano\nÉs o validador independente do plano: NÃO foste tu que o escreveste e não deves confiar nele. É SÓ LEITURA: NÃO alteres código nem o\nplano, NÃO faças commits nem checkouts e NÃO instales nada; só lês e corres comandos de verificação (ls, git log, grep). Não leias nem\nimprimas .env*, chaves, tokens ou ficheiros de segredos. Trabalha só dentro do repo do projeto e da pasta dos artefactos.\nSpec aprovada: <home>/features/<fid>/spec.md. Plano a validar: <home>/features/<fid>/plan.md. Lê ambos e confere o plano com o repo real.\nVerifica, por esta ordem:\n1. Cobertura: cada requisito e cada critério de aceitação da spec tem passos no plano que o cumprem; nada do «fora de âmbito» entrou.\n2. Realidade: os ficheiros, funções, módulos e comandos que o plano cita existem (confirma-o com comandos); os ficheiros a criar não\n   colidem com outros já existentes.\n3. Ordem e testes: testes primeiro; cada passo indica o teste que o valida; cada passo só depende de passos anteriores.\n4. Âmbito: sem trabalho a mais do que a spec pede.\n5. Segurança e reversão: ações irreversíveis ou em sistemas partilhados ou de produção ficam como passos para o utilizador, depois\n   da revisão; há reversão para o que muda; não há segredos no plano.\n6. Perguntas em aberto: as da spec estão respondidas ou assumidas de forma explícita; o plano não esconde decisões por tomar.\n7. Testes: a secção «Testes» do plano existe e traz o comando da suite completa, um cenário de teste por critério de aceitação (e os\n   erros e limites relevantes) e a regra da linha de base mais regressão. Vê no repo se já tem testes: se NÃO tem e o plano não cria o\n   mínimo para os ter (framework, comando, um teste real) como primeiro passo, é HIGH e o veredicto é BLOQUEADO. Exceção: repos sem\n   código (documentação, infraestrutura), onde o plano tem de dizer «sem testes: <motivo>» e como se verifica à mão.\n8. Tamanho: o plano tem uma linha «TASKS: <n>». Mais de 12 passos, ou partes que não se verificam de forma independente, é um achado MEDIUM com o título «tamanho» que propõe como partir o trabalho em pedidos separados.\nEscreve o resultado em <home>/features/<fid>/plan-review.md (não no chat), exatamente neste formato:\n## Veredicto\nAPROVADO, COM RESERVAS ou BLOQUEADO, e uma frase. (BLOQUEADO se houver algum CRITICAL ou HIGH.)\n## Verificações\nOs comandos que correste e o resultado real.\n## Cobertura dos critérios de aceitação\n| Critério | Passos do plano que o cumprem | Estado |\n## Achados\n- **[CRITICAL|HIGH|MEDIUM|LOW] secção do plano — título:** o que está mal e como corrigir\nCRITICAL = o plano levaria a perda de dados, falha de segurança ou a algo contrário à spec; HIGH = lacuna ou erro que faria a\nimplementação falhar ou sair errada; MEDIUM = ambiguidade ou risco; LOW = estilo.\nSe não houver achados escreve «Nenhum.»\nTermina com [DONE].\n\n## Como escrever (o utilizador lê isto num cartão pequeno)\n- Só tópicos: sem parágrafos de prosa, sem introdução, sem resumo final, e sem repetir o pedido do utilizador nem estas instruções.\n- Uma linha por tópico, no máximo 25 palavras; subtópicos só quando trazem um facto (um caminho, um comando, um número).\n- Mantém todas as secções, títulos, tabelas e linhas fixas que esta fase pede, exatamente como pedido: são lidos pelo servidor.\n  Tabelas só onde a fase pede uma.\n- Tamanho: aponta para 40 linhas, nunca mais de 80 (perguntas incluídas). Diz cada coisa uma vez.\n- Material longo (saída de comandos, código, detalhe passo a passo de que o worker seguinte precisa, logs) NÃO vai no artefacto:\n  escreve-o num ficheiro ao lado chamado `<nome do artefacto>-details.md` e aponta para ele com um tópico. Nunca coles segredos em nenhum dos dois.\n- A tua mensagem final no chat: [DONE], [BLOCKED] ou [QUESTION] e no máximo 5 tópicos curtos."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {
+     "checking": true,
+     "fixes": 0,
+     "retries": 0
+    },
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "plan",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "plan-review.md"
+   ],
+   "error": "",
+   "launches": [],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {
+     "checking": false,
+     "fixes": 0,
+     "retries": 0
+    },
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "plan",
+    "status": "awaiting"
+   }
+  },
+  {
+   "action": [
+    "approve"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-build",
+     "model": "m-build",
+     "project": "Alfa",
+     "task": "(Exceção: qualquer nota que deixes na inbox do vault escreve-a em English, porque o vault está nessa língua.)\n\nFeature «Login with 2FA» (id <fid>) no projeto Alfa.\n\n## Pedido do utilizador\nI want 2FA\n\nEscreve o artefacto em <home>/features/<fid>/report.md (cria o ficheiro; markdown em português europeu). O utilizador vai lê-lo no dashboard\ne aprovar ou pedir alterações, por isso escreve-o completo e autónomo.\n\nDúvidas que precises que o utilizador resolva (não adivinhes) escreves-as em DOIS sítios:\n1. Na secção «## Perguntas em aberto» do artefacto, legível por quem lê só o documento:\n   - **P1 — Título curto:** pergunta clara e fechada?\n     - [ ] Opção A (recomendada) — consequência numa frase\n     - [ ] Opção B — consequência numa frase\n2. No ficheiro <home>/features/<fid>/questions.json, que o dashboard usa para montar o formulário de respostas (JSON válido; `[]` se não houver dúvidas):\n   [{\"id\": \"P1\", \"title\": \"Título curto\", \"text\": \"Pergunta clara e fechada?\",\n     \"options\": [{\"label\": \"Opção A — consequência\", \"recommended\": true}, {\"label\": \"Opção B — consequência\"}]}]\nDá 2 a 4 opções concretas e mutuamente exclusivas e marca a tua recomendação com «recommended» (e «(recomendada)» no documento).\nO utilizador pode ainda escrever um comentário ou uma pergunta sobre cada questão. Se precisas de respostas antes de poderes concluir,\nescreve na mesma a melhor versão provisória do artefacto, com as tuas suposições assinaladas, e as perguntas nos dois sítios.\nTermina com [DONE].\n\n## Fase 3: implementação\nSpec aprovada: <home>/features/<fid>/spec.md. Plano aprovado: <home>/features/<fid>/plan.md. Lê ambos e segue o plano com a skill `superpowers:executing-plans`.\nEm todo o código novo usa `superpowers:test-driven-development` (teste falhado primeiro, depois a implementação mínima, depois\nrefatorar) e, se um teste falhar sem razão óbvia, `superpowers:systematic-debugging`. Antes de dizeres que está feito, usa\n`superpowers:verification-before-completion`: corre os comandos e confirma o resultado, não o presumas. O worktree está definido\nabaixo, por isso não uses `superpowers:using-git-worktrees` nem `superpowers:finishing-a-development-branch` (o merge é do utilizador).\nPodem estar outras features a correr em paralelo neste repositório, por isso NÃO faças checkout nem alterações na pasta\nprincipal do repo. Cria o teu próprio worktree, num ramo novo, e trabalha só lá dentro:\n  git worktree add -b feat/<fid> \"<home>/features/<fid>/work\"\nANTES de alterares qualquer ficheiro, corre a suite COMPLETA de testes do projeto (o comando está na secção «Testes» do plano) e regista\na linha de base: quantos passam e quantos já falham. Se o repo não tem testes, cria primeiro o mínimo que o plano prevê.\nTestes primeiro, depois código. NÃO faças commits: deixa as alterações por comitar no worktree (o pipeline comita só depois da\nrevisão independente); NÃO faças push e não removas o worktree (diz no relatório onde está).\nNão executes ações irreversíveis nem em sistemas partilhados ou de produção (servidores, apagar dados, deploys, migrações reais):\nescreve-as como passos para o utilizador executar DEPOIS da revisão.\nCorre os testes e o linter do projeto antes de dizeres que está feito, e não afirmes que passa sem o ter corrido.\nO artefacto é o relatório: o que mudou (ficheiros), resultado real dos testes, como verificar à mão, o que ficou por fazer.\nA seguir ao «Estado da execução», o relatório tem a secção «## Testes», cuja primeira linha é exatamente uma destas:\nSEM REGRESSÕES | COM REGRESSÕES | NÃO CORRIDOS — <motivo> | SEM TESTES NO PROJETO — <motivo>\nSeguida, exatamente neste formato e com os números REAIS da suite COMPLETA, de:\nLINHA DE BASE: <P> passam, <F> falham   (antes de alterares nada)\nRESULTADO FINAL: <P> passam, <F> falham   (depois, com o mesmo comando)\nTESTES NOVOS: <N>\ne depois o comando usado e a tabela «Critério de aceitação | Teste (ficheiro::nome)». Regra de regressão: nada do que passava na linha de base pode\nfalhar no fim; se algo falha, corrige-o ou diz-o aqui, nunca o escondas.\nO relatório começa SEMPRE pela secção «## Estado da execução», cuja primeira linha é exatamente uma destas:\nEXECUTADO E VERIFICADO | PARCIALMENTE EXECUTADO | NÃO EXECUTADO — <motivo numa frase>\nSeguida de «Verificado por mim» (cada coisa com o comando que correste e o resultado real) e «Não verificado» (o que depende de\noutra pessoa ou de acesso que não tens). Se não correste nada que prove o resultado, o estado é NÃO EXECUTADO: um relatório de\npassos «para executares» é um runbook, não uma implementação. Só termina com [DONE] se o estado for EXECUTADO E VERIFICADO;\ncaso contrário termina com [BLOCKED] e diz o que falta. Se o projeto não é um repositório git, não há worktree: diz-o no relatório.\n\n## Como escrever (o utilizador lê isto num cartão pequeno)\n- Só tópicos: sem parágrafos de prosa, sem introdução, sem resumo final, e sem repetir o pedido do utilizador nem estas instruções.\n- Uma linha por tópico, no máximo 25 palavras; subtópicos só quando trazem um facto (um caminho, um comando, um número).\n- Mantém todas as secções, títulos, tabelas e linhas fixas que esta fase pede, exatamente como pedido: são lidos pelo servidor.\n  Tabelas só onde a fase pede uma.\n- Tamanho: aponta para 40 linhas, nunca mais de 80 (perguntas incluídas). Diz cada coisa uma vez.\n- Material longo (saída de comandos, código, detalhe passo a passo de que o worker seguinte precisa, logs) NÃO vai no artefacto:\n  escreve-o num ficheiro ao lado chamado `<nome do artefacto>-details.md` e aponta para ele com um tópico. Nunca coles segredos em nenhum dos dois.\n- A tua mensagem final no chat: [DONE], [BLOCKED] ou [QUESTION] e no máximo 5 tópicos curtos."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {
+     "checking": false,
+     "fixes": 0,
+     "retries": 0
+    },
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "build",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "mkwork"
+   ],
+   "error": "",
+   "launches": [],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {
+     "checking": false,
+     "fixes": 0,
+     "retries": 0
+    },
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "build",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "report.md"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-review",
+     "model": "m-review",
+     "project": "Alfa",
+     "task": "(Exceção: qualquer nota que deixes na inbox do vault escreve-a em English, porque o vault está nessa língua.)\n\nFeature «Login with 2FA» (id <fid>) no projeto Alfa.\n\n## Pedido do utilizador\nI want 2FA\n\nEscreve o artefacto em <home>/features/<fid>/review.md (cria o ficheiro; markdown em português europeu). O utilizador vai lê-lo no dashboard\ne aprovar ou pedir alterações, por isso escreve-o completo e autónomo.\n\nDúvidas que precises que o utilizador resolva (não adivinhes) escreves-as em DOIS sítios:\n1. Na secção «## Perguntas em aberto» do artefacto, legível por quem lê só o documento:\n   - **P1 — Título curto:** pergunta clara e fechada?\n     - [ ] Opção A (recomendada) — consequência numa frase\n     - [ ] Opção B — consequência numa frase\n2. No ficheiro <home>/features/<fid>/questions.json, que o dashboard usa para montar o formulário de respostas (JSON válido; `[]` se não houver dúvidas):\n   [{\"id\": \"P1\", \"title\": \"Título curto\", \"text\": \"Pergunta clara e fechada?\",\n     \"options\": [{\"label\": \"Opção A — consequência\", \"recommended\": true}, {\"label\": \"Opção B — consequência\"}]}]\nDá 2 a 4 opções concretas e mutuamente exclusivas e marca a tua recomendação com «recommended» (e «(recomendada)» no documento).\nO utilizador pode ainda escrever um comentário ou uma pergunta sobre cada questão. Se precisas de respostas antes de poderes concluir,\nescreve na mesma a melhor versão provisória do artefacto, com as tuas suposições assinaladas, e as perguntas nos dois sítios.\nTermina com [DONE].\n\n## Fase 4: revisão independente\nÉs o revisor independente: NÃO foste tu que implementaste e não deves confiar no relatório. NÃO alteres código, NÃO faças commits\nnem checkouts; só lês e corres comandos de verificação. Usa a skill `superpowers:requesting-code-review` para conduzir a revisão\n(revisão do diff por um revisor de código) e `superpowers:verification-before-completion` para confirmares com comandos reais antes\nde escreveres o veredicto. O resultado vai para o ficheiro indicado acima, no formato abaixo (não para o chat).\nSpec: <home>/features/<fid>/spec.md. Plano: <home>/features/<fid>/plan.md. Relatório do implementador: <home>/features/<fid>/report.md. O código está no worktree \"<home>/features/<fid>/work\" (ramo feat/<fid>), por comitar:\no implementador não comitou, o commit só acontece depois da tua revisão.\nFaz, por esta ordem:\n1. Vê o que mudou: `git -C \"<home>/features/<fid>/work\" status --short`, `git -C \"<home>/features/<fid>/work\" diff HEAD` (ficheiros já seguidos) e lê os ficheiros novos\n   (`git -C \"<home>/features/<fid>/work\" ls-files --others --exclude-standard`). Se mesmo assim houver commits no ramo\n   (`git -C \"<home>/features/<fid>/work\" log --oneline main..feat/<fid>`), vê também `git -C \"<home>/features/<fid>/work\" diff main...feat/<fid>`. Lê tudo o que mudou.\n2. Corre a suite COMPLETA de testes e o linter do projeto no worktree (não só os testes novos), compara com a linha de base da secção\n   «Testes» do relatório e regista o resultado REAL. Confirma que cada critério de aceitação tem pelo menos um teste (tabela do\n   relatório) e que esse teste existe no diff.\n3. Confere cada critério de aceitação da spec: cumprido / não cumprido / não verificável, com a evidência.\n4. Procura: segredos no diff, validação de input, injeção (SQL/comandos), caminhos de ficheiros, erros engolidos, testes em falta\n   (alvo 80%), funções ou ficheiros demasiado grandes, e alterações fora do âmbito da spec.\nEscreve o artefacto exatamente neste formato:\n## Veredicto\nAPROVADO, COM RESERVAS ou BLOQUEADO, e uma frase. (BLOQUEADO se houver algum CRITICAL ou HIGH.)\nConfere o «Estado da execução» do relatório com o que encontras: se diz NÃO EXECUTADO ou PARCIALMENTE EXECUTADO, ou se não consegues\ncomprovar a execução, os critérios que dependem dela ficam «não verificável» e o veredicto nunca é APROVADO (no máximo COM RESERVAS).\nTestes: o veredicto é BLOQUEADO se algum teste que passava na linha de base falha agora, se um critério de aceitação não tem teste,\nse os testes não foram corridos sem motivo aceitável, ou se o repo não tinha testes e a feature não criou o mínimo para os ter.\n## Verificações\nOs comandos que correste e o resultado real.\n## Testes\nObrigatória. Corres TU a suite COMPLETA (não copies os números do implementador). A primeira linha é exatamente uma destas:\nCONFIRMADOS | DIVERGENTES — <o que difere> | NÃO CORRIDOS — <motivo> | SEM TESTES NO PROJETO — <motivo>\nCONFIRMADOS só se os teus números coincidem com o «RESULTADO FINAL» do relatório e nada do que passava na linha de base falha agora.\nSegue-se, neste formato: RESULTADO DO REVISOR: <P> passam, <F> falham   e o comando que usaste.\n## Critérios de aceitação\n| Critério | Estado | Evidência |\n## Achados\n- **[CRITICAL|HIGH|MEDIUM|LOW] ficheiro:linha — título:** o que está mal e como corrigir\nCRITICAL = segurança ou perda de dados; HIGH = bug ou problema sério de qualidade; MEDIUM = manutenção; LOW = estilo.\nSe não houver achados escreve «Nenhum.»\n\n## Como escrever (o utilizador lê isto num cartão pequeno)\n- Só tópicos: sem parágrafos de prosa, sem introdução, sem resumo final, e sem repetir o pedido do utilizador nem estas instruções.\n- Uma linha por tópico, no máximo 25 palavras; subtópicos só quando trazem um facto (um caminho, um comando, um número).\n- Mantém todas as secções, títulos, tabelas e linhas fixas que esta fase pede, exatamente como pedido: são lidos pelo servidor.\n  Tabelas só onde a fase pede uma.\n- Tamanho: aponta para 40 linhas, nunca mais de 80 (perguntas incluídas). Diz cada coisa uma vez.\n- Material longo (saída de comandos, código, detalhe passo a passo de que o worker seguinte precisa, logs) NÃO vai no artefacto:\n  escreve-o num ficheiro ao lado chamado `<nome do artefacto>-details.md` e aponta para ele com um tópico. Nunca coles segredos em nenhum dos dois.\n- A tua mensagem final no chat: [DONE], [BLOCKED] ou [QUESTION] e no máximo 5 tópicos curtos."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {
+     "checking": false,
+     "fixes": 0,
+     "retries": 0
+    },
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "review",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "review.md"
+   ],
+   "error": "",
+   "launches": [],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "feature",
+    "pv": {
+     "checking": false,
+     "fixes": 0,
+     "retries": 0
+    },
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "review",
+    "status": "awaiting"
+   }
+  },
+  {
+   "action": [
+    "approve"
+   ],
+   "error": "",
+   "launches": [],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": true,
+    "kind": "feature",
+    "pv": {
+     "checking": false,
+     "fixes": 0,
+     "retries": 0
+    },
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "review",
+    "status": "done"
+   }
+  }
+ ]
+}

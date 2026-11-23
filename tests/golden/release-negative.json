@@ -1,0 +1,177 @@
+{
+ "archived": [],
+ "commits": [],
+ "history": [
+  {
+   "event": "worker launched",
+   "note": "cos-w1",
+   "stage": "plan"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "plan"
+  },
+  {
+   "event": "approved",
+   "note": "",
+   "stage": "plan"
+  },
+  {
+   "event": "worker launched",
+   "note": "cos-w2",
+   "stage": "build"
+  },
+  {
+   "event": "finished",
+   "note": "",
+   "stage": "build"
+  }
+ ],
+ "trace": [
+  {
+   "action": [
+    "create"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-plan",
+     "model": "m-plan",
+     "project": "Alfa",
+     "task": "Language: the user works in English. Write EVERY artifact, question, report and your final message in English.\n\nFeature «Login with 2FA» (id <fid>) in project Alfa.\n\n## User request\nI want 2FA\n\nWrite the artifact to <home>/features/<fid>/plan.md (create the file; markdown in English). The user will read it in the dashboard and approve it or\nask for changes, so write it complete and self-contained.\n\nDoubts you need the user to resolve (do not guess) go in TWO places:\n1. In the \"## Open questions\" section of the artifact, readable by someone who only reads the document:\n   - **P1 — Short title:** clear, closed question?\n     - [ ] Option A (recommended) — consequence in one sentence\n     - [ ] Option B — consequence in one sentence\n2. In the file <home>/features/<fid>/questions.json, which the dashboard uses to build the answer form (valid JSON; `[]` if there are no doubts):\n   [{\"id\": \"P1\", \"title\": \"Short title\", \"text\": \"Clear, closed question?\",\n     \"options\": [{\"label\": \"Option A — consequence\", \"recommended\": true}, {\"label\": \"Option B — consequence\"}]}]\nGive 2 to 4 concrete, mutually exclusive options and mark your recommendation with \"recommended\" (and \"(recommended)\" in the document).\nThe user may also write a comment or a question on each item. If you need answers before you can finish, still write the best\nprovisional version of the artifact, with your assumptions flagged, and the questions in both places.\nEnd with [DONE].\n\n## Phase 1: production promotion plan (READ-ONLY)\nREAD-ONLY: do NOT change anything in the repo or outside it, do NOT commit, do NOT install anything, do NOT create\nworktrees and do NOT write product code; you only read and run verification commands (ls, git log, grep, the tests\nthat already exist without modifying them). Do not read or print .env*, keys, tokens or secret files. The only thing you may run\nthat writes anything is the suggestion command of rule 6 (it creates a dashboard card; it changes nothing in the project).\nThe ONLY exception to the read-only rule is the plan file indicated above: you MUST create it there. Do NOT run any promotion step now.\nThe user's request is above and says what goes to production. Inspect the repo (git log, branches, the PRs the request cites, CI/CD, README/CLAUDE.md,\ndeploy scripts) to write a plan that another worker, without your context, can verify and carry out. REQUIRED sections (headings in English):\n## Candidate — the line `Candidate commit: <full sha>` (the exact commit that goes up; `git rev-parse`), the branch, the target branch/environment, the PRs\n   and commits included and what changes for users.\n## Regression tests — the EXACT commands the independent verifier will run on the candidate code, locally (full suite, E2E, linter, build) and, for\n   each, the expected result; also say what the repo has that can NOT be run locally.\n## Promotion steps — the EXACT promotion commands, in order, one per line in code blocks, with the expected result of each. No --force, no branches or\n   remotes other than the plan's, no reading or printing secrets; if the promotion depends on CI/CD, say which step triggers it.\n## Post-checks — how to confirm after the promotion that all is well (commands or URLs to check, read-only).\n## Rollback — the EXACT steps to go back (they are for the user: the promotion worker NEVER runs them by itself).\n## Risks — what can go wrong and what could NOT be confirmed.\nWithout these sections and the commit line the server refuses the approval. End with [DONE].\n\n## How to write it (the user reads this on a small card)\n- Bullets only: no paragraphs of prose, no introduction, no closing summary, and do not repeat the user's request or these instructions.\n- One line per bullet, 25 words at most; sub-bullets only when they carry a fact (a path, a command, a number).\n- Keep every section, heading, table and fixed line this phase asks for, exactly as asked: they are read by the server. Tables only\n  where the phase asks for one.\n- Size: aim for 40 lines, never more than 80 (questions included). Say each thing once.\n- Long material (command output, code, step-by-step detail the next worker needs, logs) does NOT go in the artifact: write it to a\n  file next to it named `<artifact name>-details.md` and point to it with one bullet. Never paste secrets in either file.\n- Your final chat message: [DONE], [BLOCKED] or [QUESTION] and at most 5 short bullets."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "release",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "plan",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "plan.md"
+   ],
+   "error": "",
+   "launches": [],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "release",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "plan",
+    "status": "awaiting"
+   }
+  },
+  {
+   "action": [
+    "approve"
+   ],
+   "error": "",
+   "launches": [
+    {
+     "dirs": [
+      "<home>/features/<fid>"
+     ],
+     "effort": "high",
+     "label": "login-with-2fa-build",
+     "model": "m-build",
+     "project": "Alfa",
+     "task": "Language: the user works in English. Write EVERY artifact, question, report and your final message in English.\n\nFeature «Login with 2FA» (id <fid>) in project Alfa.\n\n## User request\nI want 2FA\n\nWrite the artifact to <home>/features/<fid>/report.md (create the file; markdown in English). The user will read it in the dashboard and approve it or\nask for changes, so write it complete and self-contained.\n\nDoubts you need the user to resolve (do not guess) go in TWO places:\n1. In the \"## Open questions\" section of the artifact, readable by someone who only reads the document:\n   - **P1 — Short title:** clear, closed question?\n     - [ ] Option A (recommended) — consequence in one sentence\n     - [ ] Option B — consequence in one sentence\n2. In the file <home>/features/<fid>/questions.json, which the dashboard uses to build the answer form (valid JSON; `[]` if there are no doubts):\n   [{\"id\": \"P1\", \"title\": \"Short title\", \"text\": \"Clear, closed question?\",\n     \"options\": [{\"label\": \"Option A — consequence\", \"recommended\": true}, {\"label\": \"Option B — consequence\"}]}]\nGive 2 to 4 concrete, mutually exclusive options and mark your recommendation with \"recommended\" (and \"(recommended)\" in the document).\nThe user may also write a comment or a question on each item. If you need answers before you can finish, still write the best\nprovisional version of the artifact, with your assumptions flagged, and the questions in both places.\nEnd with [DONE].\n\n## Phase 2: independent regression (READ-ONLY on production)\nYou are the independent verifier: you did NOT write the plan and must not trust it. READ-ONLY: do NOT change anything in the repo or outside it, do NOT commit, do NOT install anything, do NOT create\nworktrees and do NOT write product code; you only read and run verification commands (ls, git log, grep, the tests\nthat already exist without modifying them). Do not read or print .env*, keys, tokens or secret files. The only thing you may run\nthat writes anything is the suggestion command of rule 6 (it creates a dashboard card; it changes nothing in the project).\nExceptions to the read-only rule: (a) the report indicated above, which you MUST create there; (b) a throw-away worktree of the candidate commit at <home>/features/<fid>/work\n(`git worktree add --detach <home>/features/<fid>/work <sha>`), where you run the tests. Do not touch production, shared environments or real data.\nPlan to verify: <home>/features/<fid>/plan.md. Do, in this order:\n1. Confirm the plan's `Candidate commit` exists and create the worktree at it; confirm with `git -C <home>/features/<fid>/work rev-parse HEAD`.\n2. Run the commands in the plan's «Regression tests» section and whatever else the repo's CI runs that is relevant, LOCALLY. Also run the suite on the\n   base/target branch when it is cheap, to tell failures that already existed from new ones.\n3. Record, for each command: the command, the result (pass/fail, counts) and the evidence (relevant output). No claims without evidence.\n4. Verdict: POSITIVE only if ALL the necessary tests ran and there are no new failures against the base. NEGATIVE if any failed (new), if any necessary\n   test did NOT run, if the commit does not exist or if you could not confirm something essential. When in doubt, NEGATIVE.\nThe report opens with `## Regression verdict` and, on the next line, only the word POSITIVE or NEGATIVE; then `Candidate commit: <tested sha>`, the table\nof commands and results, the failures that already existed on the base, what did not run and why, and the reasons for the verdict. End with [DONE].\n\n## How to write it (the user reads this on a small card)\n- Bullets only: no paragraphs of prose, no introduction, no closing summary, and do not repeat the user's request or these instructions.\n- One line per bullet, 25 words at most; sub-bullets only when they carry a fact (a path, a command, a number).\n- Keep every section, heading, table and fixed line this phase asks for, exactly as asked: they are read by the server. Tables only\n  where the phase asks for one.\n- Size: aim for 40 lines, never more than 80 (questions included). Say each thing once.\n- Long material (command output, code, step-by-step detail the next worker needs, logs) does NOT go in the artifact: write it to a\n  file next to it named `<artifact name>-details.md` and point to it with one bullet. Never paste secrets in either file.\n- Your final chat message: [DONE], [BLOCKED] or [QUESTION] and at most 5 short bullets."
+    }
+   ],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "release",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "build",
+    "status": "working"
+   }
+  },
+  {
+   "action": [
+    "finish",
+    "report.md"
+   ],
+   "error": "",
+   "launches": [],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "release",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "build",
+    "status": "awaiting"
+   }
+  },
+  {
+   "action": [
+    "approve"
+   ],
+   "error": "the regression verdict is NEGATIVE: the promotion cannot be approved; run the tests again or cancel",
+   "launches": [],
+   "state": {
+    "auto": {
+     "fixes": 0,
+     "retries": 0
+    },
+    "closed": false,
+    "kind": "release",
+    "pv": {},
+    "rev": {
+     "build": 0,
+     "plan": 0,
+     "review": 0,
+     "spec": 0
+    },
+    "stage": "build",
+    "status": "awaiting"
+   }
+  }
+ ]
+}

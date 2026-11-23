@@ -89,6 +89,32 @@ def to_schema_2(state: Path) -> None:
         _write(state / "workers.json", workers)
 
 
+def to_schema_3(state: Path) -> None:
+    """Pipelines as data: every request gets the definition of its type as a snapshot (`features/<id>/pipeline.json`), the id and hash of
+    that definition, the step it is on and its automatic rounds (from the old `pv` / `auto` counters). Idempotent."""
+    import pipelines
+
+    feats = _read(state / "features.json", None)
+    if not isinstance(feats, list):
+        return
+    for f in feats:
+        if not isinstance(f, dict) or not f.get("id") or "pipeline" in f:
+            continue
+        kind = f.get("kind", "feature")
+        p = pipelines.load(pipelines.builtin_dir() / f"{kind if kind in pipelines.BUILTIN_IDS else 'feature'}.json", builtin=True)
+        folder = state / "features" / f["id"]
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "pipeline.json").write_text(json.dumps(pipelines.snapshot(p), ensure_ascii=False, indent=1), encoding="utf-8")
+        pv, auto, ids = f.get("pv") or {}, f.get("auto") or {}, {s["id"] for s in p.steps}
+        old = {"plancheck:blocked": pv.get("fixes", 0), "plancheck:unknown": pv.get("retries", 0),
+               "review:blocked": auto.get("fixes", 0), "review:unknown": auto.get("retries", 0)}
+        phase = "plan-validation" if pv.get("checking") else f.get("stage")
+        here = next((s["id"] for s in p.steps if s["type"] != "approval" and s.get("phase") == phase), p.steps[0]["id"])
+        f.update(pipeline={"id": p.id, "version": p.data.get("version", 1), "hash": pipelines.digest(p)}, step=here,
+                 rounds={k: v for k, v in old.items() if v and k.split(":")[0] in ids})
+    _write(state / "features.json", feats)
+
+
 @dataclass(frozen=True)
 class Step:
     version: int
@@ -96,7 +122,8 @@ class Step:
     run: Callable[[Path], None]
 
 
-STEPS = (Step(1, "English keys and events", to_schema_1), Step(2, "Work sessions", to_schema_2))
+STEPS = (Step(1, "English keys and events", to_schema_1), Step(2, "Work sessions", to_schema_2),
+         Step(3, "Pipelines as data", to_schema_3))
 CURRENT = STEPS[-1].version
 
 
