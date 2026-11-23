@@ -464,6 +464,10 @@ class Features(CheckFlow):
             with self._lock:
                 fs, changed = self._load(), False
                 for f in fs:
+                    if f.get("base_made") and f["status"] in (DONE, CANCELLED):      # the merged base a dependent part was built on
+                        combine.delete_branch(f.get("path", ""), f["base"])
+                        f.pop("base_made")
+                        changed = True
                     wt = self._dir(f["id"]) / "integration"
                     if not f.get("integration") or f["status"] not in (DONE, CANCELLED) or not wt.exists():
                         continue
@@ -480,6 +484,73 @@ class Features(CheckFlow):
                     self._save(fs)
         except Exception:  # noqa: BLE001 - housekeeping must never bring the server's ticker down
             pass
+
+    # ---- dependent parts: created held at the fan-out, released by the ticker onto the code of the parts they follow ----
+    def release_held(self) -> None:
+        """Release the held parts whose followed parts are all ready, cancel those whose followed part was cancelled. The git work
+        (the base branch of a part that follows several parts) is done outside the lock."""
+        todo = self._cancel_orphaned_held()
+        if not todo:
+            return
+        bases = {pid: self._make_base(path, deps, pid) for pid, deps, path in todo}
+        with self._lock:
+            fs = self._load()
+            for pid, (branch, made, error) in bases.items():
+                f = next((x for x in fs if x["id"] == pid), None)
+                if f is None or not f.get("held"):
+                    continue                                  # cancelled while the branch was being made
+                if error:
+                    f["held_error"] = error
+                    self._log(f, "held part launch failed", f["stage"], error)
+                    continue
+                f.pop("held", None)
+                f.pop("held_error", None)
+                f.update(base=branch, base_made=made)
+                self._log(f, "held part released", f["stage"], branch)
+                try:
+                    self._start(fs, f, "")
+                except Exception as e:  # noqa: BLE001 - the part is kept (failed) so «Try again» works
+                    f["status"] = FAILED
+                    self._log(f, "held part launch failed", f["stage"], str(e))
+            self._save(fs)
+
+    def _cancel_orphaned_held(self) -> list:
+        """Cancel the held parts that follow a cancelled part; return what is ready to be released: [(part id, follows, path)]."""
+        todo, changed = [], False
+        with self._lock:
+            fs = self._load()
+            for parent in fs:
+                for pid, action in fanout.release_due(parent, fs) if parent.get("split") else []:
+                    f = next(x for x in fs if x["id"] == pid)
+                    if action == "cancel":
+                        self._cancel_held(f, "a part it follows was cancelled")
+                        changed = True
+                    elif not f.get("held_error"):
+                        todo.append((pid, list(f["follows"]), f.get("path", "")))
+            if changed:
+                self._save(fs)
+        return todo
+
+    def _cancel_held(self, f: dict, why: str) -> None:
+        f["status"], f["closed"] = CANCELLED, self._closed()
+        f.pop("held", None)          # it is not waiting any more (`follows` stays: it says what it was going to build on)
+        self._log(f, "held part cancelled", f["stage"], why)
+
+    def _make_base(self, path: str, deps: list, pid: str):
+        """(branch to build on, whether this made it, error). One followed part: its own branch; several: a merged `base/<id>`."""
+        branches = fanout.base_branches(deps)
+        if not path:
+            return "", False, "the project's folder is not known"
+        gone = [b for b in branches if not combine.branch_exists(path, b)]
+        if gone:
+            return "", False, "the branch of a part it follows does not exist: " + ", ".join(gone)
+        if len(branches) == 1:
+            return branches[0], False, ""
+        try:
+            combine.make_base(path, branches, f"base/{pid}", str(self._dir(pid) / "base-tmp"))
+        except combine.CombineError as e:
+            return "", False, str(e)
+        return f"base/{pid}", True, ""
 
     def _split_decision(self, f: dict) -> dict:
         """What approving this plan means (`fanout.decide`); a refusal raises, so it leaves no log and no archive behind."""
@@ -501,6 +572,11 @@ class Features(CheckFlow):
             child = self._new_request(fs, kw.pop("project"), kw.pop("title"), kw.pop("desc"), kw.pop("model"), start=False, **kw)
             if spec:
                 (self._dir(child["id"]) / ARTIFACT["spec"]).write_text(spec, encoding="utf-8")
+            if child.get("held"):          # it follows other parts: it starts when they are ready (`release_held`)
+                names = ", ".join(c["title"] for c in made if c["id"] in child["follows"])
+                self._log(child, "part held", child["stage"], f"waits for {names}")
+                made.append(child)
+                continue
             try:
                 self._start(fs, child, "")
             except Exception as e:  # noqa: BLE001 - one part failing to launch never stops the others
@@ -849,8 +925,15 @@ class Features(CheckFlow):
             fs = self._load()
             f = self._get(fs, fid)
             if f["status"] in (DONE, CANCELLED):
-                raise FeatureError("already finished")
+                held = [x for x in fs if x["id"] in {t.get("part_id") for t in (f.get("split") or {}).get("tasks", [])} and x.get("held")]
+                if not held:
+                    raise FeatureError("already finished")
+                for x in held:                       # a fanned-out request is closed already: cancelling it stops what has not started
+                    self._cancel_held(x, "its request was cancelled")
+                self._save(fs)
+                return f
             f["status"] = CANCELLED
+            f.pop("held", None)
             f["closed"] = self._closed()
             self._log(f, "cancelled", f["stage"])
             for e in f.get("qa", []):             # a question still being answered stops with its request
@@ -978,6 +1061,8 @@ class Features(CheckFlow):
     # ---- internals ----
     @staticmethod
     def _need(f: dict, status: str) -> None:
+        if f.get("held") and status == AWAITING:
+            raise FeatureError("this part is waiting for the part it follows")
         if f["status"] != status:
             raise FeatureError(f"current state «{f['status']}»; this action needs «{status}»")
 

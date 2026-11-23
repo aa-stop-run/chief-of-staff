@@ -266,6 +266,9 @@ def _card_extras(f: dict, titles: dict, every=()) -> dict:
     sp = splitplan.summary((f.get("artifacts") or {}).get("plan", ""))
     if sp:
         out["plan_split"] = sp
+    if f.get("held"):          # a dependent part that has not started: the titles of what it still waits for
+        by_id = {x["id"]: x for x in every}
+        out["held_for"] = [by_id[i]["title"] for i in f.get("follows") or [] if i in by_id and not fanout.is_ready(by_id[i])]
     if f.get("split"):
         out["parts"] = fanout.parts_view(f, every)
         out["split_state"] = fanout.split_state(f, every)
@@ -621,6 +624,7 @@ def _ticker() -> None:
             SESSIONS.heartbeat()
             if chief.CFG.get("resume_after_limit", True):
                 FEATURES.auto_resume()
+            FEATURES.release_held()                     # dependent parts whose earlier parts are ready start now
             FEATURES.maybe_integrate()                  # a fanned-out request whose parts are all ready: one integration request
             FEATURES.remove_integration_worktrees()
             ticks["n"] += 1

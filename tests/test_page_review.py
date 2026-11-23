@@ -137,3 +137,27 @@ def test_no_follow_up_on_a_fanned_out_parent_and_the_page_renders_the_block():
                                    "integration launch failed", "integration cleanup failed"])
 def test_every_split_history_event_has_a_portuguese_string(event):
     assert f'  "{event}":"' in SRC
+
+
+def test_a_held_part_says_what_it_waits_for_and_is_not_a_decision():
+    held = {"status": "awaiting", "held": True, "held_for": ["API", "DB"]}
+    assert call(f"heldLine({json.dumps(held)},t)") == {"text": "Waiting for «API», «DB» to be committed and reviewed; it starts by itself after that.", "warn": False}
+    assert call(f'heldLine({{held:true,held_error:"boom"}},t)') == {"text": "This part cannot start yet: boom", "warn": True}
+    assert call('heldLine({held:true,held_for:[]},t)')["text"].startswith("Starting soon")
+    assert call('heldLine({status:"awaiting"},t)') is None
+    assert call(f"decides({json.dumps(held)})") is False
+    assert call('decides({status:"awaiting"})') is True and call('decides({status:"failed",held:true})') is True
+    assert call('needsYou({features:[{status:"awaiting",held:true},{status:"awaiting"},{status:"failed"}],alerts:[]})') == 2
+
+
+def test_open_cards_sort_a_held_part_with_the_work_under_way():
+    fs = [{"id": "h", "status": "awaiting", "held": True, "history": []}, {"id": "w", "status": "working", "history": []},
+          {"id": "d", "status": "awaiting", "history": []}, {"id": "f", "status": "failed", "history": []}]
+    assert [c["id"] for c in call(f"sortOpen({json.dumps(fs)},0)")] == ["d", "f", "h", "w"]
+
+
+def test_the_card_hides_the_decision_controls_of_a_held_part():
+    assert "${f.held?heldNote(f):statusLine(f)}" in SRC and "if(f.held)return heldActions(f);" in SRC
+    for event in ("part held", "held part released", "held part cancelled", "held part launch failed"):
+        assert f'  "{event}":"' in SRC
+    assert '"Waiting":"À espera"' in SRC

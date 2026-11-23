@@ -165,3 +165,12 @@ def test_a_closed_parent_stays_in_scope_while_a_part_or_the_integration_is_open(
     assert server._in_scope(parent, "ws-new", [parent, _part("pa", "done"), _part("pb", "done"), {"id": "int", "status": "working"}]) is True
     assert server._in_scope(parent, "ws-new", [parent, _part("pa", "done"), _part("pb", "done"), {"id": "int", "status": "done"}]) is False
     assert server._in_scope(parent, "ws-old", [parent]) is True          # its own session still shows it
+
+
+def test_a_held_part_lists_the_titles_of_what_it_still_waits_for(ro):
+    server = _srv()
+    api, db = _part("pa", "working", ok=False), _part("pb", "done")
+    held = {"id": "pc", "title": "C", "status": "awaiting", "stage": "plan", "history": [], "artifacts": {}, "held": True, "follows": ["pa", "pb"]}
+    assert server._card_extras(held, {}, [api, db, held])["held_for"] == ["PA"]
+    held.pop("held")
+    assert "held_for" not in server._card_extras(held, {}, [api, db, held])

@@ -260,3 +260,13 @@ def test_the_integration_includes_the_dependent_part_once_it_is_ready(world):
     (integ,) = [x for x in fs.list() if x.get("integration")]
     assert set(json.loads((root / "features" / integ["id"] / "combine.json").read_text(encoding="utf-8"))["merged"]) == {
         f"feat/{ids['api']}", f"feat/{ids['db']}", f"feat/{ids['ui']}"}
+
+
+def test_a_held_part_cancelled_by_hand_is_never_released_later(world):
+    fs, fake, repo, root = world
+    _, ids = fan_out(world, [API, DB, UI_ON_API])
+    assert fs.cancel(ids["ui"])["status"] == "cancelled"
+    make_ready(world, ids["api"], "api")
+    launches = len(fake.calls)
+    fs.release_held()
+    assert stored(fs, ids["ui"])["status"] == "cancelled" and "held" not in stored(fs, ids["ui"]) and len(fake.calls) == launches

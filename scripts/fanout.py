@@ -283,7 +283,7 @@ def release_due(parent: dict, feats) -> list:
     was cancelled (so the chain below it can never start). A followed part that failed keeps it waiting: the user retries it."""
     by_id, cancelled, out = _by_id(feats), set(), []
     for p in _parts(parent, feats):
-        if not p.get("held"):
+        if not p.get("held") or p.get("status") != "awaiting":
             continue
         deps = [by_id.get(i) for i in p.get("follows") or []]
         if any(d is None or d.get("status") == "cancelled" or d["id"] in cancelled for d in deps):

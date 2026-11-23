@@ -575,7 +575,11 @@ const T="__TOKEN__";
 // ---------- languages: English is the key; Portuguese is an optional translation; switching reloads the page ----------
 const PT = {
   "Split: {n} parts":"Divisão: {n} partes","Split: 1 part":"Divisão: 1 parte","The split block could not be read: fix it or ask for changes":"Não foi possível ler o bloco de divisão: corrige-o ou pede alterações",
-  "Parts under way":"Partes em curso","Some parts were cancelled or failed":"Algumas partes foram canceladas ou falharam","All parts are ready to be combined":"Todas as partes estão prontas a combinar","Combining the parts":"A combinar as partes","Parts combined":"Partes combinadas","Finished":"Concluída","Combined: {c} conflict(s), tests: {tests}":"Combinado: {c} conflito(s), testes: {tests}",
+  "Parts under way":"Partes em curso","Some parts were cancelled or failed":"Algumas partes foram canceladas ou falharam","All parts are ready to be combined":"Todas as partes estão prontas a combinar","Combining the parts":"A combinar as partes","Parts combined":"Partes combinadas","Finished":"Concluída","Waiting":"À espera",
+  "This part cannot start yet: {e}":"Esta parte ainda não pode arrancar: {e}",
+  "Waiting for {w} to be committed and reviewed; it starts by itself after that.":"À espera que {w} esteja comitada e revista; arranca sozinha depois disso.",
+  "Starting soon: the parts it follows are ready.":"A arrancar: as partes que segue estão prontas.",
+  "This part starts by itself when the parts it follows are ready":"Esta parte arranca sozinha quando as partes que segue estiverem prontas","Combined: {c} conflict(s), tests: {tests}":"Combinado: {c} conflito(s), testes: {tests}",
   "Today":"Hoje","Projects":"Projetos","Views":"Vistas",
   "Needs attention":"Pede atenção","Open":"Aberto","No open requests":"Sem pedidos abertos","Not a git repo":"Sem git",
   "{n} uncommitted":"{n} por comitar","Git info as of {t}":"Informação do git de há {t}",
@@ -962,6 +966,10 @@ const PT = {
   "plan fixes":"correções do plano",
   "plan fixes limit":"limite de correções do plano",
   "fanned out":"dividido em partes",
+  "part held":"parte retida",
+  "held part released":"parte retida libertada",
+  "held part cancelled":"parte retida cancelada",
+  "held part launch failed":"arranque da parte retida falhou",
   "fan-out launch failed":"arranque da parte falhou",
   "integration created":"integração criada",
   "integration failed":"integração falhou",
@@ -1294,17 +1302,18 @@ const waitingSince=f=>f&&f.history&&f.history.length?f.history[f.history.length-
 const waitedS=(f,now)=>{const t=Date.parse(waitingSince(f));return isNaN(t)?0:Math.max(0,Math.round((now-t)/1000));};
 // open cards in the order they need the user: to decide (longest wait first), then failed, then working; a new array, stable
 const NEED_RANK={awaiting:0,failed:1,working:2};
+const needRank=f=>f.held?2:(NEED_RANK[f.status]??3);
 const sortOpen=(fs,now)=>fs.map((f,i)=>[f,i]).sort((a,b)=>{
-  const ra=NEED_RANK[a[0].status]??3,rb=NEED_RANK[b[0].status]??3;
+  const ra=needRank(a[0]),rb=needRank(b[0]);
   if(ra!==rb)return ra-rb;
   if(ra===0){const d=waitedS(b[0],now)-waitedS(a[0],now);if(d)return d;}
   return a[1]-b[1];}).map(x=>x[0]);
 // how many things need the user: cards to decide, failed cards and workers stuck on a prompt
-const needsYou=s=>(s.features||[]).filter(f=>f.status==="awaiting"||f.status==="failed").length+(s.alerts||[]).filter(a=>a.kind==="blocked").length;
+const needsYou=s=>(s.features||[]).filter(decides).length+(s.alerts||[]).filter(a=>a.kind==="blocked").length;
 const pageTitle=n=>(n?`(${n}) `:"")+"Chief of Staff";
 // a card waiting on a phase is one thing to be told about once: its key, and the cards whose key is new
 const waitKey=f=>f.id+"|"+f.stage;
-const newlyWaiting=(fs,before)=>fs.filter(f=>f.status==="awaiting"&&!before.has(waitKey(f)));
+const newlyWaiting=(fs,before)=>fs.filter(f=>f.status==="awaiting"&&!f.held&&!before.has(waitKey(f)));
 // "6 file(s), +214 −37"
 const diffText=(d,t)=>t("{f} file(s), +{a} −{r}",{f:d.files,a:d.insertions,r:d.deletions});
 // is the 5-hour allowance nearly used (and still running)? then a new phase would probably be paused midway
@@ -1331,6 +1340,13 @@ const splitStateLabel=(f,t)=>f&&SPLIT_STATES[f.split_state]?t(SPLIT_STATES[f.spl
 // the integration report in one line
 const integrationLine=(f,t)=>{const i=f&&f.integration_summary;if(!i)return null;
   return t("Combined: {c} conflict(s), tests: {tests}",{c:i.conflicts==null?"?":i.conflicts,tests:i.tests||"?"});};
+// a part that follows other parts and has not started: what it waits for (or why it cannot start)
+const heldLine=(f,t)=>{if(!f||!f.held)return null;
+  if(f.held_error)return {text:t("This part cannot start yet: {e}",{e:f.held_error}),warn:true};
+  const w=(f.held_for||[]).map(x=>"«"+x+"»").join(", ");
+  return {text:w?t("Waiting for {w} to be committed and reviewed; it starts by itself after that.",{w}):t("Starting soon: the parts it follows are ready."),warn:false};};
+// a held part is not waiting for the user: it does not count as a decision and sorts with the work under way
+const decides=f=>(f.status==="awaiting"&&!f.held)||f.status==="failed";
 // a fanned-out request is closed by design: it leads to its parts, not to a follow-up
 const canFollowUp=f=>!f.split&&f.status==="done";
 // </review>
@@ -1666,7 +1682,7 @@ function render(){
 
   const fts=(S.features||[]).filter(f=>filtering?names.has(f.project):true);
   const pds=(S.pending||[]).filter(x=>filtering?names.has(x.project):true);
-  const waiting=(S.features||[]).filter(f=>f.status==="awaiting").length;
+  const waiting=(S.features||[]).filter(f=>f.status==="awaiting"&&!f.held).length;
   $("apNote").hidden=!S.vault;
   $("banner").innerHTML=(S.demo?`<p class="banner demo">${tt("Demo mode: sample data and simulated workers. Nothing here runs a real worker or touches your projects.")}</p>`:"")
     +limitBanner(S.limits)+alertBanner(S.alerts)
@@ -2178,6 +2194,7 @@ function reviewPanel(f,id,go){
       <button class="btn pri" data-act="approve" data-id="${id}" type="button" data-verdict="${rv.verdict}"${fds.length&&nfix?' data-fixing="1"':""}>${go}</button></div></div>`;
 }
 function actions(f){
+  if(f.held)return heldActions(f);
   const st2=stg(f),i=st2.findIndex(s=>s[0]===f.stage),last=i===st2.length-1;
   const go=f.kind==="release"?(last?tt("Close request"):f.stage==="plan"?tt("Approve and run the regression"):tt("Approve and promote to production"))
     :f.kind==="ship"?(last?tt("Close request"):tt("Approve and publish")):last?(f.kind==="analysis"?tt("Accept analysis"):tt("Accept implementation")):f.stage==="build"?tt("Send to review"):tt("Approve and move on to {next}",{next:st2[i+1][1].toLowerCase()});
@@ -2272,8 +2289,11 @@ function patchQa(root,f){
 }
 // ---- what the review of 2026-11-14 added to a card ----
 const lastWords=f=>f.last_message&&f.last_message.text?`</p><p class="lastmsg"><b>${esc(f.last_message.mark?tt("The worker's last words"):tt("The worker was cut off before finishing. Its last message"))}:</b> ${esc(f.last_message.text)}`:"";
-const waitChip=f=>f.status==="awaiting"&&waitedS(f,Date.now())>=60?`<span class="wait" title="${esc(tt("How long this request has been waiting for your decision"))}">${esc(tt("waiting {t}",{t:fmtDuration(waitedS(f,Date.now()))}))}</span>`:"";
+const waitChip=f=>f.status==="awaiting"&&!f.held&&waitedS(f,Date.now())>=60?`<span class="wait" title="${esc(tt("How long this request has been waiting for your decision"))}">${esc(tt("waiting {t}",{t:fmtDuration(waitedS(f,Date.now()))}))}</span>`:"";
 const parentLine=f=>f.parent_title?`<p class="cnote2">${esc(tt("Follows: {t}",{t:f.parent_title}))}</p>`:"";
+const heldNote=f=>{const h=heldLine(f,tt);return h?`<p class="cnote2${h.warn?" warn":""}">${esc(h.text)}</p>`:"";};
+const heldActions=f=>`<div class="decide"><div class="dfoot"><span class="dhint">${tt("This part starts by itself when the parts it follows are ready")}</span>
+  <button class="btn ghost" data-act="cancel" data-id="${esc(f.id)}" type="button">${tt("Cancel request")}</button></div></div>`;
 const splitNote=f=>{const s=splitLabel(f,tt);return s?`<p class="cnote2${s.warn?" warn":""}">${esc(s.text)}</p>`:"";};
 const splitBlock=f=>{const rows=partsRows(f,tt),st=splitStateLabel(f,tt),il=integrationLine(f,tt);if(!rows.length&&!st&&!il)return "";return `<div class="cnote2">${st?`<b>${esc(st)}</b>`:""}${rows.length?`<ul>${rows.map(r=>`<li>${esc(r.text)}</li>`).join("")}</ul>`:""}${il?`<p>${esc(il)}</p>`:""}</div>`;};
 const sizeNote=f=>f.stage==="plan"&&f.status==="awaiting"&&f.plan_tasks&&f.plan_tasks.n>f.plan_tasks.max?`<p class="cnote2 warn">${tt("This plan has <b>{n} steps</b> (more than {max}). Large builds tend not to pass the review in one go: consider asking the planner to keep the first self-contained part and leave the rest as follow-up requests.",{n:+f.plan_tasks.n,max:+f.plan_tasks.max})}</p>`:"";
@@ -2305,8 +2325,8 @@ function finishHtml(f){
 function featCard(f){
   const hist=f.history.map(h=>`<li>${esc(ago(h.at,Date.now(),tt))} · ${esc(h.stage)} · ${esc(up1(tt(h.event)))}${h.note?" — "+esc(h.note):""}</li>`).join("");
   return `<article class="feat s-${esc(f.status)}" data-fid="${esc(f.id)}"><div class="ftop"><h3>${esc(f.title)}</h3>${projLink(f.project)}<span class="kind">${esc(KIND_LABEL[f.kind]||KIND_LABEL.feature)}</span>${costChip(f)}${(()=>{const pr=S.projects.find(q=>q.name===f.project),d=pr?dom(pr):"other";return `<span class="dom d-${esc(d)}">${esc(cap(d))}</span>`;})()}
-    ${waitChip(f)}<span class="fst">${esc(ST_LABEL[f.status]||f.status)}</span></div>
-    <p class="fdesc">${esc(f.desc)}</p>${parentLine(f)}${stepper(f)}${statusLine(f)}${pausedNote(f)}${sizeNote(f)}${splitNote(f)}${splitBlock(f)}${diffLine(f)}${threadHtml(f)}${artifacts(f)}${kindSwitch(f)}${finishHtml(f)}${actions(f)}${qaHtml(f)}
+    ${waitChip(f)}<span class="fst">${esc(f.held?tt("Waiting"):(ST_LABEL[f.status]||f.status))}</span></div>
+    <p class="fdesc">${esc(f.desc)}</p>${parentLine(f)}${stepper(f)}${f.held?heldNote(f):statusLine(f)}${pausedNote(f)}${sizeNote(f)}${splitNote(f)}${splitBlock(f)}${diffLine(f)}${threadHtml(f)}${artifacts(f)}${kindSwitch(f)}${finishHtml(f)}${actions(f)}${qaHtml(f)}
     <details class="hist"><summary>${tt("History")}</summary><ul>${hist}</ul></details></article>`;
 }
 let featHtml="";

@@ -33,6 +33,7 @@ PAIRS = [
     ("comment required (max. {0} characters)", "comentário obrigatório (máx. {0} caracteres)"),
     ("fixes can only be requested after the review", "as correções pedem-se depois da revisão"),
     ("this step has no built-in prompt", "este passo não tem um prompt incluído"),
+    ("this part is waiting for the part it follows", "esta parte está à espera da parte que segue"),
     ("this type of request has no {0} phase", "este tipo de pedido não tem a fase {0}"),
     ("The plan's split has problems ({0}): ask for changes.", "A divisão do plano tem problemas ({0}): pede alterações."),
     ("The plan still has open questions (or the questions file is missing or invalid): answer them or ask for changes before it fans out.",
