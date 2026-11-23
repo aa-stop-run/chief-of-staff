@@ -607,7 +607,10 @@ const PT = {
   "This part starts by itself when the parts it follows are ready":"Esta parte arranca sozinha quando as partes que segue estiverem prontas","Combined: {c} conflict(s), tests: {tests}":"Combinado: {c} conflito(s), testes: {tests}",
   "Today":"Hoje","Projects":"Projetos","Views":"Vistas",
   "Pipelines":"Pipelines","Built-in":"Incluída","Custom":"Própria","New pipeline":"Nova pipeline",
-  "Name your pipeline":"Dá um nome à pipeline","Give your pipeline a name.":"Dá um nome à pipeline.","(copy)":"(cópia)","Start from":"Começar a partir de","Blank":"Em branco",
+  "Name your pipeline":"Dá um nome à pipeline",
+  "The change has {n} lines; your limit is {max}.":"A alteração tem {n} linhas; o teu limite é {max}.",
+  "The change touches {n} files; your limit is {max}.":"A alteração toca em {n} ficheiros; o teu limite é {max}.",
+  "It touches files you marked as sensitive: {list}.":"Toca em ficheiros que marcaste como sensíveis: {list}.","Give your pipeline a name.":"Dá um nome à pipeline.","(copy)":"(cópia)","Start from":"Começar a partir de","Blank":"Em branco",
   "One step and your approval, to build on":"Um passo e a tua aprovação, para construíres a partir daí",
   "Spec, plan, build and review":"Spec, plano, implementação e revisão","Diagnose, plan, fix and review":"Diagnóstico, plano, correção e revisão",
   "Plan, carry out and review; behaviour does not change":"Plano, execução e revisão; o comportamento não muda",
@@ -2740,6 +2743,10 @@ const heldActions=f=>`<div class="decide"><div class="dfoot"><span class="dhint"
 const splitNote=f=>{const s=splitLabel(f,tt);return s?`<p class="cnote2${s.warn?" warn":""}">${esc(s.text)}</p>`:"";};
 const splitBlock=f=>{const rows=partsRows(f,tt),st=splitStateLabel(f,tt),il=integrationLine(f,tt);if(!rows.length&&!st&&!il)return "";return `<div class="cnote2">${st?`<b>${esc(st)}</b>`:""}${rows.length?`<ul>${rows.map(r=>`<li>${esc(r.text)}</li>`).join("")}</ul>`:""}${il?`<p>${esc(il)}</p>`:""}</div>`;};
 const sizeNote=f=>f.stage==="plan"&&f.status==="awaiting"&&f.plan_tasks&&f.plan_tasks.n>f.plan_tasks.max?`<p class="cnote2 warn">${tt("This plan has <b>{n} steps</b> (more than {max}). Large builds tend not to pass the review in one go: consider asking the planner to keep the first self-contained part and leave the rest as follow-up requests.",{n:+f.plan_tasks.n,max:+f.plan_tasks.max})}</p>`:"";
+const diffWarnText=(w,t)=>w.code==="size"?t("The change has {n} lines; your limit is {max}.",{n:w.lines,max:w.max})
+  :w.code==="files"?t("The change touches {n} files; your limit is {max}.",{n:w.files,max:w.max})
+  :t("It touches files you marked as sensitive: {list}.",{list:(w.patterns||[]).map(p=>p.glob+" ("+p.files+")").join(", ")});
+const diffWarnLine=f=>(f.diff_warnings||[]).length&&!["done","cancelled"].includes(f.status)?`<ul class="cnote2 warn">${f.diff_warnings.map(w=>`<li>${esc(diffWarnText(w,tt))}</li>`).join("")}</ul>`:"";
 const diffLine=f=>f.diff&&!["done","cancelled"].includes(f.status)?`<p class="cnote2">${esc(tt(f.diff.committed?"Change in the worktree: {d} (committed by the pipeline).":"Change under review: {d} (not committed yet).",{d:diffText(f.diff,tt)}))}</p>`:"";
 function kindSwitch(f){
   if(!canChangeKind(f,KIND_STG))return "";
@@ -2769,7 +2776,7 @@ function featCard(f){
   const hist=f.history.map(h=>`<li>${esc(ago(h.at,Date.now(),tt))} · ${esc(h.stage)} · ${esc(up1(tt(h.event)))}${h.note?" — "+esc(h.note):""}</li>`).join("");
   return `<article class="feat s-${esc(f.status)}" data-fid="${esc(f.id)}"><div class="ftop"><h3>${esc(f.title)}</h3>${projLink(f.project)}<span class="kind">${esc(KIND_LABEL[f.kind]||KIND_LABEL.feature)}</span>${costChip(f)}${(()=>{const pr=S.projects.find(q=>q.name===f.project),d=pr?dom(pr):"other";return `<span class="dom d-${esc(d)}">${esc(cap(d))}</span>`;})()}
     ${waitChip(f)}<span class="fst">${esc(f.held?tt("Waiting"):(ST_LABEL[f.status]||f.status))}</span></div>
-    <p class="fdesc">${esc(f.desc)}</p>${parentLine(f)}${stepper(f)}${f.held?heldNote(f):statusLine(f)}${pausedNote(f)}${sizeNote(f)}${splitNote(f)}${splitBlock(f)}${diffLine(f)}${threadHtml(f)}${artifacts(f)}${kindSwitch(f)}${finishHtml(f)}${actions(f)}${qaHtml(f)}
+    <p class="fdesc">${esc(f.desc)}</p>${parentLine(f)}${stepper(f)}${f.held?heldNote(f):statusLine(f)}${pausedNote(f)}${sizeNote(f)}${splitNote(f)}${splitBlock(f)}${diffLine(f)}${diffWarnLine(f)}${threadHtml(f)}${artifacts(f)}${kindSwitch(f)}${finishHtml(f)}${actions(f)}${qaHtml(f)}
     <details class="hist"><summary>${tt("History")}</summary><ul>${hist}</ul></details></article>`;
 }
 let featHtml="";

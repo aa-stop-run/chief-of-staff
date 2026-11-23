@@ -665,6 +665,13 @@ def request_diff(work):
     return finish.diff_summary(work)
 
 
+def request_change_warnings(work, diff) -> list:
+    """Warnings about the change under review (size, sensitive paths) from the user's `review_limits` and `protected_paths`."""
+    import changecheck
+    protected = changecheck.globs(CFG.get("protected_paths"))
+    return changecheck.warnings(diff, finish.changed_files(work) if protected else [], changecheck.limits(CFG.get("review_limits")), protected)
+
+
 def cleanup_request(project_path, work, branch: str, force: bool = False) -> tuple:
     return finish.remove(project_path, work, branch, force)
 

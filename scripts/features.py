@@ -15,6 +15,7 @@ from pathlib import Path
 
 import atomicio
 import combine
+import decisions
 import engine
 import fanout
 import gates
@@ -1066,9 +1067,10 @@ class Features(CheckFlow):
         if f["status"] != status:
             raise FeatureError(f"current state «{f['status']}»; this action needs «{status}»")
 
-    @staticmethod
-    def _log(f: dict, event: str, stage: str, note: str = "") -> None:
-        f["history"].append({"at": _now(), "event": event, "stage": stage, "note": note})
+    def _log(self, f: dict, event: str, stage: str, note: str = "") -> None:
+        entry = {"at": _now(), "event": event, "stage": stage, "note": note}
+        f["history"].append(entry)
+        decisions.append(self._dir(f["id"]), f.get("title", ""), entry)      # the audit trail: a file that outlives the card
 
     def _start(self, fs: list, f: dict, feedback: str) -> None:
         d = self._dir(f["id"])

@@ -73,7 +73,7 @@ def diff_summary(work) -> dict | None:
     alone, or the last commit when there is none. Only numbers: no file names, no content."""
     if not Path(work).is_dir():
         return None
-    porcelain = _git(work, "--no-optional-locks", "status", "--porcelain")
+    porcelain = _git(work, "--no-optional-locks", "status", "--porcelain", "-uall")
     if porcelain is None or porcelain.returncode != 0:
         return None
     lines = [ln for ln in porcelain.stdout.splitlines() if ln.strip()]
@@ -87,6 +87,25 @@ def diff_summary(work) -> dict | None:
     num = lambda word: int(m.group(1)) if (m := re.search(rf"(\d+) {word}", stat)) else 0   # noqa: E731
     return {"files": num("files? changed") + untracked, "insertions": num(r"insertions?\(\+\)"), "deletions": num(r"deletions?\(-\)"),
             "untracked": untracked, "committed": committed}
+
+
+def changed_files(work) -> list:
+    """The names of the files a request's branch changed (the same span as `diff_summary`, new files included). [] if unreadable.
+    Names stay on the server: the page only ever gets which of the user's patterns matched."""
+    if not Path(work).is_dir():
+        return []
+    porcelain = _git(work, "--no-optional-locks", "status", "--porcelain", "-uall")
+    if porcelain is None or porcelain.returncode != 0:
+        return []
+    names = {ln[3:].strip().strip('"') for ln in porcelain.stdout.splitlines() if ln.startswith("??")}
+    base = _fork_point(work)
+    r = _git(work, "diff", "--name-only", base) if base else _git(work, "diff", "--name-only", "HEAD")
+    if r is not None and r.returncode == 0:
+        names |= {ln.strip() for ln in r.stdout.splitlines() if ln.strip()}
+    if not base and not names:
+        r = _git(work, "show", "--name-only", "--format=", "HEAD")
+        names |= {ln.strip() for ln in (r.stdout.splitlines() if r is not None and r.returncode == 0 else []) if ln.strip()}
+    return sorted(names)
 
 
 def remove(repo, work, branch: str, force: bool = False) -> tuple:

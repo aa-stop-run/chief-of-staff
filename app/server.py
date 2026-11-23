@@ -301,6 +301,9 @@ def _card_extras(f: dict, titles: dict, every=()) -> dict:
         diff = CARD_FACTS.get(("diff", f["id"]), lambda: chief.request_diff(work))
         if diff:
             out["diff"] = diff
+            warn = CARD_FACTS.get(("diffwarn", f["id"]), lambda: chief.request_change_warnings(work, diff))
+            if warn:
+                out["diff_warnings"] = warn
     return out
 
 
