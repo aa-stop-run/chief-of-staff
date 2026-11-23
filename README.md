@@ -154,6 +154,8 @@ Approved specs and plans are also copied into the project (`docs/specs/`, `docs/
 
 **Plans have a size.** The planner counts its steps; above 12 it plans the first self-contained part and lists the rest as follow-up requests, and the validator says so when it does not. Large builds rarely pass a review in one go.
 
+**A plan can split.** When a plan's work divides into independent parts (2 to 10, each owning its own files), the planner declares them in a «Split» section; the server checks the block, and only your «Approve» turns each part into its own request, run in parallel in its own worktree. When every part is committed and reviewed, one integration request merges their branches in a throw-away worktree and runs the whole suite there. Merging into your project stays yours.
+
 **From the terminal.** While the dashboard server runs, `python scripts/chief.py requests` lists what is waiting, and `approve`, `revise`, `ask` and `cancel` act on a request through the same API as the page, so the same gates apply.
 
 Every card, of any kind and in any phase, has an **Ask the worker** box. A question launches a read-only worker that reads the request's documents and the work and answers right under the card, with evidence. It never changes the request or moves it to the next phase: approving, asking for changes and cancelling stay on the card's own buttons. Its cost counts towards the request.

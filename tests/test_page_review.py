@@ -131,3 +131,9 @@ def test_no_follow_up_on_a_fanned_out_parent_and_the_page_renders_the_block():
     assert call('canFollowUp({status:"working"})') is False
     assert "const follow=canFollowUp(f)?" in SRC and "${splitNote(f)}${splitBlock(f)}" in SRC
     assert '"Parts combined":"Partes combinadas"' in SRC
+
+
+@pytest.mark.parametrize("event", ["fanned out", "fan-out launch failed", "integration created", "integration failed",
+                                   "integration launch failed", "integration cleanup failed"])
+def test_every_split_history_event_has_a_portuguese_string(event):
+    assert f'  "{event}":"' in SRC

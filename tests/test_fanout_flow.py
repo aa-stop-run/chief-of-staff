@@ -255,3 +255,19 @@ def test_the_refusals_are_translated():
     assert translate("The plan's split has problems (overlap, size): ask for changes.", "pt") == "A divisão do plano tem problemas (overlap, size): pede alterações."
     reasons = [fanout.decide({"kind": "feature"}, plan([A, B]), None, set())["reason"]]
     assert all(translate(r, "pt") != r for r in reasons)
+
+
+def test_old_data_without_any_split_field_loads_lists_and_builds_card_extras(tmp_path):
+    root = tmp_path / "state"
+    (root / "features" / "old-1").mkdir(parents=True)
+    old = {"id": "old-1", "title": "Old", "desc": "d", "project": "Alfa", "model": "", "lang": "en", "status": "awaiting", "stage": "spec",
+           "worker_id": "", "worker_name": "", "created": "2025-01-01T00:00:00", "history": [], "rev": {}, "auto": {"fixes": 0, "retries": 0}}
+    (root / "features.json").write_text(json.dumps([old]), encoding="utf-8")
+    fake = Fake()
+    fs = Features(root, fake.launch, fake.is_active)
+    (listed,) = fs.list()
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+    import server
+    extras = server._card_extras({**listed, "artifacts": fs.artifacts("old-1")}, {}, fs.list())
+    assert not ({"parts", "split_state", "integration_summary", "plan_split"} & set(extras))
+    assert server._in_scope(listed, "ws-x", fs.list()) is True
