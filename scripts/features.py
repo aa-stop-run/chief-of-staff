@@ -489,6 +489,20 @@ class Features(CheckFlow):
                autopilot: bool = False, path: str = "", parent: str = "") -> dict:
         """`path`: the project's folder, kept so the request still finds its project if the project's name changes.
         `parent`: the id of the request this one follows (a part split from a plan, the fix an analysis asked for)."""
+        title, desc, kind = self._validate_request_fields(project, title, desc, model, lang, kind)
+        with self._lock:
+            fs = self._load()
+            if parent and not any(x["id"] == parent for x in fs):
+                raise FeatureError("the request this one follows was not found")
+            f = self._new_request(fs, project, title, desc, model, lang=lang, kind=kind, path=path, parent=parent,
+                                  autopilot=autopilot)
+            self._save(fs)
+            return f
+
+    @staticmethod
+    def _validate_request_fields(project: str, title: str, desc: str, model, lang: str, kind: str) -> tuple:
+        """The field checks of a new request, shared by `create` and by the parts of a split (a bad part fails before anything
+        is written). Returns the cleaned (title, description, kind)."""
         title, desc = (title or "").strip(), (desc or "").strip()
         if not project:
             raise FeatureError("missing project")
@@ -502,27 +516,39 @@ class Features(CheckFlow):
             raise FeatureError("unknown language")
         if (kind or "feature") not in KINDS:
             raise FeatureError("unknown request type")
-        kind = kind or "feature"
-        with self._lock:
-            fs = self._load()
-            if parent and not any(x["id"] == parent for x in fs):
-                raise FeatureError("the request this one follows was not found")
-            fid = f"{_slug(title)}-{datetime.now():%y%m%d%H%M%S}"
-            f = {"id": fid, "title": title, "desc": desc, "project": project, "model": model or "",
-                 "lang": lang or "en", "kind": kind, "status": WORKING, "worker_id": "", "worker_name": "",
-                 "created": _now(), "history": [], "rev": {s: 0 for s in STAGES}, "auto": {"fixes": 0, "retries": 0}}
-            if autopilot and kind not in pipelines.NO_AUTOPILOT:
-                f["autopilot"] = True
-            if path:
-                f["path"] = str(path)
-            if parent:
-                f["parent"] = parent
-            self._dir(fid).mkdir(parents=True, exist_ok=True)
-            self._attach_pipeline(f, kind)
+        return title, desc, kind or "feature"
+
+    def _new_request(self, fs: list, project: str, title: str, desc: str, model, *, lang: str = "en", kind: str = "feature",
+                     path: str = "", parent: str = "", autopilot: bool = False, fid: str = "", stage: str = "",
+                     extra: dict | None = None, start: bool = True) -> dict:
+        """Build a request, append it to `fs` (the caller's loaded list) and return it. It never loads or saves the file: the
+        caller holds the lock and saves, so two updates cannot be lost. `start=False` leaves it waiting (status `awaiting`)
+        for the caller to start; `stage` begins at that phase; `extra` keys are merged before the request starts."""
+        fid = fid or f"{_slug(title)}-{datetime.now():%y%m%d%H%M%S}"
+        f = {"id": fid, "title": title, "desc": desc, "project": project, "model": model or "",
+             "lang": lang or "en", "kind": kind, "status": WORKING, "worker_id": "", "worker_name": "",
+             "created": _now(), "history": [], "rev": {s: 0 for s in STAGES}, "auto": {"fixes": 0, "retries": 0}}
+        if autopilot and kind not in pipelines.NO_AUTOPILOT and not (extra or {}).get("part"):
+            f["autopilot"] = True
+        if path:
+            f["path"] = str(path)
+        if parent:
+            f["parent"] = parent
+        f.update(extra or {})
+        self._dir(fid).mkdir(parents=True, exist_ok=True)
+        self._attach_pipeline(f, kind)
+        if stage:
+            step = self._step_by_phase(f, stage)
+            if step is None:
+                raise FeatureError(f"this type of request has no {stage} phase")
+            f.update(stage=stage, step=step["id"])
+        if start:
             self._start(fs, f, "")
             fs.append(f)
-            self._save(fs)
-            return f
+        else:
+            f["status"] = AWAITING
+            fs.append(f)
+        return f
 
     def approve(self, fid: str) -> dict:
         with self._lock:
