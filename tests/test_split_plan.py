@@ -179,14 +179,26 @@ def test_check_split_bad_ids_are_high():
     assert any(x["code"] == "bad-id" and x["severity"] == "HIGH" for x in f)
 
 
-def test_check_split_depends_on_is_high():
+def test_check_split_a_part_may_depend_on_an_earlier_part():
     sp = _split([
-        {"id": "a", "title": "", "files": [], "depends_on": ["b"]},
-        {"id": "b", "title": "", "files": [], "depends_on": []},
-        {"id": "c", "title": "", "files": [], "depends_on": ["ghost"]},
+        {"id": "a", "title": "", "files": [], "depends_on": []},
+        {"id": "b", "title": "", "files": [], "depends_on": ["a"]},
+        {"id": "c", "title": "", "files": [], "depends_on": ["a", "b"]},
     ])
-    f = splitplan.check_split(sp, set())
-    assert any(x["code"] == "bad-dep" and x["severity"] == "HIGH" for x in f)
+    assert [x for x in splitplan.check_split(sp, set()) if x["code"] == "bad-dep"] == []
+
+
+@pytest.mark.parametrize("deps,bad", [
+    ({"a": ["b"], "b": []}, ["a"]),                    # depends on a LATER part (that is how a cycle would start)
+    ({"a": [], "b": ["ghost"]}, ["b"]),                # unknown id
+    ({"a": ["a"], "b": []}, ["a"]),                    # itself
+    ({"a": [], "b": ["a", "a"]}, ["b"]),               # the same dependency twice
+    ({"a": ["b"], "b": ["a"]}, ["a"]),                 # a cycle: only its edge pointing forward is wrong
+])
+def test_check_split_bad_dependencies_are_high(deps, bad):
+    sp = _split([{"id": k, "title": "", "files": [], "depends_on": v} for k, v in deps.items()])
+    f = [x for x in splitplan.check_split(sp, set()) if x["code"] == "bad-dep"]
+    assert len(f) == 1 and f[0]["severity"] == "HIGH" and sorted(f[0]["tasks"]) == bad
 
 
 def test_check_split_overlap_is_high_and_case_insensitive():
@@ -360,6 +372,6 @@ def test_prompts_state_the_rules():
     import prompts
     import prompts_pt
     en = prompts.SPLIT_FORMAT
-    assert "EMPTY" in en and "2 to 10" in en and "two parts" in en and "release" in en and "never both" in en
+    assert "EMPTY" in en and "EARLIER" in en and "2 to 10" in en and "two parts" in en and "release" in en and "never both" in en
     pt = prompts_pt.SPLIT_FORMAT
-    assert "VAZIO" in pt and "2 a 10" in pt and "duas partes" in pt and "release" in pt and "nunca as duas" in pt
+    assert "VAZIO" in pt and "ANTERIORES" in pt and "2 a 10" in pt and "duas partes" in pt and "release" in pt and "nunca as duas" in pt

@@ -204,7 +204,9 @@ SPLIT_FORMAT = ("\nSplit (optional): when the work divides into parts that each 
                 "{\"id\": \"ui\", \"title\": \"Export button\", \"files\": [\"app/page.html\"], \"depends_on\": []}]}\n"
                 "```\n"
                 "Rules: ids are short, unique, lower-case slugs (letters, digits, hyphens, at most 20 characters); 2 to 10 parts; "
-                "`depends_on` stays EMPTY (parts are independent and run in parallel); no file appears in two parts; a file that "
+                "`depends_on` is EMPTY for an independent part (independent parts run in parallel) and otherwise lists the ids of EARLIER parts "
+                "whose code the part needs (it starts only after those are committed and reviewed, and builds on their code); no file "
+                "appears in two parts; a file that "
                 "does not exist yet is written as {\"new\": \"path\"}; the plan still needs its \"TASKS: <n>\" line and its "
                 "Tests section. A split block replaces the \"Follow-up requests\" list above: use one or the other, never both. "
                 "Do not use a split block in a plan that is itself a part of a split, nor for a release.")

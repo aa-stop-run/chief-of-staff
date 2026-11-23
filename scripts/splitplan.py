@@ -164,16 +164,16 @@ def check_split(split: dict, repo_files: set) -> list:
                                  "Part ids must be unique, slug-like and at most 20 characters.",
                                  bad_id_tasks))
 
-    known = {p.get("id", "") for p in parts}
+    # a part may depend on parts listed BEFORE it (so a cycle cannot exist); unknown, self, later or repeated ids are wrong
     bad_dep_tasks = []
-    for p in parts:
+    for i, p in enumerate(parts):
         deps = p.get("depends_on") or []
-        if any(d not in known for d in deps) or len(deps):
-            # D1: depends_on must be empty; a name that is unknown is also flagged.
+        earlier = {q.get("id", "") for q in parts[:i]}
+        if any(d not in earlier for d in deps) or len(set(deps)) != len(deps):
             bad_dep_tasks.append(p.get("id", ""))
     if bad_dep_tasks:
         findings.append(_finding("HIGH", "bad-dep",
-                                 "Parts are independent: depends_on must be empty.",
+                                 "depends_on may only name parts listed earlier in the block (no unknown ids, itself, later parts or repeats).",
                                  bad_dep_tasks))
 
     owner = {}
