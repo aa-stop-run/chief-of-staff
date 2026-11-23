@@ -45,3 +45,8 @@ def isolated_chief(monkeypatch, tmp_path):
 def test_the_suite_never_points_at_the_real_data_folder():
     assert Path(os.environ["CHIEF_HOME"]).resolve() == TEST_HOME.resolve()
     assert str(TEST_HOME.resolve()).startswith(str(Path(tempfile.gettempdir()).resolve()))
+
+
+def plan_fix_rounds(f: dict) -> int:
+    """How many automatic plan-fix rounds a request has used (the engine's `rounds`, mirrored in `pv["fixes"]`)."""
+    return int((f.get("rounds") or {}).get("plancheck:blocked", 0))

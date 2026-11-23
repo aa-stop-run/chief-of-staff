@@ -6,8 +6,10 @@ from datetime import datetime
 from pathlib import Path
 
 import engine
+import fanout
 import gates
 import prompt_refs
+import splitplan
 from gates import parse_review
 
 PLAN_REVIEW = "plan-review.md"   # independent plan validation (a sub-step of the plan phase)
@@ -113,6 +115,8 @@ class CheckFlow:
         ev = CHECK_EVENTS.get(step.get("phase"), CHECK_EVENTS["review"])
         plan_check = step.get("phase") == "plan-validation"
         path = self._dir(f["id"]) / step["artifact"]
+        if plan_check:
+            self._merge_split_findings(f, path)
         verdict, counts = parse_review(path.read_text(encoding="utf-8", errors="replace") if path.is_file() else "")
         if plan_check and verdict == "blocked" and not (counts["CRITICAL"] or counts["HIGH"]) and (counts["MEDIUM"] or counts["LOW"]):
             verdict = "reserves"             # only minor findings: they inform the user, they do not send the plan back
@@ -161,6 +165,24 @@ class CheckFlow:
             if plan_check:
                 self._log(f, ev["ok"], stage, "approved" if verdict == "approved" else "with reservations")
                 self._autopilot(fs, f)
+
+    def _merge_split_findings(self, f: dict, review: Path) -> None:
+        """The server checks the plan's split block itself (ids, overlap, files): its findings are added to the validator's review,
+        so a structurally bad split is blocked whatever the validator said. Nothing happens without a review file or a split."""
+        plan = self._dir(f["id"]) / "plan.md"
+        if not review.is_file() or not plan.is_file() or not fanout.kind_allows(f):
+            return
+        sp = splitplan.parse_split(plan.read_text(encoding="utf-8", errors="replace"))
+        if sp is None:
+            return
+        files = splitplan.repo_files(f.get("path", ""))
+        # without a readable repo every file would look unknown: that finding only makes sense when the file list exists
+        findings = [x for x in splitplan.check_split(sp, files) if files or x["code"] != "unknown-file"]
+        if findings:
+            text = review.read_text(encoding="utf-8", errors="replace")
+            merged = splitplan.merge_review(text, findings, f.get("lang", "en"))
+            if merged != text:
+                review.write_text(merged, encoding="utf-8")
 
     def _send_back(self, fs: list, f: dict, step: dict, plan_check: bool, path: Path, ev: dict) -> None:
         """A check blocked the work: its findings go back to the step it names (an automatic round)."""
