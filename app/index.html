@@ -618,6 +618,15 @@ const PT = {
   "⚠ The concept validation did not produce a verdict I can read: read the concept and decide.":"⚠ A validação do conceito não trouxe um veredicto que eu consiga ler: lê o conceito e decide tu.",
   "⚠ I could not launch the concept validation: {note}":"⚠ Não consegui lançar a validação do conceito: {note}",
   "⚠ I could not send the concept back to the worker: {note}":"⚠ Não consegui devolver o conceito ao worker: {note}","Your pipeline":"A tua pipeline","Independent plan validation":"Validação independente do plano","Type of request":"Tipo de pedido","What kind of request is it for?":"Para que tipo de pedido é?",
+  "Claude Code does not trust this folder yet":"O Claude Code ainda não confia nesta pasta",
+  "the automatic vault curation cannot start until you trust it.":"a curadoria automática do vault não consegue arrancar enquanto não confiares nela.",
+  "background workers cannot start there until you trust it.":"os workers em segundo plano não conseguem arrancar lá enquanto não confiares nela.",
+  "Trust this folder":"Confiar nesta pasta",
+  "This adds the folder to the trusted folders of your Claude Code (a backup of its settings file is kept next to it).":"Isto acrescenta a pasta às pastas de confiança do teu Claude Code (fica uma cópia de segurança do ficheiro de definições ao lado dele).",
+  "Folder trusted. The vault curation is running again.":"Pasta de confiança. A curadoria do vault voltou a correr.",
+  "Folder trusted. Try the request again.":"Pasta de confiança. Tenta o pedido outra vez.",
+  "Claude Code does not trust {t}":"O Claude Code não confia em {t}",
+  "Open the dashboard and trust the folder so its workers can start.":"Abre o dashboard e confia na pasta para os workers dela poderem arrancar.",
   "The phases are the type's own; changing the type starts again from its phases. You choose each phase's model, effort and rounds, and whether the plan is validated.":"As fases são as do tipo; mudar o tipo recomeça a partir das fases dele. Escolhes o modelo, o esforço e as rondas de cada fase, e se o plano é validado.",
   "Rounds back when it finds problems":"Rondas de volta quando encontra problemas","(the request's model)":"(o modelo do pedido)","Effort":"Esforço",
   "Cannot be chosen for a request yet: open it and save it again.":"Ainda não se pode escolher num pedido: abre-a e guarda-a outra vez.","Choose the type of request.":"Escolhe o tipo de pedido.","Standard":"Padrão","Pipeline":"Pipeline","It follows your pipeline «{p}»: only the phases it lists, in its order.":"Segue a tua pipeline «{p}»: só as fases que ela indica, pela ordem dela.",
@@ -1588,6 +1597,12 @@ function swapHtml(el,html){
   if(keep){const n=el.querySelector(keep);if(n)n.focus();}
 }
 // what needs the user now and would otherwise sit unnoticed: a worker stuck on a prompt, a request whose worker failed
+// folders Claude Code does not trust yet: workers cannot start there until the user confirms (the server then adds the folder)
+function trustBanner(list){
+  return (list||[]).map(i=>`<p class="banner"><b>${esc(tt("Claude Code does not trust this folder yet"))}</b>: ${projLink(i.name)||esc(cap(i.name))} <span class="path">${esc(i.path)}</span>
+    — ${esc(i.kind==="vault"?tt("the automatic vault curation cannot start until you trust it."):tt("background workers cannot start there until you trust it."))}
+    <button class="btn pri" type="button" data-trust="${esc(i.path)}" data-id="${esc(i.path)}">${tt("Trust this folder")}</button></p>`).join("");
+}
 function alertBanner(list){
   return (list||[]).map(a=>`<p class="banner">${a.kind==="blocked"?tt("Worker waiting for you"):tt("Request failed")}: <b>${esc(cap(a.project))}</b> · ${esc(a.title)} — ${esc(a.kind==="blocked"?(a.detail||""):tt("the worker stopped without the result"))} (${Math.max(1,Math.round((a.for_s||0)/60))} min)</p>`).join("");
 }
@@ -2055,7 +2070,7 @@ function render(){
   const waiting=(S.features||[]).filter(f=>f.status==="awaiting"&&!f.held).length;
   $("apNote").hidden=!S.vault;
   $("banner").innerHTML=(S.demo?`<p class="banner demo">${tt("Demo mode: sample data and simulated workers. Nothing here runs a real worker or touches your projects.")}</p>`:"")
-    +limitBanner(S.limits)+alertBanner(S.alerts)
+    +limitBanner(S.limits)+trustBanner(S.trust)+alertBanner(S.alerts)
     +(S.claude_ok===false?`<p class="banner">${tt("I cannot talk to <b>claude</b> (agents). Worker status may be out of date.")}</p>`:"");
   const act=S.workers.filter(w=>["working","running"].includes(w.state)).length;
   const parados=S.workers.filter(w=>["blocked","idle","waiting"].includes(w.state)).length;
@@ -2828,6 +2843,14 @@ function armed(b,msg){
   armedKey=key;clearTimeout(armedT);armedT=setTimeout(()=>{armedKey="";},5000);
   toast(msg+" "+tt("Click again to confirm."),true);return false;
 }
+document.addEventListener("click",async ev=>{
+  const b=ev.target.closest&&ev.target.closest("[data-trust]");if(!b)return;
+  if(!armed(b,tt("This adds the folder to the trusted folders of your Claude Code (a backup of its settings file is kept next to it)."))){return;}
+  b.disabled=true;
+  try{const r=await api("/api/trust/grant",{path:b.dataset.trust});
+    toast(r.curation_started?tt("Folder trusted. The vault curation is running again."):tt("Folder trusted. Try the request again."));await load();}
+  catch(err){toast(err.message,true);b.disabled=false;}
+});
 async function featClick(e){
   const b=e.target.closest("[data-act]");if(!b)return;
   const id=b.dataset.id,act=b.dataset.act;
@@ -3182,7 +3205,7 @@ function reloadForNewToken(){
   location.reload();
 }
 // ---- the tab says how many things need you; a notification says when a new one arrives while the tab is in the background ----
-let NOTIFY=false,waitSeen=null;
+let NOTIFY=false,waitSeen=null,trustSeen=null;
 try{NOTIFY=localStorage.getItem("notify")==="1";}catch(_){}
 function syncNotify(){const on=NOTIFY&&"Notification" in window&&Notification.permission==="granted";$("notifBtn").setAttribute("aria-pressed",String(on));$("notifBtn").hidden=!("Notification" in window);}
 $("notifBtn").addEventListener("click",async()=>{
@@ -3201,7 +3224,13 @@ function noteWaiting(){
       try{new Notification(tt("Waiting for you: {t}",{t:f.title}),{body:cap(f.project)+" · "+((stg(f).find(s=>s[0]===f.stage)||[])[1]||""),tag:f.id});}catch(_){}}
   }
   waitSeen=new Set(fs.filter(f=>f.status==="awaiting").map(waitKey));
-  document.title=pageTitle(needsYou(S));
+  const tr=S.trust||[];
+  if(trustSeen&&NOTIFY&&document.hidden&&"Notification" in window&&Notification.permission==="granted"){
+    for(const i of tr.filter(i=>!trustSeen.has(i.path))){
+      try{new Notification(tt("Claude Code does not trust {t}",{t:i.name}),{body:tt("Open the dashboard and trust the folder so its workers can start."),tag:"trust:"+i.path});}catch(_){}}
+  }
+  trustSeen=new Set(tr.map(i=>i.path));
+  document.title=pageTitle(needsYou(S)+tr.length);
 }
 // ---- recent sessions that have no to-do card yet ----
 let scanRows=[];

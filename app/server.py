@@ -51,6 +51,7 @@ import prompt_refs  # noqa: E402
 import prompts_integration  # noqa: E402
 import splitplan  # noqa: E402
 from alerts import Alerts  # noqa: E402
+import trust  # noqa: E402
 from curation import CurationError, Curator  # noqa: E402
 from features import FeatureError, Features, open_requests, request_from_todo  # noqa: E402
 from i18n import request_lang, translate  # noqa: E402
@@ -97,6 +98,9 @@ FEATURES = Features(chief.STATE, chief.launch_worker, _is_active, grace_s=GRACE_
                     cleaner=lambda *a: chief.cleanup_request(*a), pipeline_home=lambda: chief.HOME)
 TICK_S = 10
 PENDING = Pending(chief.STATE)
+TRUST = trust.TrustAlerts(chief.STATE / "trust.json",
+                          lambda: [chief.VAULT if chief.vault_enabled() else "", chief.STATE, *(p["path"] for p in chief.load_projects() if p.get("path"))])
+chief.UNTRUSTED_HOOK = lambda path, name, kind, message: TRUST.add(path, name, kind, message)   # a refused launch raises an alert
 ALERTS = Alerts()                           # a worker stuck on a prompt or a failed request, once it has lasted a few minutes
 PROPOSALS = Proposals(chief.STATE)          # requests that workers suggested; only the user turns one into a request
 
@@ -372,6 +376,7 @@ def _build_state_uncached() -> dict:
     state["limits"] = _limited_workers(sess or [])
     shown, fresh = ALERTS.update(Alerts.items(state["workers"], in_scope))
     state["alerts"] = shown
+    state["trust"] = [{k: i.get(k, "") for k in ("path", "name", "kind", "reason")} for i in TRUST.items()]
     for a in fresh:                              # said once in the server's terminal too: the dashboard may be closed
         print(f"[alert] {a['kind']}: {a['project']} · {a['title']} ({a['detail']})", file=sys.stderr)
     state["session"] = _session_summary(cur, in_scope)
@@ -612,6 +617,21 @@ class Handler(BaseHTTPRequestHandler):
             return {"limit": demo_runtime.set_limit(str(body.get("worker", "")), bool(body.get("on", True)), bool(body.get("auto")))}
         if parts == ["api", "pipelines"] or (parts[:2] == ["api", "pipelines"] and len(parts) == 4):
             return self._pipeline_post(parts, body)
+        if parts == ["api", "trust", "grant"]:
+            if DEMO:
+                raise FeatureError("this is the demo: nothing is changed in Claude Code's settings")
+            try:
+                done = trust.confirm(TRUST, str(body.get("path", "")))
+            except trust.TrustError as e:
+                raise FeatureError(str(e)) from e
+            started = False
+            if chief.vault_enabled() and trust.norm(chief.VAULT) == done["path"] and CURATOR.drafts():
+                try:
+                    CURATOR.start(force=True)            # the vault was why the curation was stuck: it goes on by itself
+                    started = True
+                except CurationError:
+                    pass
+            return {**done, "curation_started": started}
         if parts == ["api", "session", "end"]:
             return _end_session()
         if parts == ["api", "inbox", "curate"]:

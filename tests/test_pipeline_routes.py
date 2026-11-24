@@ -137,3 +137,10 @@ def test_a_pipeline_that_does_not_exist_or_cannot_start_a_request_is_a_400(srv):
     assert srv.post("/api/features", {"project": "Dotfiles", "title": "x", "desc": "y", "pipeline": "ghost"})[0] == 400
     status, out = srv.post("/api/features", {"project": "Dotfiles", "title": "x", "desc": "y", "pipeline": "feature"})
     assert status == 400 and "built-in" in out["error"]
+
+
+def test_the_trust_alert_route_is_closed_in_the_demo_and_the_state_lists_none(srv):
+    assert srv.get("/api/state")[1]["trust"] == []
+    status, out = srv.post("/api/trust/grant", {"path": "D:/Vault"})
+    assert status == 400 and "demo" in out["error"]
+    assert srv.post("/api/trust/grant", {"path": "D:/Vault"}, token=False)[0] == 403

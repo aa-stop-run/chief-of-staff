@@ -409,3 +409,69 @@ def test_real_failures_without_a_notice_stay_stopped(env):
     _stuck_state(env)
     env.curator.tick()
     assert env.launched == [] and env.curator.status()["attempts"] == 3
+
+
+# ------------------------------------------------------------------ a vault Claude Code does not trust
+
+TRUST_REFUSAL = "claude --bg did not start: Added folder not trusted: D:\\Vault. Leave out its --add-dir"
+
+
+def test_a_vault_claude_code_does_not_trust_blocks_without_counting_failures(env):
+    env.draft()
+    env.launch_error = TRUST_REFUSAL
+    env.curator.tick()
+    st = env.curator.status()
+    assert st["attempts"] == 0 and st["blocked"] == {"kind": "trust", "path": str(env.vault)}
+    assert "trust" in st["info"].lower() and st["last"]["ok"] is False
+    for _ in range(5):                                        # it does not hammer `claude --bg` while it waits
+        env.clock += 100
+        env.curator.tick()
+    assert env.launched == []
+
+
+def test_it_tries_again_by_itself_once_the_folder_is_trusted(env):
+    env.draft()
+    env.launch_error = TRUST_REFUSAL
+    env.curator.tick()
+    env.launch_error = None                                   # the user trusted the folder
+    env.clock += 700
+    env.curator.tick()
+    st = env.curator.status()
+    assert len(env.launched) == 1 and st["blocked"] is None and st["running"]
+
+
+def test_curate_now_ignores_the_wait_after_the_folder_is_trusted(env):
+    env.draft()
+    env.launch_error = TRUST_REFUSAL
+    env.curator.tick()
+    env.launch_error = None
+    env.curator.start(force=True)
+    assert len(env.launched) == 1 and env.curator.status()["blocked"] is None
+
+
+def test_another_launch_failure_is_still_a_failure(env):
+    env.draft()
+    env.launch_error = "claude did not start"
+    env.curator.tick()
+    st = env.curator.status()
+    assert st["attempts"] == 1 and st["blocked"] is None
+
+
+def test_a_curator_that_ended_waiting_for_input_says_so(env):
+    env.draft()
+    env.curator.tick()
+    env.worker_state["c1"] = "blocked"                         # alive but waiting on a prompt
+    env.clock += 400
+    env.curator.tick()
+    last = env.curator.status()["last"]
+    assert last["handled"] == 0 and last["ok"] is False and "waiting for input" in last["info"] and "claude logs c1" in last["info"]
+
+
+def test_a_curator_that_ended_without_promoting_anything_points_at_its_log(env):
+    env.draft()
+    env.curator.tick()
+    env.finish_worker(remove_drafts=False)
+    env.clock += 120
+    env.curator.tick()
+    last = env.curator.status()["last"]
+    assert last["ok"] is False and "claude logs c1" in last["info"]
