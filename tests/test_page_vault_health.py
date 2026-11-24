@@ -57,3 +57,10 @@ def test_the_header_has_a_curate_now_button_that_shows_only_with_drafts_and_no_r
     assert 'id="curBtn" type="button" hidden' in HTML
     assert "cb.hidden=!(S.vault&&cu.drafts>0&&!cu.running)" in HTML and 'api("/api/inbox/curate",{})' in HTML
     assert '"Curate now":"' in HTML
+
+
+def test_the_card_shows_the_map_line_and_an_update_button_and_the_demo_has_no_map(srv):
+    assert 'id="vmBtn"' in HTML and 'api("/api/vault/map",{})' in HTML and "S.vault_map" in HTML
+    assert '"Update the map":"' in HTML and '"Map: {h} hubs, {p} relations, {l} labelled":"' in HTML
+    assert srv.get("/api/state")[1]["vault_map"] is None
+    assert srv.post("/api/vault/map", {})[0] == 400

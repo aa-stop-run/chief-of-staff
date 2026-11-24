@@ -1,0 +1,211 @@
+"""The map of a knowledge vault, built from its notes: hubs (projects and areas), the links between them, a deterministic layout and the
+canvas JSON Obsidian opens. Pure functions over a folder; nothing here launches a worker or writes a file except `write_canvas`.
+
+Every edge exists because some note of one hub links the other hub; its label comes from the sentence that links it (a worker writes the
+short label from those sentences, the server only checks it); with no label the edge says how many notes cite it."""
+import hashlib
+import json
+import re
+from pathlib import Path
+
+from vaultcheck import FindingsError, frontmatter, has_secret, note_paths, read_note
+
+LINK = re.compile(r"\[\[([^\]|#\n]+)(?:#[^\]|\n]*)?(?:\|[^\]\n]*)?\]\]")
+MAX_DETAIL, MAX_SENTENCES, MAX_SENTENCE, MAX_LABEL = 4, 3, 240, 40
+DIRECTIONS = ("a→b", "b→a", "both")
+HUB_W, HUB_H, DET_W, DET_H, GAP_X, GAP_Y, PAD, COLS = 280, 64, 240, 40, 60, 24, 40, 4
+COLORS = ("1", "2", "3", "4", "5", "6")
+AUTO_NAME = "Mapa automático.canvas"
+HEADER = "Gerado pelo Chief a partir dos links das notas: não editar à mão (o Mapa.canvas desenhado à mão não é tocado)."
+
+
+def _redact_line(text: str) -> str:
+    from projectview import redact
+    return " ".join(redact(text).split())[:MAX_SENTENCE]
+
+
+def hubs_of(vault, hub_dirs, max_detail: int = MAX_DETAIL) -> dict:
+    """{name: {name, rel, kind: area|project, domain, detail: [rel…], owned: [rel…]}} for every note directly in a hub folder."""
+    out = {}
+    areas = hub_dirs[-1]                                    # the vault's «Areas» folder is the last of the two
+    for rel in note_paths(vault, hub_dirs):
+        parts = rel.split("/")
+        if len(parts) != 2:
+            continue
+        name = parts[1][:-3]
+        props = frontmatter(read_note(vault, rel))
+        detail = sorted(r for r in note_paths(vault, hub_dirs) if r.startswith(f"{parts[0]}/{name}/"))
+        out[name] = {"name": name, "rel": rel, "kind": "area" if parts[0] == areas else "project", "domain": (props.get("dominio") or props.get("domain") or "").strip(),
+                     "detail": detail[:max_detail], "owned": [rel] + detail}
+    return out
+
+
+def pairs_of(vault, hubs: dict) -> list:
+    """The pairs of hubs that some note links, with the sentences that do it. Sorted, so the same vault always gives the same list."""
+    owner = {}                                              # note stem -> hub, only when the stem is unique across the hubs
+    seen = {}
+    for h in hubs.values():
+        for rel in h["owned"]:
+            seen.setdefault(Path(rel).stem, set()).add(h["name"])
+    for stem, hs in seen.items():
+        if len(hs) == 1:
+            owner[stem] = next(iter(hs))
+    owner.update({n: n for n in hubs})                      # a hub's own name always means that hub
+    pairs = {}
+    for h in hubs.values():
+        for rel in h["owned"]:
+            for line in read_note(vault, rel).splitlines():
+                if line.startswith("---"):
+                    continue
+                for m in LINK.findall(line):
+                    target = owner.get(m.strip().split("/")[-1].strip())
+                    if not target or target == h["name"]:
+                        continue
+                    a, b = sorted((h["name"], target))
+                    p = pairs.setdefault((a, b), {"a": a, "b": b, "ab": 0, "ba": 0, "sentences": []})
+                    p["ab" if h["name"] == a else "ba"] += 1
+                    text = _redact_line(line)
+                    if text and len(p["sentences"]) < MAX_SENTENCES and all(s["text"] != text for s in p["sentences"]):
+                        p["sentences"].append({"src": h["name"], "text": text})
+    out = []
+    for key in sorted(pairs):
+        p = pairs[key]
+        p["count"] = p["ab"] + p["ba"]
+        p["hash"] = hash_pair(p)
+        out.append(p)
+    return out
+
+
+def hash_pair(p: dict) -> str:
+    return hashlib.sha256(json.dumps([p["a"], p["b"], [s["text"] for s in p["sentences"]]], ensure_ascii=False).encode("utf-8")).hexdigest()[:12]
+
+
+def pair_key(a: str, b: str) -> str:
+    return "|".join(sorted((a, b)))
+
+
+def collect(vault, hub_dirs, max_detail: int = MAX_DETAIL) -> dict:
+    hubs = hubs_of(vault, hub_dirs, max_detail)
+    return {"hubs": hubs, "pairs": pairs_of(vault, hubs)}
+
+
+# ---------------------------------------------------------------- labels written by a worker, checked here
+def validate_labels(data, pairs: list) -> list:
+    """[{key, label, direction}] from the worker's file. A bad file is refused whole: an unknown pair, a label that is empty, too long or
+    secret, a direction that is not a→b, b→a or both, or a quote that is not in one of that pair's sentences."""
+    if not isinstance(data, dict) or not isinstance(data.get("labels"), list):
+        raise FindingsError("the labels file is not an object with a «labels» list")
+    known = {pair_key(p["a"], p["b"]): p for p in pairs}
+    if has_secret(json.dumps(data, ensure_ascii=False)):
+        raise FindingsError("the labels contain something that looks like a secret, a private IP or an e-mail address")
+    out = []
+    for i, item in enumerate(data["labels"][:200]):
+        where = f"label {i + 1}"
+        if not isinstance(item, dict):
+            raise FindingsError(f"{where} is not an object")
+        key = pair_key(str(item.get("a", "")), str(item.get("b", "")))
+        p = known.get(key)
+        label, direction, quote = str(item.get("label", "")).strip(), item.get("direction"), str(item.get("quote", ""))
+        if not p:
+            raise FindingsError(f"{where}: «{item.get('a')}» and «{item.get('b')}» are not a linked pair")
+        if not label or len(label) > MAX_LABEL:
+            raise FindingsError(f"{where}: the label must have 1 to {MAX_LABEL} characters")
+        if direction not in DIRECTIONS:
+            raise FindingsError(f"{where}: direction must be one of {DIRECTIONS}")
+        if not quote or not any(quote in s["text"] for s in p["sentences"]):
+            raise FindingsError(f"{where}: the quote is not in a sentence of that pair")
+        out.append({"key": key, "label": label, "direction": direction if p["a"] == str(item.get("a")) or direction == "both"
+                    else {"a→b": "b→a", "b→a": "a→b"}[direction]})
+    return out
+
+
+# ---------------------------------------------------------------- layout and canvas
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "x"
+
+
+def layout(mp: dict) -> dict:
+    """Deterministic positions: areas in the first band, then one band per domain (sorted), projects in columns under their hub's name,
+    their key notes stacked below. Returns {nodes: [...], pos: {hub name: (x, y)}}."""
+    nodes, pos, y = [{"id": "note", "type": "text", "text": HEADER, "x": 0, "y": -110, "width": 640, "height": 80}], {}, 0
+    bands = []
+    areas = sorted(h["name"] for h in mp["hubs"].values() if h["kind"] == "area")
+    if areas:
+        bands.append(("Áreas", areas))
+    doms = sorted({h["domain"] for h in mp["hubs"].values() if h["kind"] == "project"})
+    for d in doms:
+        bands.append((d or "Sem domínio", sorted(h["name"] for h in mp["hubs"].values() if h["kind"] == "project" and h["domain"] == d)))
+    for bi, (label, names) in enumerate(bands):
+        rows = [names[i:i + COLS] for i in range(0, len(names), COLS)]
+        top = y
+        y += PAD + 28
+        for row in rows:
+            tallest = max(len(mp["hubs"][n]["detail"]) for n in row)
+            for ci, n in enumerate(row):
+                x = PAD + ci * (HUB_W + GAP_X)
+                pos[n] = (x, y)
+                h = mp["hubs"][n]
+                nodes.append({"id": "h-" + _slug(n), "type": "file", "file": h["rel"], "x": x, "y": y, "width": HUB_W, "height": HUB_H, "color": COLORS[bi % len(COLORS)]})
+                for di, rel in enumerate(h["detail"]):
+                    nodes.append({"id": f"d-{_slug(n)}-{di}", "type": "file", "file": rel, "x": x + 20, "y": y + HUB_H + GAP_Y + di * (DET_H + 8), "width": DET_W, "height": DET_H})
+            y += HUB_H + GAP_Y + tallest * (DET_H + 8) + GAP_Y
+        width = PAD * 2 + min(COLS, max(1, len(names))) * (HUB_W + GAP_X) - GAP_X
+        nodes.insert(sum(1 for n in nodes if n["type"] == "group"), {"id": "g-" + _slug(label), "type": "group", "label": label, "x": 0, "y": top, "width": width,
+                                                                  "height": y - top, "color": COLORS[bi % len(COLORS)]})
+        y += GAP_Y * 2
+    return {"nodes": nodes, "pos": pos}
+
+
+def _sides(a, b):
+    (ax, ay), (bx, by) = a, b
+    if abs(by - ay) > abs(bx - ax):
+        return ("bottom", "top") if by > ay else ("top", "bottom")
+    return ("right", "left") if bx > ax else ("left", "right")
+
+
+def canvas(mp: dict, labels: dict = None) -> dict:
+    """The canvas JSON. `labels`: {pair key: {label, direction}}. The same input always gives the same output (stable ids and order)."""
+    labels = labels or {}
+    lay = layout(mp)
+    edges = []
+    for h in sorted(mp["hubs"].values(), key=lambda h: h["name"]):
+        for di, _ in enumerate(h["detail"]):
+            edges.append({"id": f"s-{_slug(h['name'])}-{di}", "fromNode": "h-" + _slug(h["name"]), "fromSide": "bottom", "toNode": f"d-{_slug(h['name'])}-{di}", "toSide": "left", "toEnd": "none"})
+    for p in mp["pairs"]:
+        a, b = p["a"], p["b"]
+        lab = labels.get(pair_key(a, b))
+        text = lab["label"] if lab else (f"citado em {p['count']} notas" if p["count"] != 1 else "citado em 1 nota")
+        direction = lab["direction"] if lab else ("a→b" if not p["ba"] else "b→a" if not p["ab"] else "both")
+        fs, ts = _sides(lay["pos"][a], lay["pos"][b])
+        e = {"id": f"e-{_slug(a)}--{_slug(b)}", "fromNode": "h-" + _slug(a), "fromSide": fs, "toNode": "h-" + _slug(b), "toSide": ts, "label": text}
+        if direction == "b→a":
+            e["toEnd"], e["fromEnd"] = "none", "arrow"
+        elif direction == "both":
+            e["fromEnd"] = "arrow"
+        edges.append(e)
+    return {"nodes": lay["nodes"], "edges": edges}
+
+
+def canvas_text(mp: dict, labels: dict = None) -> str:
+    return json.dumps(canvas(mp, labels), ensure_ascii=False, indent=1) + "\n"
+
+
+def check_canvas(data: dict) -> list:
+    """Problems of a canvas: duplicate ids, an edge to a node that does not exist, a file node with no path."""
+    ids = [n["id"] for n in data["nodes"]] + [e["id"] for e in data["edges"]]
+    bad = [f"duplicate id {i}" for i in {x for x in ids if ids.count(x) > 1}]
+    nodes = {n["id"] for n in data["nodes"]}
+    bad += [f"edge {e['id']} points to a missing node" for e in data["edges"] if e["fromNode"] not in nodes or e["toNode"] not in nodes]
+    bad += [f"node {n['id']} has no file" for n in data["nodes"] if n["type"] == "file" and not n.get("file")]
+    return bad
+
+
+def write_canvas(vault, name: str, text: str) -> bool:
+    """Write the generated canvas at the vault root; True when the file changed. Only the one configured name, never a path."""
+    if name != AUTO_NAME or "/" in name or "\\" in name:
+        raise ValueError("only the generated map file may be written")
+    p = Path(vault) / name
+    if p.is_file() and p.read_text(encoding="utf-8") == text:
+        return False
+    p.write_text(text, encoding="utf-8", newline="")
+    return True
