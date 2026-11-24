@@ -126,7 +126,7 @@ def _inbox_backlog():
     return len(ds), max((time.time() - p.stat().st_mtime for p in ds), default=0.0)
 
 
-SANITIZER = Sanitizer(chief.VAULT, chief.STATE / "sanitize.json", chief.STATE / "sanitize", chief.launch_sanitizer, _curator_worker_state,
+SANITIZER = Sanitizer(chief.VAULT, chief.STATE / "sanitize.json", chief.ROOT / ".sanitize" / "stage", chief.launch_sanitizer, _curator_worker_state,
                       chief.commit_worktree, chief.stop_worker, chief.SCHEMA, curator=lambda: CURATOR.status(),
                       config=lambda: chief.CFG.get("sanitizer"), limit=chief.worker_limit, drafts=_inbox_backlog,
                       note_lang=chief.SCHEMA["name"])

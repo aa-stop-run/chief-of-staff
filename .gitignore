@@ -20,3 +20,4 @@ docs/specs/
 docs/plans/
 docs/analyses/
 .claude/worktrees/
+.sanitize/
