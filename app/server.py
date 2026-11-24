@@ -59,6 +59,7 @@ import splitplan  # noqa: E402
 from alerts import Alerts  # noqa: E402
 import trust  # noqa: E402
 from curation import CurationError, Curator  # noqa: E402
+from sanitize import SanitizeError, Sanitizer  # noqa: E402
 from features import FeatureError, Features, open_requests, request_from_todo  # noqa: E402
 from i18n import request_lang, translate  # noqa: E402
 from onboarding import Onboarding  # noqa: E402
@@ -119,6 +120,16 @@ def _curator_worker_state(worker_id: str):
 CURATOR = Curator(chief.VAULT, chief.STATE / "curation.json", chief.launch_curator, _curator_worker_state,
                   chief.commit_worktree, chief.stop_worker, schema=chief.SCHEMA, limit=chief.worker_limit)
 
+
+def _inbox_backlog():
+    ds = CURATOR.drafts()
+    return len(ds), max((time.time() - p.stat().st_mtime for p in ds), default=0.0)
+
+
+SANITIZER = Sanitizer(chief.VAULT, chief.STATE / "sanitize.json", chief.STATE / "sanitize", chief.launch_sanitizer, _curator_worker_state,
+                      chief.commit_worktree, chief.stop_worker, chief.SCHEMA, curator=lambda: CURATOR.status(),
+                      config=lambda: chief.CFG.get("sanitizer"), limit=chief.worker_limit, drafts=_inbox_backlog,
+                      note_lang=chief.SCHEMA["name"])
 
 ONBOARD = Onboarding(chief.STATE / "onboarding.json", chief.launch_worker, _is_active,
                      lambda: CURATOR.start(force=True), lambda: CURATOR.status()["running"], chief.stop_worker,
@@ -378,6 +389,7 @@ def _build_state_uncached() -> dict:
     state["vault"] = chief.vault_enabled()
     state["demo"] = DEMO
     state["curation"] = CURATOR.status()
+    state["vault_health"] = SANITIZER.status() if chief.vault_enabled() and not DEMO else None
     state["plan"] = _plan_block(LEDGER.load())
     state["limits"] = _limited_workers(sess or [])
     shown, fresh = ALERTS.update(Alerts.items(state["workers"], in_scope))
@@ -647,6 +659,15 @@ class Handler(BaseHTTPRequestHandler):
                 except CurationError:
                     pass
             return {**done, "curation_started": started}
+        if parts[:2] == ["api", "vault"] and not DEMO and chief.vault_enabled():
+            try:
+                if parts == ["api", "vault", "check"]:
+                    return {"ok": True, **SANITIZER.start(force=True)}
+                if len(parts) == 5 and parts[2] == "findings" and parts[4] in ("apply", "accept", "dismiss"):
+                    out = getattr(SANITIZER, parts[4])(parts[3])
+                    return {"ok": True, **(out or {})}
+            except SanitizeError as e:
+                raise FeatureError(str(e)) from e
         if parts == ["api", "session", "end"]:
             return _end_session()
         if parts == ["api", "inbox", "curate"]:
@@ -730,6 +751,8 @@ def _ticker() -> None:
             if not DEMO and chief.vault_enabled():
                 ONBOARD.tick()
                 CURATOR.tick()
+                SANITIZER.note_closed(FEATURES.list())
+                SANITIZER.tick()
         except (Exception, SystemExit):  # noqa: BLE001 - the ticker must never die (a library that calls sys.exit included)
             traceback.print_exc(file=sys.stderr)
 

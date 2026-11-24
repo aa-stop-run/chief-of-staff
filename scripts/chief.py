@@ -988,6 +988,25 @@ def launch_curator(prompt):
     return {"id": m[1], "name": "cos-curation"}
 
 
+def launch_sanitizer(prompt, stage):
+    """Launch the vault audit: a read-only `claude --bg` that works only in `stage`, a throw-away folder of copies (never the vault)."""
+    cmd = ["claude", "--bg", "-n", "cos-sanitize", "--permission-mode", "auto", "--disallowedTools=" + ",".join(fixed_deny()), "--", prompt]
+    model = (CFG.get("phase_models") or {}).get("sanitize")
+    if isinstance(model, str) and re.fullmatch(r"[\w.\-\[\]]{1,64}", model):
+        cmd[1:1] = ["--model", model]
+    with _LAUNCH_LOCK:
+        r = subprocess.run(cmd, cwd=stage, capture_output=True, text=True, encoding="utf-8", timeout=120, creationflags=NO_WINDOW)
+    m = re.search(r"backgrounded\s*·\s*([0-9a-f]{6,})", r.stdout + r.stderr)
+    if not m:
+        _refused(r.stdout + r.stderr, stage, "Vault audit", "sanitize")
+        raise RuntimeError("claude --bg did not start: " + (r.stdout + r.stderr)[-400:])
+    with _LAUNCH_LOCK:
+        record_worker({"name": "cos-sanitize", "id": m[1], "project": CURATION_PROJECT, "cwd": stage, "task": "Vault audit",
+                       "started": datetime.now().isoformat(timespec="seconds"), "model": model or "default", "phase": "sanitize",
+                       "session": work_sessions().current_id()})
+    return {"id": m[1], "name": "cos-sanitize"}
+
+
 ARCHIVE_DIRS = {"concept": "concepts", "spec": "specs", "plan": "plans", "analysis": "analyses"}   # docs/specs, docs/plans and docs/analyses in each project
 ARCHIVE_LABELS = {"concept": ("Conceito aprovado", "Concept"), "spec": ("Spec aprovada", "Spec"), "plan": ("Plano aprovado", "Plan"),
                   "analysis": ("Análise aprovada", "Analysis")}   # (repo label in Portuguese, repo label in English)
