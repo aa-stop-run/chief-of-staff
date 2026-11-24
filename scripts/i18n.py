@@ -33,6 +33,7 @@ PAIRS = [
     ("comment required (max. {0} characters)", "comentário obrigatório (máx. {0} caracteres)"),
     ("fixes can only be requested after the review", "as correções pedem-se depois da revisão"),
     ("this step has no built-in prompt", "este passo não tem um prompt incluído"),
+    ("this is the demo: it deletes its sample folder when it stops, so stop it and start it again by hand", "isto é a demonstração: apaga a pasta de exemplo quando pára, por isso pára-a e arranca-a outra vez à mão"),
     ("this is the demo: nothing is changed in Claude Code's settings", "isto é a demonstração: nada é alterado nas definições do Claude Code"),
     ("that folder is not waiting for your trust", "essa pasta não está à espera da tua confiança"),
     ("the folder does not exist", "a pasta não existe"),

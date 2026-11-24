@@ -15,6 +15,7 @@ import json
 import os
 import secrets
 import shutil
+import subprocess
 import sys
 import tempfile
 from datetime import datetime
@@ -28,6 +29,11 @@ from urllib.parse import parse_qs, urlparse
 APP = Path(__file__).resolve().parent
 sys.path.insert(0, str(APP.parent / "scripts"))
 sys.path.insert(0, str(APP))
+if os.environ.get("CHIEF_WAIT_PID", "").isdigit():       # a restart: the server being replaced must be gone before this one touches anything
+    import waitpid
+    waitpid.wait_for_exit(int(os.environ.pop("CHIEF_WAIT_PID")))
+import nowindow  # noqa: E402
+nowindow.install()          # the server's own git / claude commands never open a console window
 import launchargs  # noqa: E402
 if launchargs.home_arg(sys.argv):    # must be known before `chief` reads the configuration (`--home X` and `--home=X`)
     os.environ["CHIEF_HOME"] = launchargs.home_arg(sys.argv)
@@ -376,6 +382,9 @@ def _build_state_uncached() -> dict:
     state["limits"] = _limited_workers(sess or [])
     shown, fresh = ALERTS.update(Alerts.items(state["workers"], in_scope))
     state["alerts"] = shown
+    if chief.vault_enabled() and not DEMO and not trust.is_trusted(chief.VAULT):
+        # `claude --bg --add-dir <vault>` is refused until the user trusts it: say so now, not after the first worker has failed
+        TRUST.add(chief.VAULT, "Vault", "vault", "Claude Code does not trust the vault folder")
     state["trust"] = [{k: i.get(k, "") for k in ("path", "name", "kind", "reason")} for i in TRUST.items()]
     for a in fresh:                              # said once in the server's terminal too: the dashboard may be closed
         print(f"[alert] {a['kind']}: {a['project']} · {a['title']} ({a['detail']})", file=sys.stderr)
@@ -617,6 +626,12 @@ class Handler(BaseHTTPRequestHandler):
             return {"limit": demo_runtime.set_limit(str(body.get("worker", "")), bool(body.get("on", True)), bool(body.get("auto")))}
         if parts == ["api", "pipelines"] or (parts[:2] == ["api", "pipelines"] and len(parts) == 4):
             return self._pipeline_post(parts, body)
+        if parts in (["api", "server", "stop"], ["api", "server", "restart"]):
+            restart = parts[2] == "restart"
+            if restart and DEMO:
+                raise FeatureError("this is the demo: it deletes its sample folder when it stops, so stop it and start it again by hand")
+            threading.Thread(target=_end_server, args=(restart,), daemon=True).start()
+            return {"ok": True, "restarting": restart}
         if parts == ["api", "trust", "grant"]:
             if DEMO:
                 raise FeatureError("this is the demo: nothing is changed in Claude Code's settings")
@@ -719,13 +734,73 @@ def _ticker() -> None:
             traceback.print_exc(file=sys.stderr)
 
 
+SERVER = None          # the listening server, so a click on the dashboard can stop or restart it
+LOG_MAX = 1_000_000
+
+
+def _detached(argv: list, log) -> subprocess.Popen:
+    """Start a process that outlives this one and shows no window (on Windows no console, elsewhere its own session)."""
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    extra = {"creationflags": flags} if os.name == "nt" else {"start_new_session": True}
+    return subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, close_fds=True, **extra)
+
+
+def _server_argv(drop=("--background",)) -> list:
+    return [sys.executable, str(Path(__file__).resolve()), *[a for a in sys.argv[1:] if a not in drop]]
+
+
+def _server_log():
+    """Where a server without a window writes what it would have printed (`<home>/server.log`, cut when it gets large)."""
+    if DEMO and not os.environ.get("CHIEF_SERVER_LOG"):     # the demo's folder is deleted when it exits: nothing to keep there
+        return open(os.devnull, "w")
+    path = Path(os.environ.get("CHIEF_SERVER_LOG") or Path(chief.HOME) / "server.log")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() and path.stat().st_size > LOG_MAX:
+        path.write_text("", encoding="utf-8")
+    return open(path, "a", encoding="utf-8")
+
+
+def _end_server(restart: bool) -> None:
+    """Stop listening (once the response has gone out) and, for a restart, start the same server again without a window. The new one
+    is started FIRST and waits for this process to exit (CHIEF_WAIT_PID), because nothing of this module can be relied on once the
+    main thread has finished. Workers that are running are separate Claude Code sessions: they carry on, and the next server picks
+    them up."""
+    time.sleep(0.5)
+    if SERVER is None:
+        return
+    if restart:
+        os.environ["CHIEF_WAIT_PID"] = str(os.getpid())
+        with _server_log() as log:
+            _detached(_server_argv(), log)
+    SERVER.shutdown()
+    SERVER.server_close()
+
+
+def _background() -> None:
+    """`--background`: start the dashboard without a window and return at once; it is stopped from the dashboard (⚙ Settings)."""
+    with _server_log() as log:
+        proc = _detached(_server_argv(), log)
+    for _ in range(40):
+        info = control.read(chief.STATE)
+        if info and info.get("pid") == proc.pid:
+            print(f"Chief of Staff started in the background (no window): http://127.0.0.1:{info['port']}\n"
+                  "Stop or restart it from ⚙ Settings → Server in the dashboard. What it prints goes to " + str(Path(chief.HOME) / "server.log"))
+            return
+        time.sleep(0.5)
+    print("The server was started but has not answered yet: see " + str(Path(chief.HOME) / "server.log"))
+
+
 def main() -> None:
-    global PORT
+    global PORT, SERVER
     ap = argparse.ArgumentParser()
+    ap.add_argument("--background", action="store_true", help="start without a window and return; stop it from the dashboard's Settings")
     ap.add_argument("--port", type=int, default=demo.DEMO_PORT if DEMO else PORT)
     ap.add_argument("--demo", action="store_true", help="sample data and a simulated Claude Code (nothing real runs)")
     ap.add_argument("--home", help="folder with the user's data (default: CHIEF_HOME or the per-user data folder)")
-    PORT = ap.parse_args().port
+    args = ap.parse_args()
+    PORT = args.port
+    if args.background:
+        return _background()
     try:
         home.ensure(chief.HOME)     # create the data folder, import old in-tree data, migrate older schemas
     except home.HomeError as e:
@@ -736,7 +811,7 @@ def main() -> None:
         _reconcile()                  # requests from before a project's folder was kept learn it now
     except Exception:  # noqa: BLE001 - archiving is an extra: it never prevents startup
         traceback.print_exc(file=sys.stderr)
-    srv = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
+    srv = SERVER = ThreadingHTTPServer(("127.0.0.1", PORT), Handler)
     control.announce(chief.STATE, PORT, TOKEN)      # lets `chief.py requests | approve | ask` find this server
     atexit.register(control.withdraw, chief.STATE)
     print(f"Chief of Staff at http://127.0.0.1:{PORT}  (Ctrl+C to stop)\nData folder: {chief.HOME}"

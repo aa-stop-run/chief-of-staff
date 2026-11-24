@@ -229,3 +229,15 @@ def test_the_refusals_claude_prints_name_the_folder_to_trust():
     cwd = "Workspace not trusted. Run `claude` in D:\\v\\repo\\sub once and accept the trust prompt."
     assert trust.path_from(cwd, "x") == "D:\\v\\repo\\sub"
     assert trust.path_from("Added folder not trusted: D:\\Vault. Leave out", "x") == "D:\\Vault"
+
+
+def test_an_untrusted_vault_is_alerted_before_any_launch_is_refused(tmp_path):
+    """What the server does on every state build: the vault is checked, not only a refused launch."""
+    vault = repo(tmp_path / "vault")
+    cfg = tmp_path / "claude.json"
+    al = trust.TrustAlerts(tmp_path / "t.json", lambda: [vault], trusted=lambda p: trust.is_trusted(p, cfg))
+    assert al.items() == []
+    al.add(vault, "Vault", "vault", "Claude Code does not trust the vault folder")
+    assert [i["kind"] for i in al.items()] == ["vault"] and al.items()[0]["path"] == trust.norm(vault)
+    trust.confirm(al, vault, cfg)
+    assert al.items() == [] and not al.add(vault, "Vault", "vault")                      # trusted: no alert comes back

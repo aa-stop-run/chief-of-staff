@@ -23,8 +23,10 @@ Everything is Python's standard library: there is nothing to `pip install`.
 ```bash
 git clone <repository-url> chief-of-staff && cd chief-of-staff
 python scripts/chief.py doctor        # checks what is installed and tells you what is missing
-python app/server.py                  # then open http://127.0.0.1:8780
+python app/server.py --background     # starts without a window and returns; then open http://127.0.0.1:8780
 ```
+
+`python app/server.py` without the flag keeps the server in the terminal (Ctrl+C stops it). Started with `--background` it has no window at all, and none of the commands it runs (`git`, `claude`) opens one either; stop or restart it with the buttons in **⚙ Settings → Server**. Workers that are running carry on when the server stops, and the next start picks them up. What it prints goes to `server.log` in your data folder.
 
 (Use `python3` where `python` is not Python 3.) The first start creates your data folder. Open **⚙ Settings** and point the Chief at the folder where your projects live; every sub-folder becomes a project. You do not need a notes vault to start: it is [optional](#the-vault-optional).
 

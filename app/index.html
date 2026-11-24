@@ -608,7 +608,12 @@ const PT = {
   "This part starts by itself when the parts it follows are ready":"Esta parte arranca sozinha quando as partes que segue estiverem prontas","Combined: {c} conflict(s), tests: {tests}":"Combinado: {c} conflito(s), testes: {tests}",
   "Today":"Hoje","Projects":"Projetos","Views":"Vistas",
   "Pipelines":"Pipelines","Built-in":"Incluída","Custom":"Própria","New pipeline":"Nova pipeline",
-  "Name your pipeline":"Dá um nome à pipeline","Concept":"Conceito","Concept, spec, plan, build and review":"Conceito, spec, plano, implementação e revisão","Concept, plan, carry out and review; behaviour does not change":"Conceito, plano, execução e revisão; o comportamento não muda","Concept validation":"Validação do conceito","the concept":"o conceito",
+  "Name your pipeline":"Dá um nome à pipeline",
+  "Server":"Servidor","The Chief can run without a window. Stopping or restarting it does not stop workers that are already running: they carry on, and the next start picks them up.":"O Chief pode correr sem janela. Parar ou reiniciar não pára os workers que já estão a correr: continuam, e o arranque seguinte apanha-os.",
+  "Restart the Chief":"Reiniciar o Chief","Stop the Chief":"Parar o Chief","To start it again without a window:":"Para o arrancar outra vez sem janela:",
+  "The dashboard restarts and reloads by itself.":"O dashboard reinicia e recarrega-se sozinho.","The dashboard stops: nothing here works until you start it again.":"O dashboard pára: nada aqui funciona até o arrancares outra vez.",
+  "Restarting…":"A reiniciar…","The Chief did not come back: start it again.":"O Chief não voltou: arranca-o outra vez.","The Chief has stopped":"O Chief parou",
+  "Workers that were running carry on. To start it again, run:":"Os workers que estavam a correr continuam. Para o arrancar outra vez, corre:","Concept":"Conceito","Concept, spec, plan, build and review":"Conceito, spec, plano, implementação e revisão","Concept, plan, carry out and review; behaviour does not change":"Conceito, plano, execução e revisão; o comportamento não muda","Concept validation":"Validação do conceito","the concept":"o conceito",
   "An independent validator is checking the concept against the request and the code":"Um validador independente está a conferir o conceito com o pedido e o código",
   "The concept is being fixed after validation (round {n})":"O conceito está a ser corrigido depois da validação (ronda {n})",
   "Concept validation: {vl}":"Validação do conceito: {vl}","Independent concept validation":"Validação independente do conceito",
@@ -2851,6 +2856,22 @@ document.addEventListener("click",async ev=>{
     toast(r.curation_started?tt("Folder trusted. The vault curation is running again."):tt("Folder trusted. Try the request again."));await load();}
   catch(err){toast(err.message,true);b.disabled=false;}
 });
+// stop or restart the server from the dashboard (a second click confirms): no terminal window to look for
+document.addEventListener("click",async ev=>{
+  const b=ev.target.closest&&ev.target.closest("[data-srv]");if(!b)return;
+  const restart=b.dataset.srv==="restart";
+  if(!armed(b,restart?tt("The dashboard restarts and reloads by itself."):tt("The dashboard stops: nothing here works until you start it again.")))return;
+  b.disabled=true;
+  try{await api("/api/server/"+b.dataset.srv,{});}catch(err){toast(err.message,true);b.disabled=false;return;}
+  if(restart){
+    toast(tt("Restarting…"));
+    for(let i=0;i<40;i++){await new Promise(r=>setTimeout(r,1000));try{const r=await fetch("/",{cache:"no-store"});if(r.ok){location.reload();return;}}catch(_){}}
+    toast(tt("The Chief did not come back: start it again."),true);
+  }else{
+    document.body.innerHTML=`<main style="max-width:560px;margin:15vh auto;padding:0 16px;font:15px/1.5 system-ui,sans-serif"><h2>${esc(tt("The Chief has stopped"))}</h2>
+      <p>${esc(tt("Workers that were running carry on. To start it again, run:"))}</p><pre>python app/server.py --background</pre></main>`;
+  }
+});
 async function featClick(e){
   const b=e.target.closest("[data-act]");if(!b)return;
   const id=b.dataset.id,act=b.dataset.act;
@@ -2945,7 +2966,12 @@ function renderSettings(){
     <section class="sset sgit"><h4>${tt("Git and GitHub")}</h4>${gh}${login}<p class="m">${helpers}</p>
       <p class="m">${tt("Private repos: the Chief uses the login your git already has and never asks for or stores passwords or tokens.")}</p>
       <div class="row"><input id="sHosts" value="${esc(SET.hosts.join(", "))}" maxlength="300" aria-label="${esc(tt("Hosts allowed for cloning"))}"><button class="btn" data-sact="hosts" type="button">${tt("Save")}</button></div>
-      <p class="m">${tt("Hosts the Chief accepts cloning from (comma-separated).")}</p></section>`;
+      <p class="m">${tt("Hosts the Chief accepts cloning from (comma-separated).")}</p></section>
+    <section class="sset"><h4>${tt("Server")}</h4>
+      <p class="m">${tt("The Chief can run without a window. Stopping or restarting it does not stop workers that are already running: they carry on, and the next start picks them up.")}</p>
+      <div class="row"><button class="btn" type="button" data-srv="restart" data-id="restart">${tt("Restart the Chief")}</button>
+        <button class="btn" type="button" data-srv="stop" data-id="stop">${tt("Stop the Chief")}</button></div>
+      <p class="m">${tt("To start it again without a window:")} ${cp("python app/server.py --background")}</p></section>`;
 }
 function planSet(pl){
   const c=pl.connection;
