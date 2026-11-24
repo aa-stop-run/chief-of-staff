@@ -693,7 +693,10 @@ const PT = {
   "Model":"Modelo",
   "Default":"Por omissão",
   "Cancel":"Cancelar",
-  "Launch spec":"Lançar spec",
+  "Launch spec":"Lançar spec","Launch concept":"Lançar conceito","Launch":"Lançar",
+  "This launches a worker that analyses the <b>solution</b> first (a concept: approaches and their trade-offs, what already exists, what could break). Nothing moves forward (spec, plan, code) without your “approve” here.":"Isto lança um worker que analisa primeiro a <b>solução</b> (um conceito: abordagens e os seus compromissos, o que já existe, o que pode partir). Nada avança (spec, plano, código) sem o teu «aprovar» aqui.",
+  "This launches a worker that analyses the <b>solution</b> of the maintenance first (behavior does not change). Nothing moves forward (plan, code) without your “approve” here.":"Isto lança um worker que analisa primeiro a <b>solução</b> da manutenção (o comportamento não muda). Nada avança (plano, código) sem o teu «aprovar» aqui.",
+  "It follows your pipeline «{p}»: only the phases it lists, in its order. Nothing moves forward without your “approve” here.":"Segue a tua pipeline «{p}»: só as fases que ela indica, pela ordem dela. Nada avança sem o teu «aprovar» aqui.",
   "This launches a worker that writes only the <b>spec</b>. Nothing moves forward (plan, code) without your “approve” here.":"Isto lança um worker que escreve só a <b>spec</b>. Nada avança (plano, código) sem o teu «aprovar» aqui.",
   "Add project":"Adicionar projeto",
   "Folder path":"Caminho da pasta",
@@ -895,7 +898,7 @@ const PT = {
   "To talk to the worker: {cmd}":"Para conversar com o worker: {cmd}",
   "{l} ready, but the automatic review did not start: click “Send to review”.":"{l} pronta, mas a revisão automática não arrancou: carrega em «Enviar para revisão».",
   "{l} ready ({v}). Read the findings and accept the implementation, or ask for fixes.":"{l} pronta ({v}). Lê os achados e aceita a implementação, ou pede correções.",
-  "ready@plan":"pronto",
+  "ready@plan":"pronto","ready@concept":"pronto",
   "ready@spec":"pronta",
   "{l} {ready}. Read {what}, answer the questions under “Your decision” and send, or approve.":"{l} {ready}. Lê {what}, responde às perguntas em «A tua decisão» e envia, ou aprova.",
   "{l} {ready} and no open questions. Read {what} and approve, or ask for changes.":"{l} {ready} e sem perguntas em aberto. Lê {what} e aprova, ou pede alterações.",
@@ -2142,7 +2145,7 @@ function statusLine(f){
   else if(f.stage==="review"&&f.kind==="analysis")awaiting=tt("{l} ready ({v}). Read the findings and accept the analysis, or ask for fixes.",{l,v:VERDICT[parseReview(f.artifacts.review).verdict][0].toLowerCase()});
   else if(f.stage==="review")awaiting=tt("{l} ready ({v}). Read the findings and accept the implementation, or ask for fixes.",{l,v:VERDICT[parseReview(f.artifacts.review).verdict][0].toLowerCase()});
   else{
-    const st=questionsFor(f).status,ready=f.stage==="plan"?tt("ready@plan"):tt("ready@spec");
+    const st=questionsFor(f).status,ready=f.stage==="plan"?tt("ready@plan"):f.stage==="concept"?tt("ready@concept"):tt("ready@spec");
     awaiting={form:tt("{l} {ready}. Read {what}, answer the questions under “Your decision” and send, or approve.",{l,ready,what}),
       none:tt("{l} {ready} and no open questions. Read {what} and approve, or ask for changes.",{l,ready,what}),
       unparsed:tt("{l} {ready}. It has text under “Open questions” that I could not turn into a form: read {what} and answer in the decision field, or approve.",{l,ready,what})}[st];
@@ -3048,10 +3051,10 @@ $("apClone").addEventListener("click",async()=>{
   b.disabled=false;b.textContent=tt("Clone");
 });
 const NF={
-  feature:["This launches a worker that writes only the <b>spec</b>. Nothing moves forward (plan, code) without your “approve” here.","Launch spec"],
+  feature:["This launches a worker that analyses the <b>solution</b> first (a concept: approaches and their trade-offs, what already exists, what could break). Nothing moves forward (spec, plan, code) without your “approve” here.","Launch concept"],
   fix:["This launches a worker that investigates and writes only the <b>diagnosis</b> (root cause). Nothing moves forward (plan, fix) without your “approve” here.","Launch diagnosis"],
   analysis:["This launches a read-only worker that writes the <b>analysis</b>; another then verifies the facts. It changes nothing in the project.","Launch analysis"],
-  maintenance:["This launches a worker that writes only the maintenance <b>plan</b> (behavior does not change). Nothing moves forward without your “approve” here.","Launch plan"],
+  maintenance:["This launches a worker that analyses the <b>solution</b> of the maintenance first (behavior does not change). Nothing moves forward (plan, code) without your “approve” here.","Launch concept"],
   ship:["This launches a worker that prepares the <b>commit</b> locally and writes what would be published (branch, remote, commits, PR text). Nothing is pushed until you approve here.","Prepare commit"],
   release:["This launches a read-only worker that writes the <b>release plan</b>. Then an independent worker runs the regression tests, and only a POSITIVE verdict plus your approval lets a worker carry out the promotion.","Launch release plan"]};
 async function nfLoadPipes(){
@@ -3067,7 +3070,7 @@ function nfSync(){
   const opt=$("nfPipe").selectedOptions[0],mine=opt&&opt.value?opt.dataset.kind:"";
   $("nfKind").disabled=!!mine;if(mine)$("nfKind").value=mine;
   const k=NF[$("nfKind").value]?$("nfKind").value:"feature";
-  $("nfNote").innerHTML=tt(NF[k][0])+(mine?" "+esc(tt("It follows your pipeline «{p}»: only the phases it lists, in its order.",{p:opt.textContent.split(" · ")[0]})):"");$("nfGo").textContent=tt(NF[k][1]);
+  $("nfNote").innerHTML=mine?esc(tt("It follows your pipeline «{p}»: only the phases it lists, in its order. Nothing moves forward without your “approve” here.",{p:opt.textContent.split(" · ")[0]})):tt(NF[k][0]);$("nfGo").textContent=tt(mine?"Launch":NF[k][1]);
   const noAuto=k==="ship"||k==="release";$("nfAutoRow").hidden=noAuto;if(noAuto)$("nfAuto").checked=false;}
 $("nfKind").addEventListener("change",nfSync);
 $("nfPipe").addEventListener("change",nfSync);
