@@ -538,7 +538,7 @@ a.plink:active{color:var(--acc);filter:brightness(1.15)}
   <div id="todayView">
   <div class="fhead"><h2>Requests <em id="nFeat"></em></h2><button class="btn pri" id="newBtn" type="button">+ New request</button></div>
   <div class="feats" id="feats"></div>
-  <div id="vhWrap" hidden><div class="fhead"><h2>Vault health <em id="nVh"></em></h2><button class="btn" id="vhCheck" type="button" title="Compare the notes with the projects and with each other">Check the vault now</button></div><p class="m" id="vhInfo"></p><div class="pends" id="vhList"></div></div>
+  <div id="vhWrap" hidden><div class="fhead"><h2>Vault health <em id="nVh"></em></h2><button class="btn" id="vhCheck" type="button" title="Compare the notes with the projects and with each other">Check the vault now</button></div><p class="m"><span id="vhInfo"></span> <button class="btn sm ghost" id="vhMinor" type="button" hidden></button></p><div class="pends" id="vhList"></div></div>
   <div id="propsWrap" hidden><h2>Suggested by workers <em id="nProp"></em></h2><div class="pends" id="props"></div></div>
   <div class="fhead"><h2>Session to-dos <em id="nPend"></em></h2><button class="btn" id="scanBtn" type="button" title="Look for recent Claude Code sessions of your projects that have no to-do card yet">Scan sessions</button></div>
   <div class="pfilt" id="pfilt"></div>
@@ -625,6 +625,12 @@ const PT = {
   "⚠ The concept validation did not produce a verdict I can read: read the concept and decide.":"⚠ A validação do conceito não trouxe um veredicto que eu consiga ler: lê o conceito e decide tu.",
   "⚠ I could not launch the concept validation: {note}":"⚠ Não consegui lançar a validação do conceito: {note}",
   "⚠ I could not send the concept back to the worker: {note}":"⚠ Não consegui devolver o conceito ao worker: {note}","Your pipeline":"A tua pipeline","Independent plan validation":"Validação independente do plano","Type of request":"Tipo de pedido","What kind of request is it for?":"Para que tipo de pedido é?",
+  "Open the note":"Abrir a nota",
+  "Opens the note in Obsidian":"Abre a nota no Obsidian",
+  "Ignore (it is fine)":"Ignorar (está bem)",
+  "The note is fine as it is: hide this finding until the note or the facts change":"A nota está bem: esconde este achado até a nota ou os factos mudarem",
+  "Show {n} minor":"Mostrar {n} menores",
+  "Hide {n} minor":"Esconder {n} menores",
   "Vault health":"Saúde do vault",
   "Check the vault now":"Verificar o vault agora",
   "Compare the notes with the projects and with each other":"Compara as notas com os projetos e entre si",
@@ -3167,8 +3173,8 @@ function vhCard(f){
   return `<article class="pend vh-${esc(f.severity)}"><div class="ptop"><span class="kind">${esc(tt(VH_SEV[f.severity]||f.severity))}</span><span class="path">${esc(f.note)}</span></div>
     ${f.quote?`<blockquote class="vhq">${esc(f.quote)}</blockquote>`:""}<ul class="vhev">${ev}</ul>${f.detail?`<p class="m">${esc(f.detail)}</p>`:""}${fix}
     <div class="pfoot">${f.replace?`<button class="btn sm pri" type="button" data-vh="apply" data-id="${id}" title="${esc(tt("Changes the note, with a commit before and after (git revert undoes it)"))}">${tt("Apply")}</button>`:""}
-      <button class="btn sm" type="button" data-vh="accept" data-id="${id}" title="${esc(tt("The note is right: keep it as it is"))}">${tt("Accept")}</button>
-      <button class="btn sm ghost" type="button" data-vh="dismiss" data-id="${id}">${tt("Dismiss")}</button></div></article>`;
+      <a class="btn sm" href="obsidian://open?vault=${encodeURIComponent(VH.vault)}&amp;file=${encodeURIComponent(f.note.replace(/\.md$/,""))}" title="${esc(tt("Opens the note in Obsidian"))}">${tt("Open the note")}</a>
+      <button class="btn sm ghost" type="button" data-vh="dismiss" data-id="${id}" title="${esc(tt("The note is fine as it is: hide this finding until the note or the facts change"))}">${tt("Ignore (it is fine)")}</button></div></article>`;
 }
 function renderVaultHealth(h){
   const w=$("vhWrap");
@@ -3177,13 +3183,17 @@ function renderVaultHealth(h){
   $("nVh").textContent=h.open||"";
   $("vhInfo").textContent=h.running?tt("Checking the notes…"):(h.last?(h.last.ok?"":tt("The last check failed")+": ")+h.last.info:tt("The vault has not been checked yet"));
   $("vhCheck").disabled=!!h.running;
-  const html=(h.findings||[]).map(vhCard).join("");
+  VH.vault=h.vault_name||"";
+  const minor=(h.findings||[]).filter(f=>f.layer!=="audit"&&f.severity==="low"),main=(h.findings||[]).filter(f=>!minor.includes(f));
+  $("vhMinor").hidden=!minor.length;$("vhMinor").textContent=VH.minor?tt("Hide {n} minor").replace("{n}",minor.length):tt("Show {n} minor").replace("{n}",minor.length);
+  const html=(VH.minor?main.concat(minor):main).map(vhCard).join("");
   if(html===vhHtml)return;
   vhHtml=html;$("vhList").innerHTML=html;
 }
-let vhHtml="";
+let vhHtml="";const VH={vault:"",minor:false};
 document.addEventListener("click",async ev=>{
-  const b=ev.target.closest&&ev.target.closest("[data-vh],#vhCheck");if(!b)return;
+  const b=ev.target.closest&&ev.target.closest("[data-vh],#vhCheck,#vhMinor");if(!b)return;
+  if(b.id==="vhMinor"){VH.minor=!VH.minor;vhHtml="";renderVaultHealth(S.vault_health);return;}
   if(b.id==="vhCheck"){b.disabled=true;
     try{const r=await api("/api/vault/check",{});toast(r.launched?tt("Checking the notes…"):tt("Nothing needed checking."));await load();}
     catch(err){toast(err.message,true);b.disabled=false;}return;}

@@ -409,5 +409,5 @@ class Sanitizer:
                        "old": (f.get("replace") or {}).get("old", ""), "new": (f.get("replace") or {}).get("new", "")} for f in
                        sorted(open_, key=lambda f: (vaultcheck.SEVERITIES.index(f["severity"]), f["note"]))]
             due, why = self._due(s)
-            return {"enabled": self.cfg()["enabled"], "running": bool(s["run"]), "open": len(open_), "counts": counts, "findings": trimmed[:60],
+            return {"vault_name": self.vault.name, "enabled": self.cfg()["enabled"], "running": bool(s["run"]), "open": len(open_), "counts": counts, "findings": trimmed[:60],
                     "last": s["last"], "info": "checking the notes…" if s["run"] else why, "queued": len(s["queue"]), "attempts": s["attempts"]}
