@@ -47,23 +47,46 @@ def _read(cfg_path=None) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def is_trusted(path, cfg_path=None) -> bool:
-    """Has the user accepted the trust prompt for this folder or for a folder above it? Only the trust flags are looked at."""
-    key = norm(path)
+def repo_root(path):
+    """The git repository a folder belongs to (the nearest folder above it, or itself, with a `.git`), or None."""
+    p = Path(path).resolve()
+    for d in (p, *p.parents):
+        if (d / ".git").exists():
+            return d
+    return None
+
+
+def _accepted(cfg_path=None) -> list:
+    """The folders the user accepted the trust prompt for (only the trust flags of Claude Code's config are looked at)."""
     projects = _read(cfg_path).get("projects")
     if not isinstance(projects, dict):
-        return False
-    for k, v in projects.items():
-        if not (isinstance(v, dict) and v.get("hasTrustDialogAccepted") is True):
-            continue
-        k = str(k).replace("\\", "/").rstrip("/")
-        if _same(key, k) or (key.lower() if os.name == "nt" else key).startswith((k.lower() if os.name == "nt" else k) + "/"):
-            return True
-    return False
+        return []
+    return [str(k).replace("\\", "/").rstrip("/") for k, v in projects.items() if isinstance(v, dict) and v.get("hasTrustDialogAccepted") is True]
+
+
+def target(path) -> str:
+    """The folder whose trust decides about `path`: its git repository (Claude Code trusts a repository as a whole, and a nested
+    repository on its own), else the folder itself."""
+    root = repo_root(path)
+    return norm(root if root else path)
+
+
+def is_trusted(path, cfg_path=None) -> bool:
+    """Would `claude --bg` accept this folder (as its working folder or with `--add-dir`)? As the installed Claude Code does it
+    (checked with real launches, tests/real/test_real_trust.py): inside a git repository the REPOSITORY must be accepted itself
+    (a trusted folder above it does not count, nor does a repository nested in a trusted one); outside any repository the folder
+    or a folder above it."""
+    key, accepted = target(path), _accepted(cfg_path)
+    if repo_root(path) is not None:
+        return any(_same(key, k) for k in accepted)
+    low = (lambda t: t.lower()) if os.name == "nt" else (lambda t: t)
+    return any(_same(key, k) or low(key).startswith(low(k) + "/") for k in accepted)
 
 
 # ---------------------------------------------------------------- recognising the refusal
-_PATH = re.compile(r"not trusted:\s*(.+?)(?:\.\s|\.$|$)", re.I | re.M)
+_REPO = re.compile(r"part of the repository at\s+(.+?)\)", re.I)
+_RUN_IN = re.compile(r"Run `claude` in\s+(.+?)\s+once", re.I)
+_PATH = re.compile(r"not trusted:\s*(.+?)(?:\s\(|\.\s|\.$|$)", re.I | re.M)
 
 
 def looks_untrusted(message: str) -> bool:
@@ -72,9 +95,13 @@ def looks_untrusted(message: str) -> bool:
 
 
 def path_from(message: str, default: str = "") -> str:
-    """The folder the refusal names («Added folder not trusted: D:\\Vault.»), else `default` (the folder the worker was started in)."""
-    m = _PATH.search(message or "")
-    return m.group(1).strip().strip('"') if m else default
+    """The folder to trust that the refusal names: the repository it says the folder is part of, else the folder
+    («Added folder not trusted: D:\\Vault.», «Run `claude` in <folder> once»), else `default` (where the worker was started)."""
+    for rx in (_REPO, _RUN_IN, _PATH):
+        m = rx.search(message or "")
+        if m:
+            return m.group(1).strip().strip('"')
+    return default
 
 
 # ---------------------------------------------------------------- the user's confirmation: add the folder
@@ -85,7 +112,7 @@ def grant(path, cfg_path=None) -> dict:
     if not folder.is_dir():
         raise TrustError("the folder does not exist")
     cfg = Path(cfg_path or config_path())
-    key = norm(folder)
+    key = target(folder)                    # inside a repository, the repository: that is what Claude Code records
     for _ in range(3):                      # Claude Code rewrites this file too: re-read if it changed under us
         try:
             raw = cfg.read_text(encoding="utf-8") if cfg.exists() else "{}"
@@ -115,7 +142,7 @@ def grant(path, cfg_path=None) -> dict:
 
 def confirm(alerts: "TrustAlerts", path, cfg_path=None) -> dict:
     """The user clicked «Trust this folder»: only a folder a launch was really refused for (and that the Chief manages) is added."""
-    key = norm(path)
+    key = target(path)
     if not any(_same(norm(i["path"]), key) for i in alerts.items()):
         raise TrustError("that folder is not waiting for your trust")
     out = grant(key, cfg_path)
@@ -151,7 +178,7 @@ class TrustAlerts:
         if not path or not self.manages(path) or self._trusted(path):
             return False
         items = self._load()
-        key = norm(path)
+        key = target(path)                  # what gets trusted: the folder's repository, shown to the user as it is
         if any(_same(norm(i["path"]), key) for i in items):
             return True
         items.append({"path": key, "name": name or Path(path).name, "kind": kind, "reason": reason[:300], "since": self._now()})
@@ -161,7 +188,7 @@ class TrustAlerts:
     def items(self) -> list:
         """The folders still waiting for the user (those trusted meanwhile, or no longer managed, are dropped)."""
         items = self._load()
-        keep = [i for i in items if self.manages(i["path"]) and not self._trusted(i["path"])]
+        keep = [i for i in items if not self._trusted(i["path"])]
         if len(keep) != len(items):
             self._save(keep)
         return keep

@@ -164,3 +164,68 @@ def test_the_doctor_warns_about_an_untrusted_vault(monkeypatch, tmp_path):
     assert names["Vault trusted by Claude Code"]["level"] == "warn"
     monkeypatch.setattr(chief.trust, "is_trusted", lambda p, cfg_path=None: True)
     assert "Vault trusted by Claude Code" not in {c["name"] for c in chief.doctor_checks()}
+
+
+# ------------------------------------------------------------------ the rule the installed Claude Code really applies (see tests/real)
+
+def repo(path: Path) -> Path:
+    path.mkdir(parents=True, exist_ok=True)
+    (path / ".git").mkdir(exist_ok=True)
+    return path
+
+
+def config(tmp_path, *trusted) -> Path:
+    p = tmp_path / "c.json"
+    p.write_text(json.dumps({"projects": {trust.norm(t): {"hasTrustDialogAccepted": True} for t in trusted}}), encoding="utf-8")
+    return p
+
+
+def test_inside_a_repository_the_repository_itself_must_be_trusted(tmp_path):
+    r = repo(tmp_path / "r")
+    sub = r / "a" / "b"
+    sub.mkdir(parents=True)
+    assert trust.is_trusted(sub, config(tmp_path, r)) and trust.is_trusted(r, config(tmp_path, r))        # the repo's own entry covers it all
+    assert not trust.is_trusted(sub, config(tmp_path, sub))                                               # an entry for a subfolder does not
+    assert not trust.is_trusted(r, config(tmp_path))
+
+
+def test_a_trusted_folder_above_a_repository_does_not_cover_it(tmp_path):
+    parent = tmp_path / "top"
+    nested = repo(parent / "nested")
+    assert not trust.is_trusted(nested, config(tmp_path, parent)) and not trust.is_trusted(nested / "x", config(tmp_path, parent))
+    assert not trust.is_trusted(nested, config(tmp_path, tmp_path))                                       # not even the whole drive
+
+
+def test_a_repository_nested_in_a_trusted_one_needs_its_own_entry(tmp_path):
+    outer = repo(tmp_path / "outer")
+    inner = repo(outer / "inner")
+    assert trust.is_trusted(outer / "plain", config(tmp_path, outer))                                    # a plain folder of the outer repo
+    assert not trust.is_trusted(inner, config(tmp_path, outer))
+    assert trust.is_trusted(inner, config(tmp_path, outer, inner))
+
+
+def test_outside_any_repository_a_trusted_folder_above_counts(tmp_path):
+    plain = tmp_path / "plain" / "deep"
+    plain.mkdir(parents=True)
+    assert trust.is_trusted(plain, config(tmp_path, tmp_path / "plain")) and trust.is_trusted(plain, config(tmp_path, plain))
+    assert not trust.is_trusted(plain, config(tmp_path))
+
+
+def test_the_alert_and_the_grant_name_the_repository_not_the_subfolder(tmp_path):
+    r = repo(tmp_path / "vault")
+    sub = r / "inbox"
+    sub.mkdir()
+    cfg = tmp_path / "claude.json"
+    al = trust.TrustAlerts(tmp_path / "t.json", lambda: [sub], trusted=lambda p: trust.is_trusted(p, cfg))
+    assert al.add(sub, "Vault", "vault") is True
+    assert al.items()[0]["path"] == trust.norm(r)                                                         # what will be trusted, shown as it is
+    assert trust.confirm(al, sub, cfg)["path"] == trust.norm(r) and trust.is_trusted(sub, cfg) and trust.is_trusted(r, cfg)
+    assert json.loads(cfg.read_text(encoding="utf-8"))["projects"] == {trust.norm(r): {"hasTrustDialogAccepted": True}}
+
+
+def test_the_refusals_claude_prints_name_the_folder_to_trust():
+    sub = "Added folder not trusted: D:\\v\\repo\\sub (part of the repository at D:\\v\\repo). Leave out its --add-dir or, if you trust it"
+    assert trust.path_from(sub, "x") == "D:\\v\\repo"
+    cwd = "Workspace not trusted. Run `claude` in D:\\v\\repo\\sub once and accept the trust prompt."
+    assert trust.path_from(cwd, "x") == "D:\\v\\repo\\sub"
+    assert trust.path_from("Added folder not trusted: D:\\Vault. Leave out", "x") == "D:\\Vault"
