@@ -36,14 +36,14 @@ class SanitizeError(Exception):
 
 class Sanitizer:
     def __init__(self, vault, state_path, stage_root, launch, worker_state, commit, release, schema, curator=None, config=None,
-                 now=time.time, limit=None, collect=projectfacts.collect, drafts=None, note_lang="English"):
+                 now=time.time, limit=None, collect=projectfacts.collect, drafts=None, note_lang="English", known_paths=None):
         """launch(prompt, add_dir)->{id,name}; worker_state(id)->claude state or None; commit(path, msg)->(ok, info); release(id);
         curator()->{running, blocked, ...} (the curation's status: the two never work on the vault together); config()->the user's
         `sanitizer` settings; drafts()->(count, oldest age in seconds) of the inbox; limit(id)->a usage-limit notice or None."""
         self.vault, self.state_path, self.stage_root, self.schema = Path(vault), Path(state_path), Path(stage_root), schema
         self._launch, self._worker_state, self._commit, self._release = launch, worker_state, commit, release
         self._curator, self._config, self._now, self._limit, self._collect = curator, config, now, limit, collect
-        self._drafts, self._note_lang = drafts, note_lang
+        self._drafts, self._note_lang, self._known = drafts, note_lang, known_paths
         self._lock = threading.RLock()
 
     # ---- state ----
@@ -76,7 +76,7 @@ class Sanitizer:
             if fp in s["accepted"]:
                 f = {**f, "status": "accepted"}
             elif fp in old:
-                f = {**f, "status": old[fp]["status"], "base_hash": old[fp].get("base_hash", f.get("base_hash", ""))}
+                f = {**f, "status": old[fp]["status"]}
             out.append(f)
         s["findings"] = keep + out
 
@@ -85,7 +85,8 @@ class Sanitizer:
         with self._lock:
             s = self._load()
             n, oldest = self._drafts() if self._drafts else (0, 0.0)
-            found = vaultcheck.structure_findings(self.vault, self.schema, n, oldest, datetime.fromtimestamp(self._now())) + vaultcheck.plugin_lint(self.vault)
+            found = vaultcheck.structure_findings(self.vault, self.schema, n, oldest, datetime.fromtimestamp(self._now()),
+                                                self._known() if self._known else None) + vaultcheck.plugin_lint(self.vault)
             self._merge(s, ("structure", "health"), found)
             s["last_structure"] = self._now()
             self._save(s)

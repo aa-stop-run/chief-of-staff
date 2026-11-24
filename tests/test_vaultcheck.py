@@ -47,11 +47,25 @@ def test_a_hub_whose_local_folder_is_gone_or_that_is_missing_from_the_index_is_r
     hub = vault / "Projetos" / "Alfa.md"
     hub.write_text(HUB.format(local=tmp_path / "nope", name="Alfa"), encoding="utf-8")
     (vault / "00-Index.md").write_text("- nothing\n", encoding="utf-8")
-    (vault / "Mapa.canvas").write_text("{}", encoding="utf-8")
     out = vc.structure_findings(vault, SCHEMA)
-    assert kinds(out) == ["local-missing", "not-in-canvas", "not-in-index"]
-    assert all(f["note"] == "Projetos/Alfa.md" and f["status"] == "open" and f["evidence"] for f in out)
+    assert kinds(out) == ["local-missing", "not-in-index"] and all(f["status"] == "open" and f["evidence"] for f in out)
     assert next(f for f in out if f["kind"] == "local-missing")["quote"].startswith("local: ")
+
+
+def test_a_wrong_local_is_fixed_with_the_path_the_chief_knows_and_a_missing_index_entry_by_adding_it(vault, tmp_path):
+    real = tmp_path / "alfa-repo"
+    hub = vault / "Projetos" / "Alfa.md"
+    hub.write_text(HUB.format(local=tmp_path / "old-place", name="Alfa"), encoding="utf-8")
+    (vault / "00-Index.md").write_text("- [[Other]]\n- [[Another]]\n", encoding="utf-8")
+    out = {f["kind"]: f for f in vc.structure_findings(vault, SCHEMA, known_paths={"Alfa": str(real)})}
+    loc, idx = out["local-missing"], out["not-in-index"]
+    assert loc["replace"]["new"] == f"local: {real}" and idx["note"] == "00-Index.md" and idx["replace"]["new"].endswith("\n- [[Alfa]]")
+    for f in (loc, idx):                                                                          # the user's click applies them
+        vc.apply_replace(vault, f["note"], f["replace"]["old"], f["replace"]["new"], f["base_hash"])
+    assert f"local: {real}" in hub.read_text(encoding="utf-8") and "- [[Alfa]]" in (vault / "00-Index.md").read_text(encoding="utf-8")
+    assert vc.structure_findings(vault, SCHEMA, known_paths={"Alfa": str(real)}) == []
+    hub.write_text(HUB.format(local=tmp_path / "gone", name="Alfa"), encoding="utf-8")
+    assert vc.structure_findings(vault, SCHEMA)[0]["replace"] is None                               # a project the Chief does not know: no guess
 
 
 def test_missing_frontmatter_keys_of_a_hub_are_reported(vault):

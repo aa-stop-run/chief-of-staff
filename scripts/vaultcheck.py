@@ -56,11 +56,11 @@ def fingerprint(kind: str, note: str, quote: str, evidence=()) -> str:
     return hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
 
 
-def finding(layer: str, kind: str, severity: str, note: str, quote: str, evidence=(), replace=None, detail: str = "") -> dict:
+def finding(layer: str, kind: str, severity: str, note: str, quote: str, evidence=(), replace=None, detail: str = "", base_hash: str = "") -> dict:
     ev = [str(e)[:MAX_TEXT] for e in evidence][:MAX_EVIDENCE]
     fp = fingerprint(kind, note, quote, ev)
     return {"id": fp[:10], "fingerprint": fp, "layer": layer, "kind": kind, "severity": severity, "note": note,
-            "quote": (quote or "")[:MAX_TEXT], "evidence": ev, "replace": replace, "detail": (detail or "")[:MAX_TEXT], "status": "open"}
+            "quote": (quote or "")[:MAX_TEXT], "evidence": ev, "replace": replace, "detail": (detail or "")[:MAX_TEXT], "status": "open", "base_hash": base_hash}
 
 
 # ---------------------------------------------------------------- which notes
@@ -87,7 +87,7 @@ def project_of(rel: str, hub_dirs) -> str:
 
 
 # ---------------------------------------------------------------- L0 / L1: no worker needed
-def structure_findings(vault, schema: dict, drafts: int = 0, oldest_draft_s: float = 0.0, now=None) -> list:
+def structure_findings(vault, schema: dict, drafts: int = 0, oldest_draft_s: float = 0.0, now=None, known_paths=None) -> list:
     """Deterministic findings about the vault's own consistency. `drafts`/`oldest_draft_s`: the inbox backlog (the caller knows)."""
     vault, out = Path(vault), []
     hub_dirs, fm = tuple(schema["hub_dirs"]), schema["fm"]
@@ -101,14 +101,18 @@ def structure_findings(vault, schema: dict, drafts: int = 0, oldest_draft_s: flo
         if is_hub:
             local = props.get("local", "").strip().strip('"\'')
             if local and not Path(local).exists():
-                out.append(finding("structure", "local-missing", "medium", rel, f"local: {local}", [f"the folder {local} does not exist on this machine"]))
+                real = (known_paths or {}).get(name)
+                fix = {"old": f"local: {local}", "new": f"local: {real}"} if real and Path(real).is_dir() and text.count(f"local: {local}") == 1 else None
+                out.append(finding("structure", "local-missing", "medium", rel, f"local: {local}",
+                                   [f"the folder {local} does not exist on this machine"] + ([f"the Chief has this project at {real}"] if fix else []), fix, base_hash=sha(text)))
             for key in (fm["kind"], fm["status"], "stack", "repo"):
                 if key not in props:
                     out.append(finding("structure", "frontmatter", "low", rel, "", [f"the hub has no `{key}:` in its frontmatter"]))
             if index is not None and name not in index:
-                out.append(finding("structure", "not-in-index", "low", rel, "", [f"«{name}» is not in 00-Index.md"]))
-            if canvas is not None and name not in canvas:
-                out.append(finding("structure", "not-in-canvas", "low", rel, "", [f"«{name}» is not in Mapa.canvas"]))
+                last = next((ln for ln in reversed(index.splitlines()) if ln.strip()), "")
+                fix = {"old": last, "new": f"{last}" + chr(10) + f"- [[{name}]]"} if last and index.count(last) == 1 else None
+                out.append(finding("structure", "not-in-index", "medium" if fix else "low", "00-Index.md", last[:80],
+                                   [f"«{name}» is not in 00-Index.md"], fix, base_hash=sha(index)))
         for n, line in enumerate(text.splitlines(), 1):
             if has_secret(line):
                 out.append(finding("structure", "secret", "high", rel, f"[line {n}: redacted]", ["a token, a private IP or an e-mail address is written here"]))

@@ -129,7 +129,8 @@ def _inbox_backlog():
 SANITIZER = Sanitizer(chief.VAULT, chief.STATE / "sanitize.json", chief.ROOT / ".sanitize" / "stage", chief.launch_sanitizer, _curator_worker_state,
                       chief.commit_worktree, chief.stop_worker, chief.SCHEMA, curator=lambda: CURATOR.status(),
                       config=lambda: chief.CFG.get("sanitizer"), limit=chief.worker_limit, drafts=_inbox_backlog,
-                      note_lang=chief.SCHEMA["name"])
+                      note_lang=chief.SCHEMA["name"],
+                      known_paths=lambda: {p["name"]: p["path"] for p in chief.load_projects() if p.get("path")})
 
 ONBOARD = Onboarding(chief.STATE / "onboarding.json", chief.launch_worker, _is_active,
                      lambda: CURATOR.start(force=True), lambda: CURATOR.status()["running"], chief.stop_worker,

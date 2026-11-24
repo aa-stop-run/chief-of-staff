@@ -205,3 +205,14 @@ def test_the_structure_layer_needs_no_worker(env):
     (env.vault / "Projetos" / "Alfa" / "Estado.md").write_text("servidor 192.168.1.5\n", encoding="utf-8")
     found = env.s.refresh_structure()
     assert any(f["kind"] == "secret" for f in found) and env.s.status()["counts"].get("structure", 0) >= 1 and env.launched == []
+
+
+def test_a_structure_finding_with_a_replacement_is_applied_like_any_other(env):
+    (env.vault / "00-Index.md").write_text("- [[Other]]" + chr(10), encoding="utf-8")
+    env.s.refresh_structure()
+    [f] = [x for x in env.s.status()["findings"] if x["note"] == "00-Index.md"]
+    assert f["replace"] is True
+    env.s.apply(f["id"])
+    assert "- [[Alfa]]" in (env.vault / "00-Index.md").read_text(encoding="utf-8")
+    env.s.refresh_structure()
+    assert not [x for x in env.s.status()["findings"] if x["note"] == "00-Index.md"]

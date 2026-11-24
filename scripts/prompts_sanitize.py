@@ -37,7 +37,8 @@ A finding is a claim in a note that the facts show to be wrong or out of date, o
 1. Evidence or nothing: every finding names what contradicts the claim (a fact from the facts file, or the other note's line). If you
    cannot prove it, do not report it: list it under "unverifiable" instead. A note that is consistent produces NO finding.
 2. Quote the note exactly (verbatim, at most 200 characters). Propose a replacement only when it is an exact substring that occurs
-   once in the note and the right text follows from the facts; otherwise leave "replace" out.
+   once in the note and the right text follows from the facts (also for a frontmatter line such as `repo:`). The user wants a
+   correction, not a warning: leave "replace" out only when the right text cannot be known from what you were given.
 3. Priority: what would mislead a reader most. At most 15 findings. No style, no wording, no formatting, no praise.
 4. Dates and states change: a note written on a given date is not wrong for describing that date; report it only if it presents the old
    state as the current one.
