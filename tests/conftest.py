@@ -24,6 +24,7 @@ SERVER_TESTS = ("test_demo.py", "test_demo_server.py", "test_project_routes.py",
 
 def pytest_configure(config):
     config.addinivalue_line("markers", "slow: starts a demo server (deselect with -m \"not slow\" for a fast run)")
+    config.addinivalue_line("markers", "real: drives REAL Claude Code workers (opt-in with CHIEF_REAL_TESTS=1; spends tokens, takes minutes)")
     config.addinivalue_line("markers", "with_concept: uses the shipped built-in pipelines (feature and maintenance start with the concept phase)")
 
 
