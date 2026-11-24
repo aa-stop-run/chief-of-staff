@@ -35,6 +35,7 @@ import finish
 import home
 import migrations
 import planusage
+import trust
 import report
 import usage
 import workerlog
@@ -618,6 +619,9 @@ def doctor_checks() -> list:
         add("ok", "Vault", "none (optional): the Chief works without one")
     elif VAULT.is_dir():
         add("ok", "Vault", CFG["vault"])
+        if not trust.is_trusted(VAULT):       # `claude --bg --add-dir <vault>` is refused otherwise: the automatic curation cannot start
+            add("warn", "Vault trusted by Claude Code", f"{VAULT} is not in Claude Code's trusted folders",
+                "The curation cannot start until it is: use «Trust this folder» in the dashboard, or run `claude` once in that folder and accept the prompt.")
     else:
         add("warn", "Vault", f"{CFG['vault']} (folder not found)", "Fix the path in Settings, or leave it empty to work without a vault.")
     return out
@@ -842,6 +846,18 @@ def build_command(p, task, mode="auto", model=None, extra_dirs=(), label=None, e
 _LAUNCH_LOCK = threading.Lock()  # unique names and lossless workers.json when several are launched at once
 
 
+UNTRUSTED_HOOK = None      # set by the server: hook(path, name, kind, message) when `claude --bg` refuses a folder it does not trust
+
+
+def _refused(output: str, path: str, name: str, kind: str) -> None:
+    """A launch was refused because Claude Code does not trust a folder: let the dashboard raise its alert (never fails the launch)."""
+    if UNTRUSTED_HOOK and trust.looks_untrusted(output):
+        try:
+            UNTRUSTED_HOOK(trust.path_from(output, path), name, kind, output.strip()[-300:])
+        except Exception:  # noqa: BLE001 - an alert is an extra
+            pass
+
+
 def launch_worker(project, task, model=None, extra_dirs=(), mode="auto", label=None, effort=None, allow=(), deny=()):
     """Launch a `claude --bg` worker in the project folder and record it in state/workers.json."""
     with _LAUNCH_LOCK:
@@ -857,6 +873,7 @@ def _launch_worker_locked(project, task, model, extra_dirs, mode, label=None, ef
                        creationflags=NO_WINDOW)
     m = re.search(r"backgrounded\s*·\s*([0-9a-f]{6,})", r.stdout + r.stderr)
     if not m:
+        _refused(r.stdout + r.stderr, p["path"], p["name"], "project")
         raise RuntimeError("claude --bg did not start, or its output changed (expected «backgrounded · <id>»; "
                            "run `python scripts/chief.py doctor`): " + (r.stdout + r.stderr)[-600:])
     w = {"name": name, "id": m[1], "project": p["name"], "cwd": p["path"], "task": task.strip()[:2000],
@@ -962,6 +979,7 @@ def launch_curator(prompt):
                            creationflags=NO_WINDOW)
     m = re.search(r"backgrounded\s*·\s*([0-9a-f]{6,})", r.stdout + r.stderr)
     if not m:
+        _refused(r.stdout + r.stderr, str(VAULT), "Vault", "vault")
         raise RuntimeError("claude --bg did not start: " + (r.stdout + r.stderr)[-400:])
     with _LAUNCH_LOCK:                                   # recorded so that its cost is counted too
         record_worker({"name": "cos-curation", "id": m[1], "project": CURATION_PROJECT, "cwd": str(ROOT), "task": "Vault curation",

@@ -19,6 +19,9 @@ MAX_ATTEMPTS = 3         # consecutive failures before the automation stops (the
 LIMIT_GRACE_S = 180      # after a usage limit resets, wait this long before curating again (same size as features.LIMIT_GRACE_S)
 LIMIT_DEFAULT_PAUSE_S = 1800   # a limit notice with no readable reset time: pause this long rather than hammering
 BUSY = ("working", "running")
+WAITING = ("blocked", "idle", "waiting")      # the session is alive but waiting for input (a permission or trust prompt)
+BLOCK_RETRY_S = 600      # a vault Claude Code does not trust cannot be curated: try again every 10 min, without counting failures
+TRUST_MARK = "not trusted"   # what `claude --bg --add-dir <folder>` says about a folder the user has not accepted yet
 
 # Vault conventions the prompt refers to; the Chief passes its own (chief.SCHEMA) so that `vault_language` decides them.
 DEFAULT_SCHEMA = {"readme": "README.md", "review_dir": "_review", "hub_dirs": ("Projects", "Areas"), "name": "English"}
@@ -79,7 +82,7 @@ class Curator:
         except Exception:
             s = {}
         return {"running": False, "worker_id": "", "started": 0.0, "drafts_before": 0, "draft_names": None, "attempts": 0,
-                "finished_at": 0.0, "last": None, "paused_until": 0.0, "paused_kind": "session", **s}
+                "finished_at": 0.0, "last": None, "paused_until": 0.0, "paused_kind": "session", "blocked": None, **s}
 
     def _save(self, s: dict) -> None:
         atomicio.write_text(self.state_path, json.dumps(s, ensure_ascii=False, indent=1))
@@ -94,6 +97,8 @@ class Curator:
             return False, "inbox up to date"
         if s["paused_until"] > self._now():
             return False, "paused by a usage limit: continues by itself after it resets"
+        if s["blocked"] and s["blocked"]["until"] > self._now():
+            return False, "Claude Code does not trust the vault folder yet: " + self._trust_hint()
         if s["attempts"] >= self._max:
             return False, f"automation stopped after {self._max} consecutive failures: use “Curate now”"
         if self._now() - s["finished_at"] < self._gap:
@@ -103,6 +108,9 @@ class Curator:
             return False, f"waiting {max(1, round((self._quiet - quiet_for) / 60))} min of calm before curating"
         return True, "ready to curate"
 
+    def _trust_hint(self) -> str:
+        return f"trust it from the dashboard's alert, or run `cd {self.vault}` then `claude` once and accept the prompt"
+
     def status(self) -> dict:
         with self._lock:
             s = self._recover(self._load())
@@ -111,8 +119,9 @@ class Curator:
             info = f"curating {s['drafts_before']} draft(s)…" if s["running"] else self._due(s)[1]
             if live:
                 info = "paused by a usage limit"
+            blocked = None if not s["blocked"] else {"kind": s["blocked"]["kind"], "path": str(self.vault)}
             return {"drafts": n, "running": s["running"], "attempts": s["attempts"], "last": s["last"], "info": info,
-                    "paused": self._paused(s, live)}
+                    "paused": self._paused(s, live), "blocked": blocked}
 
     # ---- usage limits ----
     def _notice(self, worker_id: str):
@@ -176,7 +185,7 @@ class Curator:
             if not self.drafts():
                 raise CurationError("the inbox is empty: no drafts to process")
             if force:
-                s.update(attempts=0, paused_until=0.0)
+                s.update(attempts=0, paused_until=0.0, blocked=None)
             elif not self._due(s)[0]:
                 raise CurationError(self._due(s)[1])
             self._start(s)
@@ -189,8 +198,14 @@ class Curator:
         try:
             w = self._launch(curator_prompt(self.vault, ds, self._schema))
         except Exception as e:  # noqa: BLE001
+            if TRUST_MARK in str(e):         # a setting of the user's, not a failure of the run: wait for the trust, never count it
+                s["blocked"] = {"kind": "trust", "until": self._now() + BLOCK_RETRY_S}
+                s["last"] = {"at": self._now(), "handled": 0, "remaining": len(ds), "ok": False,
+                             "info": "Claude Code does not trust the vault folder: " + self._trust_hint()}
+                self._save(s)
+                raise CurationError(s["last"]["info"]) from e
             return self._fail(s, f"could not launch the curator: {e}")
-        s.update(running=True, worker_id=w["id"], started=self._now(), drafts_before=len(ds), draft_names=[d.name for d in ds],
+        s.update(blocked=None, running=True, worker_id=w["id"], started=self._now(), drafts_before=len(ds), draft_names=[d.name for d in ds],
                  paused_until=0.0)
         self._save(s)
 
@@ -216,6 +231,7 @@ class Curator:
 
     def _finish(self, s: dict, note: str) -> None:
         left = {d.name for d in self.drafts()}
+        wstate = self._worker_state(s["worker_id"])      # before the session is stopped: was it waiting for input?
         before, after = s["drafts_before"], len(left)
         given = s.get("draft_names")
         # the drafts this run was given and that are gone; drafts that arrived meanwhile are the next run's (older state: by count)
@@ -234,6 +250,11 @@ class Curator:
             note = note or "paused by a usage limit"
         else:
             s["attempts"] = s["attempts"] + 1 if handled == 0 else 0
+            if handled == 0 and not note and after:        # drafts waited and none was promoted: say why it looks like it ended
+                wid = s["worker_id"]
+                note = (f"the curator stopped waiting for input (a permission or trust prompt) before promoting anything: read `claude logs {wid}`"
+                        if wstate in WAITING
+                        else f"the curator ended without promoting any draft: read what it said with `claude logs {wid}`")
         s.update(running=False, finished_at=self._now())
         s["last"] = {"at": self._now(), "handled": handled, "remaining": after, "ok": bool(ok) and not note,
                      "commit": info, "info": note or f"{handled} {noun}; commit {info}"}
