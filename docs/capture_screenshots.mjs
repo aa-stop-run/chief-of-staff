@@ -18,6 +18,50 @@ const DEMO_DIR = process.platform === "win32" ? "C:/chief-demo" : "/tmp/chief-de
 const SERVER_PORT = 8793, DEBUG_PORT = 9333, WIDTH = 1280, SCALE = 1.5;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// What the worker and the independent validator wrote for the request the concept screenshot is taken of.
+const CONCEPT_SAMPLE = `## Overview
+- Let a customer share a wishlist with a link; whoever opens it sees the items and can mark one as bought.
+
+## Goals
+- A read-only public page per wishlist, behind an unguessable link.
+- The owner can switch sharing off at any time.
+
+## Non-goals
+- Accounts for the people who open the link, comments, or price alerts.
+
+## Approaches considered
+- **A (recommended): a signed token in the URL.** No new table; the link stops working when the owner rotates the secret. Trade-off: one link per wishlist.
+- **B: a \`share_links\` table with one row per link.** Allows several links and expiry. Rejected for now: more code and a migration for a need nobody has yet.
+
+## Recommendation and decisions
+- **D1:** approach A, signed token, no new table.
+- **D2:** the shared page shows names and photos only, never prices or the owner's address.
+
+## What already exists in the repo
+- \`storefront/wishlist/views.py:41\` already renders a read-only wishlist for the owner.
+- \`storefront/security/tokens.py\` signs and checks tokens for password resets.
+
+## What could break
+- The existing wishlist page is cached per user: the shared page must not reuse that cache.
+
+## Smallest useful version
+- A \`/w/<token>\` page and a «Share» switch on the wishlist, with tests.
+
+## Open questions
+- None.
+`;
+const CONCEPT_REVIEW_SAMPLE = `## Verdict
+WITH RESERVATIONS — the concept fits the request and reuses what exists; one risk is not handled.
+
+## Checks
+- \`git grep -n "def sign"\`: the token helper exists and takes an expiry.
+- \`cat storefront/wishlist/views.py\`: the owner's page is cached per user (line 41).
+
+## Findings
+- **[MEDIUM] What could break — cache:** say how the shared page avoids the per-user cache, or a stranger may see the owner's copy.
+- **[LOW] Goals — expiry:** state whether a link expires or only stops when the secret is rotated.
+`;
+
 function findChrome() {
   const candidates = [process.env.CHROME_PATH,
     "C:/Program Files/Google/Chrome/Application/chrome.exe", "C:/Program Files (x86)/Google/Chrome/Application/chrome.exe",
@@ -115,7 +159,7 @@ async function main() {
     await page.shot("new-request.png", await page.rect(`document.querySelector("#newF")`, 0));
     await page.eval(`document.querySelector("#newF").close()`);
     await page.eval(`document.querySelector("#setBtn").click()`);
-    await page.waitFor(`document.querySelector("#setD").open && document.querySelectorAll("#setBody table tr").length > 3`);
+    await page.waitFor(`document.querySelector("#setD").open && document.querySelectorAll("#setBody section.sset").length >= 3`);
     await sleep(500);
     await page.shot("settings.png", await page.rect(`document.querySelector("#setD")`, 0));
     await page.eval(`document.querySelector("#setD").close()`);
@@ -140,6 +184,52 @@ async function main() {
     await sleep(900);
     await page.eval(`scrollTo(0, 0)`);
     await page.shot("project-page.png", await tall(`document.querySelector("#projectView")`, 1500));
+    // 14-18. what the later features add to the demo: a request at the concept phase, the Pipelines tab, its editor, a pipeline of yours
+    // in the new-request dialog, and the alert for a folder Claude Code does not trust. They create things in the demo, so they come last.
+    await page.eval(`location.hash = ""`);
+    await page.waitFor(`document.querySelectorAll("article.feat").length >= 5`);
+    const made = await page.eval(`api("/api/features", {project: "Storefront", title: "Share a wishlist by link", desc: "Let a customer send their wishlist to a friend with a link.", kind: "feature"}).then((r) => r.id)`);
+    const folder = join(DEMO_DIR, "home", "state", "features", made);
+    mkdirSync(folder, { recursive: true });
+    writeFileSync(join(folder, "concept.md"), CONCEPT_SAMPLE);
+    writeFileSync(join(folder, "concept-review.md"), CONCEPT_REVIEW_SAMPLE);
+    writeFileSync(join(folder, "questions.json"), "[]");
+    await page.waitFor(`(S.features || []).some((f) => f.id === ${JSON.stringify(made)} && f.artifacts && f.artifacts.conceptreview)`);
+    // the simulated worker never stops by itself: show the card as it looks once the concept and its validation are written
+    await page.eval(`(() => { const f = S.features.find((x) => x.id === ${JSON.stringify(made)}); f.status = "awaiting"; f.worker_state = "idle"; featHtml = ""; renderFeatures(S.features, false); })()`);
+    await sleep(500);
+    await page.shot("request-concept.png", await page.rect(`${card("Share a wishlist")}`));
+
+    await page.eval(`location.hash = "#/pipelines/new"`);
+    await page.waitFor(`document.querySelector("#pipelinesView").textContent.includes("What kind of request")`);
+    await page.eval(`pipeTemplate("feature")`);
+    await page.waitFor(`document.querySelector("[data-pf=name]")`);
+    // a copy of the feature type without the independent plan validation, named as the user would
+    await page.eval(`(() => { const d = pipeClone(PIPES.data); d.name = "Feature without plan validation"; d.id = pipeSlug(d.name);
+      const i = d.steps.findIndex((s) => s.phase === "plan-validation"); PIPES.data = PIPES.draft = pipeRemovePhase(d, i); renderPipelines(true); })()`);
+    await sleep(600);
+    await page.eval(`scrollTo(0, 0)`);
+    await page.shot("pipeline-editor.png", await tall(`document.querySelector("#pipelinesView")`, 1300));
+    await page.eval(`api("/api/pipelines", {data: PIPES.data, forked_from: "feature"})`);
+    await page.eval(`location.hash = "#/pipelines"`);
+    await page.waitFor(`!document.querySelector("#pipelinesView").hidden && document.querySelector("#pipelinesView").textContent.includes("maintenance")`);
+    await sleep(700);
+    await page.eval(`scrollTo(0, 0)`);
+    await page.shot("pipelines.png", await tall(`document.querySelector("#pipelinesView")`, 780));
+
+    await page.eval(`PIPES.draft = null; location.hash = ""`);
+    await page.waitFor(`document.querySelectorAll("article.feat").length >= 5`);
+    await page.eval(`document.querySelector("#newBtn").click()`);
+    await sleep(1200);
+    await page.eval(`(() => { const s = document.querySelector("#nfPipe"), o = [...s.options].find((x) => x.value); s.value = o.value; s.dispatchEvent(new Event("change")); })()`);
+    await sleep(300);
+    await page.shot("new-request-pipeline.png", await page.rect(`document.querySelector("#newF")`, 0));
+    await page.eval(`document.querySelector("#newF").close()`);
+
+    await page.eval(`(() => { S.trust = [{ path: "C:/vault", name: "Vault", kind: "vault", reason: "" }, { path: "C:/projects/storefront", name: "Storefront", kind: "project", reason: "" }]; render(); })()`);
+    await sleep(250);
+    await page.shot("trust-alert.png", await page.rectBetween(`document.querySelectorAll("#banner [data-trust]")[0].parentElement`, `document.querySelectorAll("#banner [data-trust]")[1].parentElement`, 10));
+    await page.eval(`api("/api/features/${made}/cancel", {})`);
     ws.close();
   } finally {
     cleanup();

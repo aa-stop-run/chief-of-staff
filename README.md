@@ -1,12 +1,14 @@
 # Chief of Staff
 
-**A chief of staff for your coding projects.** It sits next to [Claude Code](https://code.claude.com/docs) and turns "I want this done" into a supervised pipeline: a worker writes the spec, you decide; a worker plans it, an independent validator checks the plan; a worker implements it in its own git worktree, an independent reviewer re-runs the tests; and you merge. Nothing is ever pushed for you.
+**A chief of staff for your coding projects.** It sits next to [Claude Code](https://code.claude.com/docs) and turns "I want this done" into a supervised pipeline: a worker analyses the solution and an independent validator challenges it, you decide; a worker writes the spec, you decide; a worker plans it, an independent validator checks the plan; a worker implements it in its own git worktree, an independent reviewer re-runs the tests; and you merge. Nothing is ever pushed for you.
 
 <p align="center"><img src="docs/img/dashboard.png" alt="The Chief's dashboard: requests at every stage of the pipeline, session to-dos and workers" width="900"></p>
 
 - **A dashboard** (127.0.0.1 only) that shows just what needs a decision from you.
-- **A supervised pipeline** for features, bug fixes, maintenance and read-only analyses, with your approval at every gate.
-- **Independent checks built in**: plans are validated and implementations are reviewed *and re-tested* by workers that never saw the author's context.
+- **A supervised pipeline** for features, bug fixes, maintenance and read-only analyses, with your approval at every gate. Features and maintenance start with a **concept**: the solution analysed (approaches, trade-offs, what already exists, what could break) before anyone writes a spec.
+- **Independent checks built in**: concepts and plans are validated and implementations are reviewed *and re-tested* by workers that never saw the author's context.
+- **Pipelines of your own**: choose the type, drop the plan validation, set each phase's model, effort and review rounds, and pick the pipeline when you start a request.
+- **A trail you can audit**: every decision of a request is written to a file that outlives the card, with a digest of what was approved.
 - **Session to-dos**: what you left unfinished in your Claude Code sessions, ready to resume or turn into a request.
 - **Work sessions with their time and AI cost**: start and end a session, see how long it was and what the workers cost, per model and per project (an estimate, labelled as one).
 - **An optional knowledge vault** (Obsidian-style markdown) that workers write to and an automatic curator keeps tidy, with every change revertible.
@@ -59,9 +61,13 @@ One honest caveat: the pipeline relies on workers following long, structured pro
 
 ## A tour of the dashboard
 
-Two tabs sit at the top: **Today** (everything below, the things that need you) and **Projects** (what each project looks like right now).
+Three tabs sit at the top: **Today** (everything below, the things that need you), **Projects** (what each project looks like right now) and **Pipelines** (the steps each kind of request goes through, and your own).
 
-**Requests** move through the pipeline; the page only shows what needs you. A worker writes a spec and leaves its open questions; the Chief turns them into a form with a recommended option for each:
+**Requests** move through the pipeline; the page only shows what needs you. Features and maintenance start with a **concept**: a worker analyses the solution (two or three real approaches with their trade-offs, what already exists in the repository, what could break, the smallest useful version, numbered decisions) and an independent validator, working from a fresh context, challenges it. For each finding you choose **Fix** or **Accept**, and nothing moves on until you approve the concept; the spec (or the plan, for maintenance) then builds on its decisions and deals with any finding you accepted:
+
+<p align="center"><img src="docs/img/request-concept.png" alt="A concept with its approaches and decisions, the independent validation and its findings, waiting for the user's approval" width="860"></p>
+
+Then a worker writes a spec and leaves its open questions; the Chief turns them into a form with a recommended option for each:
 
 <p align="center"><img src="docs/img/request-spec.png" alt="A spec waiting for decisions, with the open questions as a form" width="860"></p>
 
@@ -95,6 +101,21 @@ You start a request from **+ New request**, choosing its kind (feature, bug fix,
 **Workers can suggest requests.** A worker that finds follow-up work (for example a commit after an analysis) can suggest a request. The suggestion appears under **Suggested by workers** with the worker's name; nothing starts until you click **Review and create** and confirm the pre-filled dialog. Each worker can have at most 5 open suggestions, and anything that looks like a credential is removed from them.
 
 <p align="center"><img src="docs/img/new-request.png" alt="The new request dialog" width="420">&nbsp;&nbsp;<img src="docs/img/settings.png" alt="Settings" width="460"></p>
+
+**Pipelines.** The Pipelines tab lists the six built-in pipelines and your own. A pipeline of yours is the built-in phases of **one** request type, in order: you choose the type (feature, bug fix, maintenance or analysis), whether the concept and the independent plan validation are included, and each phase's model, effort and review rounds. Phases, prompts and files stay the built-in ones, so anything you save can run; the server refuses what cannot. A request started from one of your pipelines follows a snapshot of it, so editing or deleting the pipeline later does not change a request already running.
+
+<p align="center"><img src="docs/img/pipelines.png" alt="The Pipelines tab: your own pipeline first, then the six built-in ones" width="860"></p>
+<p align="center"><img src="docs/img/pipeline-editor.png" alt="The pipeline editor: a copy of the feature type without the plan validation, one card per phase with its model, effort and rounds" width="860"></p>
+
+Your pipelines appear in **+ New request** under **Pipeline**; the request then has that pipeline's type and its card shows the pipeline's name and its own phases:
+
+<p align="center"><img src="docs/img/new-request-pipeline.png" alt="The new request dialog with one of the user's own pipelines selected" width="420"></p>
+
+**Folders Claude Code does not trust.** `claude --bg` refuses to start a worker in a folder (or with an added folder, such as the vault) you have not accepted. When that happens the dashboard shows an alert naming the folder, with **Trust this folder**; a second click confirms, and with **Notify me** on you also get a browser notification. Only a folder the Chief manages and that a launch really refused can be added, only on your click, and only that one flag is written in Claude Code's own settings (a backup is left next to it). Trusting the vault also starts the curation again.
+
+<p align="center"><img src="docs/img/trust-alert.png" alt="Two alerts for folders Claude Code does not trust, each with a Trust this folder button" width="860"></p>
+
+**Review warnings.** A card under review warns when the change is larger than `review_limits` (800 lines or 25 files by default) or touches a path matching `protected_paths`. It only informs: the review and your decision are unchanged, and no file names leave the server.
 
 **Projects** lists every project with its category, branch and uncommitted changes, open requests, fixes waiting, and estimated cost. Sort by **Needs attention** (the default) or **Name**, and the search box filters by name. Click one to open its page: a header with a one-sentence description, the branch, changes and last commit, then **Needs attention** (review findings and blocked to-dos, each review finding with a **Create fix request** button that opens the new-request dialog as a bug fix with the finding filled in), its **requests**, an **overview and architecture** (from the vault note or the README), its **documents** (README, `CLAUDE.md`, `ARCHITECTURE.md`, `docs/specs|plans|analyses`, opened in a dialog), its **tools** (commands and the names of the Claude Code skills, agents and MCP servers it configures), **costs**, and its **workers and to-dos**. Each block says where its data came from and disappears when it has nothing to show. Project names elsewhere in the dashboard link to the page.
 
@@ -149,7 +170,9 @@ Every report must say what was actually executed and verified (`EXECUTED AND VER
 | **Maintenance** | concept → plan → execution → review | Behaviour must not change: the suite stays equal to the baseline. No spec. |
 | **Analysis** | read-only report → independent verification | No worktree, no commit. The approved report is archived in the project's `docs/analyses/` and in the vault. |
 
-Approved specs and plans are also copied into the project (`docs/specs/`, `docs/plans/`), uncommitted and never overwriting anything.
+Approved concepts, specs and plans are also copied into the project (`docs/concepts/`, `docs/specs/`, `docs/plans/`), uncommitted and never overwriting anything.
+
+**An audit trail.** Every event of a request (approvals, automatic rounds, the commit, a cancellation) is appended to `decisions.md` in its folder, and at the moments that matter the line carries a short digest of the artifacts that existed then, so «which version did I approve?» can be answered later.
 
 **After you accept.** The merge is yours, and the card helps you finish: it shows the exact commands to merge `feat/<id>`, notices when the branch is merged, and then offers to remove the worktree and the branch. Git itself refuses to remove uncommitted work or an unmerged branch; throwing work away is a separate, explicit action on cancelled requests. **Create follow-up request** starts the next part with a link to the one it follows.
 
@@ -231,6 +254,8 @@ That separation is what lets you **evolve the application while you use it**:
 
 If you keep notes in an Obsidian-style folder, point `vault` at it. Workers leave a note in its `inbox/` when they finish; when the inbox has been quiet for 10 minutes the curator makes a **checkpoint commit**, promotes the drafts into `wiki/` and your project notes, and makes a **second commit** with only what it changed, so `git revert` undoes it. It never deletes a draft it is unsure about (it moves it to a review folder), omits secrets, and marks what it could not confirm. Outside that curation, the Chief never edits an existing note. If a usage limit interrupts the curation it is paused, not failed: the dashboard says when it continues, and it does not count towards the failures that stop the automation.
 
+If Claude Code does not trust the vault folder, the curation cannot start: it shows as **blocked**, not as a failure, retries by itself and starts as soon as you trust the folder (see above). `python scripts/chief.py doctor` warns about it too.
+
 The folder and key names follow `vault_language` (`en` by default, or `pt`):
 
 | | `en` | `pt` |
@@ -243,7 +268,7 @@ The folder and key names follow `vault_language` (`en` by default, or `pt`):
 
 ## Configuration
 
-`projects.json` in your data folder; everything but `models` and `sensitive_paths` can also be edited in **⚙ Settings**.
+`projects.json` in your data folder; everything but `models`, `sensitive_paths`, `review_limits` and `protected_paths` can also be edited in **⚙ Settings**.
 
 | Key | Meaning |
 |---|---|
@@ -255,7 +280,9 @@ The folder and key names follow `vault_language` (`en` by default, or `pt`):
 | `domains` | Per-project category (colours and filters in the dashboard). |
 | `hide_domains` | Categories to hide from the dashboard and from workers. |
 | `models` | Names offered in the model menu. Any name Claude Code accepts. |
-| `phase_models`, `phase_efforts` | Optional model and effort per phase (`spec`, `plan`, `plan-validation`, `build`, `review`, `qa`), e.g. `{"plan": "opus", "review": "sonnet"}` and `{"qa": "low"}`. A phase listed here outranks the request's model; `""` follows it. Questions to the worker use Sonnet unless set. The «By phase» table in the costs dialog shows what each phase costs. |
+| `phase_models`, `phase_efforts` | Optional model and effort per phase (`concept`, `concept-validation`, `spec`, `plan`, `plan-validation`, `build`, `review`, `qa`), e.g. `{"plan": "opus", "review": "sonnet"}` and `{"qa": "low"}`. A phase listed here outranks the request's model; `""` follows it. Questions to the worker use Sonnet unless set. The «By phase» table in the costs dialog shows what each phase costs. |
+| `review_limits` | Size above which a card under review warns: `{"max_diff_lines": 800, "max_diff_files": 25}` (0 turns a limit off). |
+| `protected_paths` | Globs of paths that are sensitive (`["**/migrations/**", "*.ddl"]`): a card whose change touches one warns. Empty by default. |
 | `phase_tools` | Permission rules handed to the worker of a phase that must run git commands a background worker cannot ask about, keyed `<kind>:<stage>`: `{"ship:review": {"allow": ["Bash(git push -u:*)"], "deny": ["Bash(git push*--force*)"]}}`. By default only the *Publish* request has rules (commit in its first phase; push and `gh pr create` in its second, after you approve, with force, delete and merge denied). An empty entry switches a default off. Your Claude Code settings are never changed. |
 | `prices` | Your own prices per model, in USD per million tokens, for the cost estimates. Overrides the built-in list (see [Work sessions and costs](#work-sessions-and-costs)). |
 | `resume_after_limit` | `true` (default): restart a phase a usage limit interrupted, once the limit has reset. See [Plan usage and usage limits](#plan-usage-and-usage-limits). |
@@ -271,6 +298,7 @@ The folder and key names follow `vault_language` (`en` by default, or `pt`):
 - The pipeline's commit refuses files that look like secrets (`.env*`, private keys, `credentials.json`, `secrets.json`): nothing is committed and the card names the files.
 - Workers are told not to delete what they did not create, not to touch secrets (`.env*`, keys, tokens) and not to run irreversible or production actions; those are written as steps for you instead.
 - The Chief never reads or stores credentials and never logs in to GitHub for you; cloning uses the login your git already has.
+- The one place it writes in Claude Code's own settings is when you click **Trust this folder** (and **Connect** for the plan meters): it sets that single flag, leaves a backup next to the file and reads nothing else from it.
 - The project pages read only files inside the project's folder, and only the documents the Chief lists (README, `CLAUDE.md`, `ARCHITECTURE.md`, `docs/specs|plans|analyses`). `.env*`, keys, tokens, secrets files, `settings.local.json` and `CLAUDE.local.md` are never read, and links that leave the project folder are refused. Text is redacted (secrets, private IP addresses, e-mails) before it leaves the server; the Tools block shows names only, never values. Vault `[[wikilinks]]` render as plain text, or as a link when they name a project.
 - Session to-dos are read from your Claude Code sessions with secrets, e-mails and private IP addresses stripped.
 - Costs are computed locally from your own session logs; nothing about them is sent anywhere.
@@ -287,6 +315,14 @@ English is the source language of the code, the prompts and the dashboard; Portu
 python -m pytest tests                  # a few minutes (it starts real demo servers); runs against a throw-away data folder
 python -m pytest tests -m "not slow"    # under two minutes: everything except the tests that start a demo server
 ```
+
+**Real workers.** The suite above uses simulated workers. `tests/real/` drives your own Claude Code for real: a concept written and validated, approved, and read by the spec; requested changes; a maintenance request; and how `claude --bg` treats trusted and untrusted folders. They spend tokens and take minutes, so they are off by default:
+
+```bash
+CHIEF_REAL_TESTS=1 python -m pytest tests/real -q -s      # PowerShell: $env:CHIEF_REAL_TESTS = "1"
+```
+
+They use a small throw-away project (`CHIEF_REAL_PROJECT`, default `D:/_chief_probe/proj`, which Claude Code must already trust) and never change your trusted folders.
 
 The tests never read or write your real data: `tests/conftest.py` points the Chief at a temporary folder before anything is imported.
 
@@ -306,7 +342,7 @@ It starts its own demo server and a headless browser, takes the pictures, and cl
 app/            the dashboard: server.py (HTTP + API) and index.html (the whole UI)
 scripts/        the Chief itself: chief.py (CLI), features.py (pipeline), prompts*.py, curation.py, ...
 docs/           capture_screenshots.mjs and docs/img/
-tests/          pytest suite
+tests/          pytest suite; tests/real/ drives real Claude Code workers (opt-in); tests/legacy_pipelines/ keeps the pipelines without the concept for the tests of that flow
 CLAUDE.md       the instructions Claude Code follows when you open it in this folder
 ```
 

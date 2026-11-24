@@ -212,7 +212,7 @@ dialog.wide{width:min(1040px,calc(100vw - 28px));max-height:calc(100vh - 40px);o
 /* Pipelines page */
 #pipelinesView{padding:6px 0 40px}
 #pipelinesView a.btn{display:inline-flex;align-items:center;text-decoration:none}
-.phead{display:flex;align-items:center;gap:12px;margin:14px 0 8px}.phead h2{margin:0;font-family:var(--font-display);font-size:20px;flex:1}
+.pphead{display:flex;align-items:center;gap:12px;margin:14px 0 8px}.pphead h2{margin:0;font-family:var(--font-display);font-size:20px;flex:1}.pphead .btn{flex:none}
 .plist{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-top:12px}
 .prow{display:flex;align-items:center;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel)}.prow:last-child{border-bottom:0}
 .prow .pc{flex:1;min-width:0}.prow .pacts{flex:none;display:flex;gap:6px;flex-wrap:nowrap}.prow .pacts .btn{white-space:nowrap}
@@ -1896,7 +1896,7 @@ function pipeListHtml(){
       <div class="pc pacts">${f.canEdit?`<a class="btn" href="${esc(routeHash({view:"pipelines",id:r.id,edit:true}))}">${tt("Edit")}</a>
         <button class="btn ghost" type="button" data-pa="del" data-id="${id}">${armed?tt("Click again to delete"):tt("Delete")}</button>`
         :`${f.canFork?`<button class="btn" type="button" data-pa="fork" data-id="${id}">${tt("Use as template")}</button>`:""}`}</div></div>`;}).join("");
-  return `<div class="phead"><h2>${tt("Pipelines")}</h2><a class="btn pri" href="${esc(routeHash({view:"pipelines",new:true,id:""}))}">${tt("New pipeline")}</a></div>
+  return `<div class="pphead"><h2>${tt("Pipelines")}</h2><a class="btn pri" href="${esc(routeHash({view:"pipelines",new:true,id:""}))}">${tt("New pipeline")}</a></div>
     <p class="cnote2">${tt("A pipeline is the sequence of steps a kind of request goes through. Built-in ones cannot be changed: make a copy and edit that. Your own pipelines appear in «+ New request» under «Pipeline».")}</p>
     <div class="plist" role="table">${rows||`<p class="pmute">${tt("No pipelines.")}</p>`}</div>
     ${PIPES.home?`<p class="pmute">${tt("Your pipelines are files in")} ${esc(PIPES.home)}</p>`:""}`;
@@ -1906,7 +1906,7 @@ function pipeDetailsHtml(){
   const d=PIPES.data,back=`<a class="btn ghost" href="${esc(routeHash({view:"pipelines"}))}">← ${tt("Pipelines")}</a>`;
   const edit=PIPES.origin==="user"?`<a class="btn" href="${esc(routeHash({view:"pipelines",id:ROUTE.id,edit:true}))}">${tt("Edit")}</a>`
     :`<button class="btn" type="button" data-pa="fork" data-id="${esc(ROUTE.id)}">${tt("Use as template")}</button>`;
-  return `<div class="phead">${back}<h2>${esc(d.name||d.id)}</h2>${edit}</div>
+  return `<div class="pphead">${back}<h2>${esc(d.name||d.id)}</h2>${edit}</div>
     ${!PIPES.valid?`<p class="cnote2 warn">${esc(PIPES.reason)}</p>`:""}
     <p class="pmute">${esc(d.description||"")} · v${esc(d.version)} · ${tt("{n} request(s)",{n:PIPES.used})}</p>${pipeStepsReadOnly(d)}`;
 }
@@ -1927,13 +1927,13 @@ function pipeChooserHtml(){
   const info={feature:"Concept, spec, plan, build and review",fix:"Diagnose, plan, fix and review",maintenance:"Concept, plan, carry out and review; behaviour does not change",
     analysis:"A read-only report, then a check of its facts"};
   const card=k=>`<button class="ptplc" type="button" data-pa="tpl" data-id="${k}"><strong>${esc(KIND_LABEL[k])}</strong><span>${esc(tt(info[k]))}</span></button>`;
-  return `<div class="phead"><a class="btn ghost" href="${esc(routeHash({view:"pipelines"}))}">← ${tt("Pipelines")}</a><h2>${tt("New pipeline")}</h2></div>
+  return `<div class="pphead"><a class="btn ghost" href="${esc(routeHash({view:"pipelines"}))}">← ${tt("Pipelines")}</a><h2>${tt("New pipeline")}</h2></div>
     <p class="cnote2">${tt("What kind of request is it for?")}</p><div class="ptpl">${PIPE_KINDS.map(card).join("")}</div>`;
 }
 function pipeEditorHtml(){
   const d=PIPES.data,cat=PIPES.catalog,isNew=!!ROUTE.new,probs=pipeShown(d,cat),base=PIPES.bases[d.kind];let n=0;
   const cards=d.steps.map((s,i)=>s.type==="approval"?"":pipePhaseCard(d,i,++n)).join("");
-  return `<div class="phead"><a class="btn ghost" href="${esc(routeHash({view:"pipelines"}))}" data-pa="cancel">← ${tt("Pipelines")}</a><h2>${isNew?tt("New pipeline"):tt("Edit pipeline")}</h2></div>
+  return `<div class="pphead"><a class="btn ghost" href="${esc(routeHash({view:"pipelines"}))}" data-pa="cancel">← ${tt("Pipelines")}</a><h2>${isNew?tt("New pipeline"):tt("Edit pipeline")}</h2></div>
     ${PIPES.forked?`<p class="pmute">${tt("A copy of")} «${esc(PIPES.forked)}»</p>`:""}
     <div class="ptop"><label class="pf pname"><span>${tt("Name your pipeline")}</span><input data-pf="name" value="${esc(d.name||"")}"></label>
       <label class="pf"><span>${tt("Type of request")}</span><select data-pf="kind">${d.kind?"":`<option value="">${esc(tt("(choose)"))}</option>`}${PIPE_KINDS.map(k=>`<option value="${k}"${k===d.kind?" selected":""}>${esc(KIND_LABEL[k])}</option>`).join("")}</select></label></div>
