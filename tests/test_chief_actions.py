@@ -90,6 +90,7 @@ def test_launch_curator_starts_inside_the_vault_and_returns_the_session_id(monke
     assert w["id"] == "abc12345"
     assert Path(seen["cwd"]) == tmp_path                        # its edits are plain edits of its own folder, not of an added one
     assert "--bg" in seen["cmd"] and seen["cmd"][-1] == "do the curation" and "--add-dir" not in seen["cmd"]
+    assert seen["cmd"][seen["cmd"].index("--settings") + 1] == chief.BG_NO_ISOLATION      # the curator edits the vault itself, not a worktree copy
 
 
 def test_launch_curator_reports_a_failed_start(monkeypatch, tmp_path):

@@ -965,10 +965,17 @@ def open_session(project, session_id):
 CURATION_PROJECT = "Vault curation"      # the "project" the curator's workers (and their cost) are filed under
 
 
+# A background session in a git repository is made to work in a worktree before it may edit ("call EnterWorktree first"), which would leave the
+# curator's edits in a copy the Chief never commits. The curator is the one worker that must edit the vault itself, so only it turns that off
+# (for its own session, through --settings: nothing in the vault is changed).
+BG_NO_ISOLATION = '{"worktree": {"bgIsolation": "none"}}'
+
+
 def curator_command(vault, prompt):
     """The curator's launch: (command, folder). It starts INSIDE the vault (which Claude Code must trust), so its edits are plain edits of
     its own working folder: started elsewhere with `--add-dir`, a session may refuse to write the vault and work in a copy instead."""
-    return ["claude", "--bg", "-n", "cos-curation", "--permission-mode", "auto", "--disallowedTools=" + ",".join(fixed_deny()), "--", prompt], str(vault)
+    return ["claude", "--bg", "-n", "cos-curation", "--permission-mode", "auto", "--settings", BG_NO_ISOLATION,
+            "--disallowedTools=" + ",".join(fixed_deny()), "--", prompt], str(vault)
 
 
 def launch_curator(prompt):
