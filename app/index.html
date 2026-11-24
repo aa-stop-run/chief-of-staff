@@ -530,7 +530,7 @@ a.plink:active{color:var(--acc);filter:brightness(1.15)}
     <button class="btn tog" id="notifBtn" type="button" aria-pressed="false" title="Show a browser notification when a request starts waiting for you and this tab is in the background">Notify me</button>
     <button class="btn" id="setBtn" type="button" title="Vault, project folders, categories and git connection">⚙ Settings</button>
     <div class="seg" id="langSw" role="group" aria-label="Language"><button type="button" data-l="pt">PT</button><button type="button" data-l="en">EN</button></div>
-    <span class="curinfo" id="curInfo"></span>
+    <span class="curinfo" id="curInfo"></span><button class="btn" id="curBtn" type="button" hidden title="Process the drafts waiting in the vault inbox now">Curate now</button>
   </div>
 </div></div>
 <main>
@@ -631,6 +631,9 @@ const PT = {
   "The note is fine as it is: hide this finding until the note or the facts change":"A nota está bem: esconde este achado até a nota ou os factos mudarem",
   "Show {n} minor":"Mostrar {n} menores",
   "Hide {n} minor":"Esconder {n} menores",
+  "Curate now":"Curar agora",
+  "Process the drafts waiting in the vault inbox now":"Processa já os rascunhos à espera na inbox do vault",
+  "Curation started.":"Curadoria iniciada.",
   "Vault health":"Saúde do vault",
   "Check the vault now":"Verificar o vault agora",
   "Compare the notes with the projects and with each other":"Compara as notas com os projetos e entre si",
@@ -2120,7 +2123,8 @@ function render(){
   {const cu=S.curation||{attempts:0},ci=$("curInfo");   // only warns when the automation stopped because of failures
     const pz=cu.paused;
     ci.textContent=pz?(pz.until_s==null?tt("Automatic curation paused by a usage limit"):tt("Automatic curation paused by a usage limit, continues in {t}",{t:fmtDuration(pz.until_s)})):cu.attempts>=3?tt("Automatic curation stopped after failures"):"";
-    ci.className=pz||cu.attempts<3?"curinfo":"curinfo bad";}
+    ci.className=pz||cu.attempts<3?"curinfo":"curinfo bad";
+    const cb=$("curBtn");cb.hidden=!(S.vault&&cu.drafts>0&&!cu.running);cb.textContent=tt("Curate now")+" ("+(cu.drafts||0)+")";}
   $("searchBox").classList.toggle("has",!!F.q);
 
   {const live=w=>["working","running","blocked","idle","waiting"].includes(w.state);
@@ -3191,6 +3195,12 @@ function renderVaultHealth(h){
   vhHtml=html;$("vhList").innerHTML=html;
 }
 let vhHtml="";const VH={vault:"",minor:false};
+$("curBtn").addEventListener("click",async ev=>{
+  const b=ev.currentTarget;b.disabled=true;
+  try{await api("/api/inbox/curate",{});toast(tt("Curation started."));await load();}
+  catch(err){toast(err.message,true);}
+  b.disabled=false;
+});
 document.addEventListener("click",async ev=>{
   const b=ev.target.closest&&ev.target.closest("[data-vh],#vhCheck,#vhMinor");if(!b)return;
   if(b.id==="vhMinor"){VH.minor=!VH.minor;vhHtml="";renderVaultHealth(S.vault_health);return;}

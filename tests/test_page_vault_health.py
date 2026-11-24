@@ -51,3 +51,9 @@ def test_the_demo_has_no_vault_health_and_refuses_its_routes(srv):
 def test_a_finding_offers_apply_open_and_one_ignore_and_hides_minor_structure_ones_by_default():
     assert 'data-vh="accept"' not in SEG and 'data-vh="dismiss"' in SEG and "obsidian://open?vault=" in SEG
     assert 'f.layer!=="audit"&&f.severity==="low"' in SEG and "VH.minor" in SEG
+
+
+def test_the_header_has_a_curate_now_button_that_shows_only_with_drafts_and_no_running_curation():
+    assert 'id="curBtn" type="button" hidden' in HTML
+    assert "cb.hidden=!(S.vault&&cu.drafts>0&&!cu.running)" in HTML and 'api("/api/inbox/curate",{})' in HTML
+    assert '"Curate now":"' in HTML
