@@ -216,3 +216,15 @@ def test_a_structure_finding_with_a_replacement_is_applied_like_any_other(env):
     assert "- [[Alfa]]" in (env.vault / "00-Index.md").read_text(encoding="utf-8")
     env.s.refresh_structure()
     assert not [x for x in env.s.status()["findings"] if x["note"] == "00-Index.md"]
+
+
+def test_while_notes_are_waiting_the_next_check_comes_after_five_minutes_not_thirty(env):
+    env.cfg = {"max_notes": 1}
+    env.s.start(force=True)
+    env.finish([])                                                                # 1 note checked, 1 more waiting
+    env.t += sz.GAP_MORE_S + 1
+    assert env.s._due(env.s._load())[0] is True and sz.GAP_MORE_S < sz.GAP_S
+    env.s.start()
+    env.finish([])                                                                # nothing is left now
+    env.t += sz.GAP_MORE_S + 1
+    assert env.s._due(env.s._load())[0] is False                                  # back to the normal interval

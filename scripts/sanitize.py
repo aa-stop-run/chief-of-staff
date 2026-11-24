@@ -19,6 +19,7 @@ import prompts_sanitize
 import vaultcheck
 
 GAP_S = 1800              # minimum interval between runs
+GAP_MORE_S = 300          # ... while notes are still waiting to be checked: go on soon
 WEEK_S = 7 * 86400
 STRUCTURE_EVERY_S = 3600  # the cheap layers are refreshed at most hourly by the ticker
 TIMEOUT_S = 2 * 3600
@@ -27,7 +28,7 @@ MAX_ATTEMPTS = 3
 LIMIT_GRACE_S = 180
 LIMIT_DEFAULT_PAUSE_S = 1800
 BUSY = ("working", "running")
-DEFAULTS = {"enabled": True, "weekly": True, "max_notes": 12, "ignore": []}
+DEFAULTS = {"enabled": True, "weekly": True, "max_notes": 20, "ignore": []}
 
 
 class SanitizeError(Exception):
@@ -60,7 +61,7 @@ class Sanitizer:
 
     def cfg(self) -> dict:
         c = {**DEFAULTS, **((self._config() if self._config else None) or {})}
-        c["max_notes"] = max(1, min(int(c["max_notes"]) if str(c["max_notes"]).isdigit() else 12, 60))
+        c["max_notes"] = max(1, min(int(c["max_notes"]) if str(c["max_notes"]).isdigit() else 20, 60))
         return c
 
     # ---- the cheap layers ----
@@ -111,7 +112,7 @@ class Sanitizer:
         queued = {str(Path(p).resolve()).lower() for p in s["queue"]}
         order = sorted(hubs, key=lambda n: (str(Path(hubs[n]["local"]).resolve()).lower() not in queued, n))
         ignore = [g for g in cfg["ignore"] if isinstance(g, str)]
-        budget, jobs, staged, facts, leftovers = cfg["max_notes"], [], {}, {}, 0
+        budget, jobs, staged, facts, leftovers, verify = cfg["max_notes"], [], {}, {}, 0, []
         for name in order:
             folder = Path(hubs[name]["local"])
             f = self._collect(folder)
@@ -127,6 +128,7 @@ class Sanitizer:
             if not take:
                 continue
             budget -= len(take)
+            verify += take
             changed = [r for r in take if not s["ledger"].get(r) or s["ledger"][r].get("hash") != vaultcheck.sha(texts[r])]
             for r in (take + [x for x in notes if x not in take] if changed and len(notes) > 1 else take):
                 staged[r] = texts[r]
@@ -135,7 +137,7 @@ class Sanitizer:
                 jobs.append({"mode": "freshness", "project": name, "notes": take, "facts": f"facts/{name}.json"})
             if changed and len(notes) > 1:
                 jobs.append({"mode": "contradictions", "project": name, "notes": sorted(r for r in staged if vaultcheck.project_of(r, self.schema["hub_dirs"]) == name), "facts": ""})
-        return {"jobs": jobs, "staged": staged, "facts": facts, "leftovers": leftovers}
+        return {"jobs": jobs, "staged": staged, "facts": facts, "leftovers": leftovers, "verify": verify}
 
     # ---- running ----
     def _curation_busy(self) -> str:
@@ -156,7 +158,7 @@ class Sanitizer:
             return False, "paused by a usage limit"
         if s["attempts"] >= MAX_ATTEMPTS:
             return False, f"stopped after {MAX_ATTEMPTS} consecutive failures: use «Check the vault now»"
-        if self._now() - s["finished_at"] < GAP_S:
+        if self._now() - s["finished_at"] < (GAP_MORE_S if s.get("more") else GAP_S):
             return False, "minimum interval between checks"
         if self._curation_busy():
             return False, self._curation_busy()
@@ -210,7 +212,7 @@ class Sanitizer:
                 self._save(s)
                 raise SanitizeError(s["last"]["info"]) from e
             heads = {j["project"]: plan["facts"][j["project"]] for j in plan["jobs"] if j["project"] in plan["facts"]}
-            s["run"] = {"id": rid, "worker_id": w["id"], "started": self._now(), "stage": str(stage), "leftovers": plan["leftovers"],
+            s["run"] = {"id": rid, "worker_id": w["id"], "started": self._now(), "stage": str(stage), "leftovers": plan["leftovers"], "verify": plan["verify"],
                         "notes": {r: {"hash": vaultcheck.sha(t), "project": vaultcheck.project_of(r, self.schema["hub_dirs"])} for r, t in plan["staged"].items()},
                         "facts": {n: {"digest": h["digest"], "head": h["head"]} for n, h in heads.items()}}
             self._save(s)
@@ -294,14 +296,14 @@ class Sanitizer:
             for f in new:
                 f["base_hash"] = run["notes"][f["note"]]["hash"]
             self._merge_audit(s, checked, new)
-            for rel, meta in run["notes"].items():
+            for rel, meta in ((r, m) for r, m in run["notes"].items() if r in run.get("verify", run["notes"])):
                 cur = vaultcheck.sha(vaultcheck.read_note(self.vault, rel)) if (self.vault / rel).is_file() else ""
                 if cur == meta["hash"]:                     # edited meanwhile: not verified, it will be checked again
                     fx = run["facts"].get(meta["project"], {})
                     s["ledger"][rel] = {"hash": meta["hash"], "head": fx.get("head", ""), "facts": fx.get("digest", ""), "at": self._now()}
             projects = {m["project"] for m in run["notes"].values()}
             s["queue"] = [p for p in s["queue"] if Path(p).name not in projects and not self._queued_for(p, projects)]
-            s.update(attempts=0, run=None, finished_at=self._now(), last_full=self._now() if not run["leftovers"] else s["last_full"],
+            s.update(attempts=0, run=None, more=bool(run["leftovers"]), finished_at=self._now(), last_full=self._now() if not run["leftovers"] else s["last_full"],
                      last={"at": self._now(), "ok": True, "checked": len(run["notes"]), "new": len(new),
                            "info": f"{len(run['notes'])} note(s) checked, {len(new)} finding(s)" + (f", {run['leftovers']} more waiting" if run["leftovers"] else "")})
         self._save(s)
