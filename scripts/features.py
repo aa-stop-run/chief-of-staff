@@ -42,7 +42,7 @@ MAX_TITLE, MAX_DESC, MAX_COMMENT, MAX_ARTIFACT = 120, 4000, 6000, 40_000
 QUESTIONS_FILE = "questions.json"
 QA_DIR = "qa"                 # «Ask the worker»: one answer file per question (qa/<n>.md); the exchange itself is in feature["qa"]
 MAX_QUESTION, MAX_QA_CONTEXT = 2000, 3000   # characters; how much of an earlier answer a new question sees
-ARCHIVE_EVENTS = {"spec": ("spec archived", "spec archiving failed"), "plan": ("plan archived", "plan archiving failed"),
+ARCHIVE_EVENTS = {"concept": ("concept archived", "concept archiving failed"), "spec": ("spec archived", "spec archiving failed"), "plan": ("plan archived", "plan archiving failed"),
                   "analysis": ("analysis archived", "analysis archiving failed")}
 PLAN_REVIEW = "plan-review.md"   # independent plan validation (a sub-step of the plan phase)
 MAX_PLAN_FIXES = 1               # automatic rounds plan -> validation -> plan fix (one: a validator always finds something)
@@ -1062,7 +1062,7 @@ class Features(CheckFlow):
         with self._lock:
             fs = self._load()
             for f in fs:
-                for stage in ("spec", "plan", "review"):
+                for stage in ("concept", "spec", "plan", "review"):
                     target = self._archive_target(f, stage)
                     approved = any(h["event"] == "approved" and h["stage"] == stage for h in f["history"])
                     if target and approved and not any(h["event"] == ARCHIVE_EVENTS[target[0]][1] for h in f["history"]):

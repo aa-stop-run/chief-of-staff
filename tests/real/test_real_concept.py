@@ -51,9 +51,11 @@ def _ensure_project():
         _git("commit", "-m", "init")
 
 
-def _changes() -> str:
-    """The project's uncommitted changes, ignoring Python's bytecode cache (a validator that runs `python -c` creates it; it is not a change)."""
-    return chr(10).join(ln for ln in _git("status", "--porcelain", "-uall").splitlines() if "__pycache__" not in ln)
+def _changes(allow_archive: bool = False) -> str:
+    """The project's uncommitted changes, ignoring Python's bytecode cache (a validator that runs `python -c` creates it; it is not a
+    change). `allow_archive`: also ignore the approved documents the Chief archives under docs/ (concepts, specs, plans)."""
+    skip = ("__pycache__",) + (("docs/concepts/", "docs/specs/", "docs/plans/") if allow_archive else ())
+    return chr(10).join(ln for ln in _git("status", "--porcelain", "-uall").splitlines() if not any(x in ln for x in skip))
 
 
 class Dashboard:
@@ -154,7 +156,16 @@ def test_a_real_concept_is_written_validated_approved_and_read_by_the_spec(dash)
         assert re.search(r"concept|conceito|\bD\d\b", spec, re.I), "the spec does not refer to the concept or its decisions"
         trail = (dash.home / "state" / "features" / fid / "decisions.md").read_text(encoding="utf-8")
         assert "concept validated" in trail or "concept fixes" in trail
-        assert _changes() == dash.project_status_before
+        # the findings the validator left open (you approved without sending them back) must have reached the spec
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import prompt_refs
+        open_ = prompt_refs.open_findings(review)
+        if open_:
+            words = {w.lower() for ln in open_ for w in re.findall(r"[A-Za-z]{6,}", ln.split(":**")[0])}
+            assert any(w in spec.lower() for w in words), f"none of the open findings' words {sorted(words)} appear in the spec"
+        # approving archived the concept in the project's docs/ (uncommitted, like the spec's archive); nothing else changed
+        assert list((PROJECT / "docs" / "concepts").glob("*percent-helper*.md")), "the approved concept was not archived"
+        assert _changes(allow_archive=True) == dash.project_status_before
     finally:
         dash.call(f"/api/features/{fid}/cancel", {})
 
@@ -175,7 +186,7 @@ def test_asking_for_changes_runs_the_real_concept_again_with_your_comment(dash):
         assert (folder / "concept.v1.md").is_file(), "the earlier version was not kept"
         assert after != before
         assert re.search(r"\bNone\b", after), "the new concept does not take the comment into account"
-        assert _changes() == dash.project_status_before
+        assert _changes(allow_archive=True) == dash.project_status_before
     finally:
         dash.call(f"/api/features/{fid}/cancel", {})
 
@@ -194,6 +205,6 @@ def test_a_real_maintenance_request_goes_from_the_concept_to_the_plan_that_reads
                       and (x.get("artifacts") or {}).get("planreview"), "the plan and its validation")
         print("\n---- PLAN (first 900 chars) ----\n" + p["artifacts"]["plan"][:900])
         assert re.search(r"concept|conceito|\bD\d\b", p["artifacts"]["plan"], re.I), "the plan does not refer to the concept"
-        assert _changes() == dash.project_status_before
+        assert _changes(allow_archive=True) == dash.project_status_before
     finally:
         dash.call(f"/api/features/{fid}/cancel", {})

@@ -189,3 +189,68 @@ def test_a_blocked_review_of_a_reserved_concept_does_not_leave_a_check_running(e
     f = new(fs)
     g = concept_validated(fs, fake, root, f["id"], review=REVIEW_RESERVES)
     assert g["status"] == "awaiting" and not g.get("cv", {}).get("checking")
+
+
+# ------------------------------------------------------------------ what the user accepted goes on; the concept is archived
+
+def test_the_findings_left_open_go_to_the_spec_and_the_plan(env):
+    fs, fake, root = env
+    f = new(fs)
+    concept_validated(fs, fake, root, f["id"], review=MINOR)
+    fs.approve(f["id"])
+    task = " ".join(fake.calls[-1]["task"].split())
+    assert "left these findings open" in task and "[MEDIUM] Overview — vague" in task and "[LOW] Goals — wording" in task
+    assert task.index("[MEDIUM]") < task.index("[LOW]")                                 # the most serious first
+
+
+def test_no_findings_means_no_reservations_block(env):
+    fs, fake, root = env
+    f = new(fs)
+    concept_validated(fs, fake, root, f["id"])                                           # APPROVED, "None."
+    fs.approve(f["id"])
+    assert "left these findings open" not in fake.calls[-1]["task"]
+
+
+def test_the_reservations_block_is_in_portuguese_for_a_portuguese_request(env):
+    fs, fake, root = env
+    f = new(fs, lang="pt")
+    concept_validated(fs, fake, root, f["id"], text=CONCEPT_PT, review=MINOR)
+    fs.approve(f["id"])
+    assert "deixou estes achados em aberto" in fake.calls[-1]["task"]
+
+
+def test_open_findings_are_capped_ordered_and_cut_short():
+    import prompt_refs
+    review = "## Findings\n" + "".join(f"- **[LOW] s — t{i}:** x\n" for i in range(9)) + "- **[HIGH] s — big:** " + "y" * 500 + "\n"
+    got = prompt_refs.open_findings(review)
+    assert len(got) == prompt_refs.MAX_RESERVATIONS and got[0].startswith("- **[HIGH]") and len(got[0]) == 300
+    assert prompt_refs.open_findings("None.") == [] and prompt_refs.open_findings("") == []
+
+
+def test_the_approved_concept_is_archived_once_like_the_spec(tmp_path):
+    fake, archived = Fake(), []
+
+    def publisher(doc, project, title, fid, created, text, lang):
+        archived.append((doc, fid, text[:12]))
+        return "copied"
+
+    fs = Features(tmp_path, fake.launch, fake.is_active, auto_review=True, committer=FakeCommit(), publisher=publisher)
+    f = new(fs)
+    concept_validated(fs, fake, tmp_path, f["id"])
+    assert archived == []                                                                # nothing before you approve
+    fs.approve(f["id"])
+    assert archived == [("concept", f["id"], "## Overview\n")]
+    g = card(fs, f["id"])
+    assert any(h["event"] == "concept archived" for h in g["history"])
+    assert fs.publish_approved() == 0                                                    # idempotent
+
+
+def test_chief_archives_a_concept_under_docs_concepts(tmp_path, monkeypatch):
+    import chief
+    proj = tmp_path / "proj"
+    proj.mkdir()
+    monkeypatch.setattr(chief, "load_projects", lambda: [{"name": "Alfa", "path": str(proj)}])
+    monkeypatch.setattr(chief, "vault_enabled", lambda: False)
+    info = chief.archive_doc("concept", "Alfa", "Login with 2FA", "fid-1", "2026-11-24", "## Overview\n- x\n", "en")
+    dest = proj / "docs" / "concepts" / "2026-11-24-login-with-2fa.md"
+    assert dest.is_file() and "Concept approved" in dest.read_text(encoding="utf-8") and "docs/concepts" in info

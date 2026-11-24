@@ -2,6 +2,8 @@
 modules. `render` produces exactly what `Features._task` / the plan validation launch produced before pipelines were data."""
 from pathlib import Path
 
+import re
+
 import fanout
 import prompts
 import prompts_kinds
@@ -32,6 +34,18 @@ def refs() -> tuple:
 
 
 REFS = refs()
+
+
+_FINDING = re.compile(r"^\s*[-*]\s+\*\*\[(CRITICAL|HIGH|MEDIUM|LOW)\]", re.M)
+MAX_RESERVATIONS = 6
+
+
+def open_findings(review: str) -> list:
+    """The findings of a validation, one line each (at most MAX_RESERVATIONS, the most serious first, each cut short)."""
+    rank = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+    lines = [ln.strip() for ln in (review or "").splitlines() if _FINDING.match(ln)]
+    lines.sort(key=lambda ln: rank[_FINDING.match(ln).group(1)])
+    return [ln if len(ln) <= 300 else ln[:299] + "…" for ln in lines[:MAX_RESERVATIONS]]
 
 
 def spec_ref(kind: str, lang: str, d: Path):
@@ -73,6 +87,10 @@ def render(ref: str, lang: str, ctx: dict) -> str:
                             report=d / ARTIFACT["build"], work=d / "work")
     if phase in ("spec", "plan") and (d / ARTIFACT["concept"]).is_file():        # the user approved a solution concept: build on it
         text += P.CONCEPT_BLOCK.format(concept=d / ARTIFACT["concept"])
+        review = d / CONCEPT_REVIEW
+        found = open_findings(review.read_text(encoding="utf-8", errors="replace")) if review.is_file() else []
+        if found:                                   # what the user accepted by approving: the next document must deal with it
+            text += P.CONCEPT_RESERVATIONS.format(findings="\n".join(found))
     if phase == "plan" and kind != "release":          # a release plan is a checklist, not a build to be sized
         text += P.PLAN_SIZE.replace("{max}", str(MAX_PLAN_TASKS))
         if kind in fanout.FAN_OUT_KINDS and not ctx.get("part"):       # JSON braces: appended after .format, like PLAN_SIZE

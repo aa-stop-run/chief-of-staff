@@ -233,6 +233,8 @@ MEDIUM = ambiguity or risk; LOW = style.
 If there are no findings write "None."
 End with [DONE]."""
 
+CONCEPT_RESERVATIONS = ("\n\nThe independent validation of the concept left these findings open, and the user approved the concept "
+                        "without having them fixed. Address each one in your document (or record it as a risk or an open question):\n{findings}")
 FEEDBACK_CONCEPT = ("The independent concept validation (file {path}) blocked it. Read it and fix the concept: the CRITICAL and HIGH "
                     "ones first, then the rest where it makes sense. Keep the structure and the sections.")
 # Appended to the spec and plan prompts only when the request has an approved concept (a request without one gets the old prompts).

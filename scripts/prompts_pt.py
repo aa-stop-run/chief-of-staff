@@ -217,6 +217,8 @@ MEDIUM = ambiguidade ou risco; LOW = estilo.
 Se não houver achados escreve «Nenhum.»
 Termina com [DONE]."""
 
+CONCEPT_RESERVATIONS = ("\n\nA validação independente do conceito deixou estes achados em aberto, e o utilizador aprovou o conceito sem "
+                        "os mandar corrigir. Trata cada um no teu documento (ou regista-o como risco ou como pergunta em aberto):\n{findings}")
 FEEDBACK_CONCEPT = ("A validação independente do conceito (ficheiro {path}) bloqueou-o. Lê-a e corrige o conceito: primeiro os CRITICAL e "
                     "HIGH, depois o resto que fizer sentido. Mantém a estrutura e as secções.")
 CONCEPT_BLOCK = ("\n\n## Conceito aprovado\nO utilizador aprovou o conceito da solução em {concept}. Lê-o primeiro e cumpre as suas "

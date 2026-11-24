@@ -77,14 +77,14 @@ DRAFT_TEXTS = {
            "in_chief": "in the Chief's projects (cloned from {url})",
            "via_dashboard": "into the Chief's projects (dashboard: «+ Add project»)",
            "archived": "{label} “{title}” (request `{fid}`); copy in the repo at `{where}`. Promote to the project hub: decision, scope and acceptance criteria.\n\n",
-           "labels": {"spec": "Approved spec", "plan": "Approved plan", "analysis": "Approved analysis"},
+           "labels": {"concept": "Approved concept", "spec": "Approved spec", "plan": "Approved plan", "analysis": "Approved analysis"},
            "fallback": "project"},
     "pt": {"added": "O utilizador pôs a pasta `{stored}` {what}.\nAinda sem nota no vault: criar o hub do projeto (domínio e stack a confirmar).\n",
            "title": "projeto adicionado ao Chief",
            "in_chief": "nos projetos do Chief (clonado de {url})",
            "via_dashboard": "aos projetos do Chief (dashboard: «+ Adicionar projeto»)",
            "archived": "{label} «{title}» (pedido `{fid}`); cópia no repo em `{where}`. Promover para o hub do projeto: decisão, âmbito e critérios de aceitação.\n\n",
-           "labels": {"spec": "Spec aprovada", "plan": "Plano aprovado", "analysis": "Análise aprovada"},
+           "labels": {"concept": "Conceito aprovado", "spec": "Spec aprovada", "plan": "Plano aprovado", "analysis": "Análise aprovada"},
            "fallback": "projeto"},
 }
 DRAFT_TEXT = DRAFT_TEXTS[VAULT_LANG]
@@ -970,8 +970,8 @@ def launch_curator(prompt):
     return {"id": m[1], "name": "cos-curation"}
 
 
-ARCHIVE_DIRS = {"spec": "specs", "plan": "plans", "analysis": "analyses"}   # docs/specs, docs/plans and docs/analyses in each project
-ARCHIVE_LABELS = {"spec": ("Spec aprovada", "Spec"), "plan": ("Plano aprovado", "Plan"),
+ARCHIVE_DIRS = {"concept": "concepts", "spec": "specs", "plan": "plans", "analysis": "analyses"}   # docs/specs, docs/plans and docs/analyses in each project
+ARCHIVE_LABELS = {"concept": ("Conceito aprovado", "Concept"), "spec": ("Spec aprovada", "Spec"), "plan": ("Plano aprovado", "Plan"),
                   "analysis": ("Análise aprovada", "Analysis")}   # (repo label in Portuguese, repo label in English)
 
 

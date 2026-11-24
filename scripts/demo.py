@@ -233,6 +233,27 @@ Command: `pytest -q`
 MARKER = ".chief-demo"
 
 
+CONCEPT_DONE = """## Overview
+- The solution, analysed before the spec: what to build, the approaches weighed and why this one.
+
+## Goals
+- The smallest change that solves the request.
+
+## Non-goals
+- Anything the request did not ask for.
+
+## Approaches considered
+- **A (recommended):** the simplest approach that reuses what the repo already has.
+- **B:** a bigger rewrite. Rejected: more risk for no extra value now.
+
+## Recommendation and decisions
+- **D1:** go with A.
+
+## Smallest useful version
+- Approach A with its tests.
+"""
+
+
 def prepare_dir(path) -> Path:
     """The folder the sample world is built in. An existing folder is only reused (and later deleted) if it is empty or was made
     by a previous demo, so a typo in CHIEF_DEMO_DIR can never point the demo at somebody's real files."""
@@ -351,27 +372,31 @@ def seed(base: Path, now: datetime | None = None) -> Path:
         _write(state / "features" / fid / name, text)
 
     ev = lambda m, e, s, n="": _event(now, m, e, s, n)  # noqa: E731
+    concept = lambda m: [ev(m, "worker launched", "concept"), ev(m - 8, "finished", "concept"), ev(m - 9, "concept validation", "concept"),   # noqa: E731
+                         ev(m - 15, "concept validated", "concept", "approved"), ev(m - 17, "approved", "concept")]
 
     # 1. a spec waiting for decisions (open questions)
     f1 = "two-factor-login-totp-demo01"
+    art(f1, "concept.md", CONCEPT_DONE)
     art(f1, "spec.md", SPEC_2FA)
     art(f1, "questions.json", QUESTIONS_2FA)
     feat1 = _feature(now, f1, "Two-factor login (TOTP)", "Storefront", "Let customers turn on 2FA with an authenticator app.",
-                     "feature", "spec", "awaiting", [ev(52, "worker launched", "spec", "cos-demo001"), ev(41, "finished", "spec")],
-                     worker="demo001", created_min=55)
+                     "feature", "spec", "awaiting", [*concept(80), ev(52, "worker launched", "spec", "cos-demo001"), ev(41, "finished", "spec")],
+                     worker="demo001", created_min=85)
     # 2. a plan that an independent validator has already checked
     f2 = "retry-failed-webhooks-demo02"
+    art(f2, "concept.md", CONCEPT_DONE)
     art(f2, "spec.md", SPEC_WEBHOOKS)
     art(f2, "plan.md", PLAN_WEBHOOKS)
     art(f2, "plan-review.md", PLAN_REVIEW_WEBHOOKS)
     feat2 = _feature(now, f2, "Retry failed webhooks", "Payments API", "Retry webhook deliveries with exponential back-off.",
                      "feature", "plan", "awaiting",
-                     [ev(1500, "worker launched", "spec", "cos-demo002"), ev(1480, "finished", "spec"), ev(1470, "approved", "spec"),     # yesterday's session
+                     [*concept(1560), ev(1500, "worker launched", "spec", "cos-demo002"), ev(1480, "finished", "spec"), ev(1470, "approved", "spec"),     # yesterday's session
                       ev(1469, "spec archived", "spec", "copied to docs/specs/retry-failed-webhooks.md and a draft in the vault"),
                       ev(268, "worker launched", "plan", "cos-demo003"), ev(240, "finished", "plan"),
                       ev(239, "plan validation", "plan", "cos-demo004"), ev(225, "plan validated", "plan", "with reservations")],
                      rev={"spec": 0}, pv={"checking": False, "fixes": 0, "retries": 0, "rev": 0}, worker="demo004", model="sonnet",
-                     created_min=1505)
+                     created_min=1565)
     # 3. an implementation that passed its independent review (bug fix)
     f3 = "cart-total-is-off-by-one-cent-demo03"
     art(f3, "spec.md", SPEC_CART)
@@ -396,23 +421,24 @@ def seed(base: Path, now: datetime | None = None) -> Path:
                      [ev(7, "worker launched", "build", "cos-demo007")], worker="demo007", created_min=8)
     # 5. an implementation in progress
     f5 = "csv-export-of-trips-demo05"
+    art(f5, "concept.md", CONCEPT_DONE)
     art(f5, "spec.md", "# CSV export of trips\n\n## Goal and why\nExport all trips to CSV so they can be opened in a spreadsheet.\n")
     art(f5, "plan.md", "# Plan\n\n## Tests\nFull suite: `pytest -q`.\n")
     feat5 = _feature(now, f5, "CSV export of trips", "Travel Journal", "Export all trips to a CSV file.", "feature", "build", "working",
-                     [ev(120, "worker launched", "spec"), ev(110, "finished", "spec"), ev(108, "approved", "spec"),
+                     [*concept(160), ev(120, "worker launched", "spec"), ev(110, "finished", "spec"), ev(108, "approved", "spec"),
                       ev(107, "worker launched", "plan"), ev(98, "finished", "plan"), ev(97, "plan validation", "plan"),
                       ev(90, "plan validated", "plan", "approved"), ev(88, "approved", "plan"),
                       ev(22, "worker launched", "build", "cos-demo008")], worker="demo008", model="opus", created_min=125)
     # 6-8. finished requests: one closed in this session, the other two in earlier sessions
     done = []
     for fid, title, proj, kind, stages, base, sess in (
-            ("weekly-digest-email-demo07", "Weekly digest email", "Storefront", "feature", ("spec", "plan", "build", "review"), 300, SESSION_NOW),
-            ("upgrade-pytest-to-9-demo06", "Upgrade pytest to 9", "Dotfiles", "maintenance", ("plan", "build", "review"), 1650, SESSION_YESTERDAY),
+            ("weekly-digest-email-demo07", "Weekly digest email", "Storefront", "feature", ("concept", "spec", "plan", "build", "review"), 300, SESSION_NOW),
+            ("upgrade-pytest-to-9-demo06", "Upgrade pytest to 9", "Dotfiles", "maintenance", ("concept", "plan", "build", "review"), 1650, SESSION_YESTERDAY),
             ("fix-flaky-login-test-demo08", "Fix the flaky login test", "Storefront", "fix", ("spec", "plan", "build", "review"), 2900, SESSION_BEFORE)):
         hist = []
         for i, st in enumerate(stages):
             hist += [ev(base - i * 60, "worker launched", st), ev(base - i * 60 - 10, "finished", st), ev(base - i * 60 - 15, "approved", st)]
-        for st, name in (("spec", "spec.md"), ("plan", "plan.md"), ("build", "report.md")):
+        for st, name in (("concept", "concept.md"), ("spec", "spec.md"), ("plan", "plan.md"), ("build", "report.md")):
             if st in stages:
                 art(fid, name, f"# {title}\n\nDone.\n")
         art(fid, "review.md", "## Verdict\nAPPROVED — all good.\n\n## Tests\nCONFIRMED\nREVIEWER RESULT: 120 passed, 0 failed\n\n## Findings\nNone.\n")
