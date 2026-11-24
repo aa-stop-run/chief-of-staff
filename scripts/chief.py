@@ -965,24 +965,25 @@ def open_session(project, session_id):
 CURATION_PROJECT = "Vault curation"      # the "project" the curator's workers (and their cost) are filed under
 
 
-def launch_curator(prompt):
-    """Launch the vault curator: a `claude --bg` with access to the vault.
+def curator_command(vault, prompt):
+    """The curator's launch: (command, folder). It starts INSIDE the vault (which Claude Code must trust), so its edits are plain edits of
+    its own working folder: started elsewhere with `--add-dir`, a session may refuse to write the vault and work in a copy instead."""
+    return ["claude", "--bg", "-n", "cos-curation", "--permission-mode", "auto", "--disallowedTools=" + ",".join(fixed_deny()), "--", prompt], str(vault)
 
-    It starts from the Chief folder (already trusted): in the vault folder claude refuses background sessions until the
-    user accepts the folder trust. The prompt tells it to read the vault's CLAUDE.md first."""
+
+def launch_curator(prompt):
+    """Launch the vault curator: a `claude --bg` started in the vault. The prompt tells it to read the vault's CLAUDE.md first."""
     if not vault_enabled():
         raise RuntimeError("no vault configured")
-    cmd = ["claude", "--bg", "-n", "cos-curation", "--add-dir", str(VAULT), "--permission-mode", "auto",
-           "--disallowedTools=" + ",".join(fixed_deny()), "--", prompt]
+    cmd, cwd = curator_command(VAULT, prompt)
     with _LAUNCH_LOCK:
-        r = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, encoding="utf-8", timeout=120,
-                           creationflags=NO_WINDOW)
+        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, encoding="utf-8", timeout=120, creationflags=NO_WINDOW)
     m = re.search(r"backgrounded\s*·\s*([0-9a-f]{6,})", r.stdout + r.stderr)
     if not m:
         _refused(r.stdout + r.stderr, str(VAULT), "Vault", "vault")
         raise RuntimeError("claude --bg did not start: " + (r.stdout + r.stderr)[-400:])
     with _LAUNCH_LOCK:                                   # recorded so that its cost is counted too
-        record_worker({"name": "cos-curation", "id": m[1], "project": CURATION_PROJECT, "cwd": str(ROOT), "task": "Vault curation",
+        record_worker({"name": "cos-curation", "id": m[1], "project": CURATION_PROJECT, "cwd": str(VAULT), "task": "Vault curation",
                        "started": datetime.now().isoformat(timespec="seconds"), "model": "default", "phase": "curation",
                        "session": work_sessions().current_id()})
     return {"id": m[1], "name": "cos-curation"}

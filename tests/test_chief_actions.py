@@ -77,7 +77,7 @@ class _Run:
         self.stdout, self.stderr, self.returncode = out, "", 0
 
 
-def test_launch_curator_runs_from_the_chief_folder_and_returns_the_session_id(monkeypatch, tmp_path):
+def test_launch_curator_starts_inside_the_vault_and_returns_the_session_id(monkeypatch, tmp_path):
     monkeypatch.setattr(chief, "VAULT", tmp_path)          # a vault that exists
     seen = {}
 
@@ -88,9 +88,8 @@ def test_launch_curator_runs_from_the_chief_folder_and_returns_the_session_id(mo
     monkeypatch.setattr(subprocess, "run", fake_run)
     w = chief.launch_curator("do the curation")
     assert w["id"] == "abc12345"
-    assert Path(seen["cwd"]) == chief.ROOT                      # not started in the vault: claude refuses untrusted folders
-    assert "--bg" in seen["cmd"] and seen["cmd"][-1] == "do the curation"
-    assert seen["cmd"][seen["cmd"].index("--add-dir") + 1] == str(chief.VAULT)
+    assert Path(seen["cwd"]) == tmp_path                        # its edits are plain edits of its own folder, not of an added one
+    assert "--bg" in seen["cmd"] and seen["cmd"][-1] == "do the curation" and "--add-dir" not in seen["cmd"]
 
 
 def test_launch_curator_reports_a_failed_start(monkeypatch, tmp_path):
