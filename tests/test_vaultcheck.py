@@ -183,3 +183,8 @@ def test_the_log_gets_a_new_entry_at_the_top_newest_first(vault):
     assert text.index("## 2026-11-24 — vault sanitizer") < text.index("## 2026-11-13 — curadoria")
     assert "- [[Projetos/Alfa]]" in text and text.startswith("---\ntitle: Log\n---\n# Wiki Log")
     vc.log_entry(vault / "nope", "x", [])                                                            # no log: nothing happens
+
+
+def test_ambiguous_link_targets_of_the_linter_are_not_reported(vault):
+    report = {"ambiguous_targets": [{"path": "wiki/log.md", "target": "Estado"}], "orphans": [{"path": "wiki/b.md"}]}
+    assert kinds(vc.plugin_lint(vault, lint_fn=lambda root: report)) == ["lint-orphans"]

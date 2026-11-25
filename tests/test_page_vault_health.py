@@ -64,3 +64,8 @@ def test_the_card_shows_the_map_line_and_an_update_button_and_the_demo_has_no_ma
     assert '"Update the map":"' in HTML and '"Map: {h} hubs, {p} relations, {l} labelled":"' in HTML
     assert srv.get("/api/state")[1]["vault_map"] is None
     assert srv.post("/api/vault/map", {})[0] == 400
+
+
+def test_a_finding_without_a_replacement_can_be_sent_to_the_curation():
+    assert 'data-vh="fix"' in SEG and '!f.replace&&f.layer!=="health"&&!String(f.kind).startsWith("lint-")' in SEG
+    assert '"Ask the curation to fix it":"' in HTML

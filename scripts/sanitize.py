@@ -348,6 +348,45 @@ class Sanitizer:
             s["findings"] = [x for x in s["findings"] if x["id"] != fid]
             self._save(s)
 
+    def fix(self, fid: str) -> dict:
+        """Ask the curation to correct the note: a draft in the vault inbox with the quote, the evidence and what is wrong. The curator, which
+        already edits the vault with a revertible commit, makes the edit; where the right text cannot be known it must not guess."""
+        with self._lock:
+            s = self._load()
+            f = self._find(s, fid)
+            if f["layer"] == "health" or f["kind"].startswith("lint-"):
+                raise SanitizeError("this finding cannot be sent to the curation")
+            fm = self.schema["fm"]
+            pt = fm.get("project", "") == "projeto"
+            hub = vaultcheck.project_of(f["note"], self.schema["hub_dirs"]) or Path(f["note"]).stem
+            day = datetime.fromtimestamp(self._now()).strftime("%Y-%m-%d")
+            body = [f"Corrigir a nota `{f['note']}`." if pt else f"Correct the note `{f['note']}`.",
+                    ("Citação: " if pt else "Quote: ") + (f["quote"] or "-"),
+                    ("Evidência:" if pt else "Evidence:")] + [f"- {e}" for e in f["evidence"]]
+            if f.get("detail"):
+                body.append(f["detail"])
+            body.append("Corrige apenas o que a evidência prova; se o texto certo não se puder confirmar, escreve «(a confirmar)» em vez de adivinhar, e não apagues informação que não seja contradita."
+                        if pt else "Correct only what the evidence proves; if the right text cannot be confirmed write «(to be confirmed)» instead of guessing, and keep information that is not contradicted.")
+            head = ["---", f'{fm.get("project", "project")}: "[[{hub}]]"',
+                    f'{fm.get("kind", "type")}: {"aprendizagem" if pt else "learning"}',
+                    f'{fm.get("status", "status")}: {"rascunho" if pt else "draft"}',
+                    f'{fm.get("date", "date")}: {day}', "---"]
+            text = chr(10).join(head + body) + chr(10)
+            if vaultcheck.has_secret(text):
+                raise SanitizeError("the draft would contain something that looks like a secret, a private IP or an e-mail address")
+            inbox = self.vault / "inbox"
+            inbox.mkdir(exist_ok=True)
+            name = f"{day} {hub} - correcao de {Path(f['note']).stem}.md"[:150]
+            n, path = 1, inbox / name
+            while path.exists():
+                n += 1
+                path = inbox / name.replace(".md", f" ({n}).md")
+            path.write_text(text, encoding="utf-8", newline="")
+            s["dismissed"][f["fingerprint"]] = self._now()
+            s["findings"] = [x for x in s["findings"] if x["id"] != fid]
+            self._save(s)
+            return {"draft": path.name}
+
     def apply(self, fid: str) -> dict:
         """Apply a finding's exact replacement to the note: checkpoint commit, the change, a result commit, a line in wiki/log.md."""
         with self._lock:

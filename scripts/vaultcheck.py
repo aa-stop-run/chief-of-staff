@@ -20,7 +20,7 @@ SEVERITIES = ("high", "medium", "low")
 MAX_FINDINGS, MAX_TEXT, MAX_EVIDENCE = 40, 400, 5
 DRAFT_AGE_S = 3 * 86400
 HOT_STALE_DAYS = 14
-LINT_CATEGORIES = ("dangling_links", "ambiguous_targets", "orphans", "empty_sections", "stale_index_entries")
+LINT_CATEGORIES = ("dangling_links", "orphans", "empty_sections", "stale_index_entries")   # not «ambiguous_targets»: hot.md and log.md link by short names on purpose
 
 
 class FindingsError(Exception):
