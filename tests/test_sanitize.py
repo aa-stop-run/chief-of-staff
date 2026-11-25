@@ -228,3 +228,33 @@ def test_while_notes_are_waiting_the_next_check_comes_after_five_minutes_not_thi
     env.finish([])                                                                # nothing is left now
     env.t += sz.GAP_MORE_S + 1
     assert env.s._due(env.s._load())[0] is False                                  # back to the normal interval
+
+
+def test_asking_the_curation_leaves_a_draft_in_the_inbox_and_the_finding_stays_gone(env):
+    SCHEMA_PT = {**SCHEMA, "fm": {"kind": "tipo", "status": "estado", "project": "projeto", "date": "data"}}
+    env.s.schema = SCHEMA_PT
+    env.s.start(force=True)
+    env.finish([remote_finding() | {"replace": None}])
+    fid = env.s.status()["findings"][0]["id"]
+    out = env.s.fix(fid)
+    draft = (env.vault / "inbox" / out["draft"]).read_text(encoding="utf-8")
+    assert out["draft"].startswith("2027-") or out["draft"][:4].isdigit()
+    assert 'projeto: "[[Alfa]]"' in draft and "estado: rascunho" in draft and "Projetos/Alfa.md" in draft
+    assert "O repo não tem remoto." in draft and "facts/Alfa.json" in draft and "(a confirmar)" in draft
+    assert env.s.status()["open"] == 0 and not (env.vault / "Projetos" / "Alfa.md").read_text(encoding="utf-8").count("tem o remoto")
+    env.facts["head"] = "h2"
+    env.t += 4000
+    env.s.start(force=True)
+    env.finish([remote_finding() | {"replace": None}])
+    assert env.s.status()["open"] == 0                                              # it does not come back while the note and evidence are the same
+
+
+def test_a_finding_that_is_not_about_a_note_cannot_be_sent_and_a_secret_is_never_written(env):
+    env.s.refresh_structure()
+    for f in env.s.status()["findings"]:
+        if f["layer"] == "health" or f["kind"].startswith("lint-"):
+            with pytest.raises(sz.SanitizeError):
+                env.s.fix(f["id"])
+    env.s.start(force=True)
+    env.finish([remote_finding() | {"replace": None, "evidence": ["facts/Alfa.json: remote is origin"], "detail": "ver 10.0.0.5"}])
+    assert env.s.status()["last"]["ok"] is False                                    # a secret in the findings refuses the whole file already

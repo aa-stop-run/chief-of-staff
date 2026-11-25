@@ -640,6 +640,9 @@ const PT = {
   "The map could not be updated":"Não foi possível atualizar o mapa",
   "Map: {h} hubs, {p} relations, {l} labelled":"Mapa: {h} hubs, {p} relações, {l} com etiqueta",
   "Map up to date.":"Mapa atualizado.",
+  "Ask the curation to fix it":"Pedir correção à curadoria",
+  "Leaves a draft in the vault inbox; the curation corrects the note (with a commit you can revert)":"Deixa um rascunho na inbox do vault; a curadoria corrige a nota (com um commit que podes reverter)",
+  "Draft left in the inbox: «Curate now» applies it.":"Rascunho deixado na inbox: «Curar agora» aplica-o.",
   "Vault health":"Saúde do vault",
   "Check the vault now":"Verificar o vault agora",
   "Compare the notes with the projects and with each other":"Compara as notas com os projetos e entre si",
@@ -3183,6 +3186,7 @@ function vhCard(f){
   return `<article class="pend vh-${esc(f.severity)}"><div class="ptop"><span class="kind">${esc(tt(VH_SEV[f.severity]||f.severity))}</span><span class="path">${esc(f.note)}</span></div>
     ${f.quote?`<blockquote class="vhq">${esc(f.quote)}</blockquote>`:""}<ul class="vhev">${ev}</ul>${f.detail?`<p class="m">${esc(f.detail)}</p>`:""}${fix}
     <div class="pfoot">${f.replace?`<button class="btn sm pri" type="button" data-vh="apply" data-id="${id}" title="${esc(tt("Changes the note, with a commit before and after (git revert undoes it)"))}">${tt("Apply")}</button>`:""}
+      ${!f.replace&&f.layer!=="health"&&!String(f.kind).startsWith("lint-")?`<button class="btn sm pri" type="button" data-vh="fix" data-id="${id}" title="${esc(tt("Leaves a draft in the vault inbox; the curation corrects the note (with a commit you can revert)"))}">${tt("Ask the curation to fix it")}</button>`:""}
       <a class="btn sm" href="obsidian://open?vault=${encodeURIComponent(VH.vault)}&amp;file=${encodeURIComponent(f.note.replace(/\.md$/,""))}" title="${esc(tt("Opens the note in Obsidian"))}">${tt("Open the note")}</a>
       <button class="btn sm ghost" type="button" data-vh="dismiss" data-id="${id}" title="${esc(tt("The note is fine as it is: hide this finding until the note or the facts change"))}">${tt("Ignore (it is fine)")}</button></div></article>`;
 }
@@ -3222,7 +3226,7 @@ document.addEventListener("click",async ev=>{
   if(b.dataset.vh==="apply"&&!armed(b,tt("This changes the note in the vault."))){return;}
   b.disabled=true;
   try{await api(`/api/vault/findings/${encodeURIComponent(b.dataset.id)}/${b.dataset.vh}`,{});
-    toast(b.dataset.vh==="apply"?tt("Note updated."):tt("Done."));await load();}
+    toast(b.dataset.vh==="apply"?tt("Note updated."):b.dataset.vh==="fix"?tt("Draft left in the inbox: «Curate now» applies it."):tt("Done."));await load();}
   catch(err){toast(err.message,true);b.disabled=false;}
 });
 function propCard(x){

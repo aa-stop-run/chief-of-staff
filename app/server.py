@@ -682,7 +682,7 @@ class Handler(BaseHTTPRequestHandler):
                     return {"ok": True, **MAPPER.start(force=True)}
                 if parts == ["api", "vault", "check"]:
                     return {"ok": True, **SANITIZER.start(force=True)}
-                if len(parts) == 5 and parts[2] == "findings" and parts[4] in ("apply", "accept", "dismiss"):
+                if len(parts) == 5 and parts[2] == "findings" and parts[4] in ("apply", "accept", "dismiss", "fix"):
                     out = getattr(SANITIZER, parts[4])(parts[3])
                     return {"ok": True, **(out or {})}
             except (SanitizeError, MapError) as e:
