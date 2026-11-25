@@ -69,7 +69,7 @@ class Mapper:
 
     def write(self, s: dict, mp: dict, why: str) -> bool:
         """Write the canvas for the labels that are still valid. True when the file changed (and was committed)."""
-        text = vaultmap.canvas_text(mp, self._current_labels(s, mp))
+        text = vaultmap.canvas_text(mp, self._current_labels(s, mp), vaultmap.lang_of(self._lang))
         path = self.vault / vaultmap.AUTO_NAME
         if path.is_file() and path.read_text(encoding="utf-8") == text:
             return False

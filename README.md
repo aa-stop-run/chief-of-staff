@@ -117,6 +117,10 @@ Your pipelines appear in **+ New request** under **Pipeline**; the request then 
 
 <p align="center"><img src="docs/img/trust-alert.png" alt="Two alerts for folders Claude Code does not trust, each with a Trust this folder button" width="860"></p>
 
+**Vault health** (only with a vault). A card that keeps your project notes matching your projects and not contradicting each other. It checks the notes' structure and secrets without any worker, and compares a project's notes with the real facts of its folder (remote, branch, recent commits, README commands) and with each other, with one read-only worker that only ever sees copies of the notes. Every finding quotes the note and shows its evidence. **Apply** makes the exact correction (a commit before, the change, a line in `wiki/log.md` and a commit after, so `git revert` undoes it); **Ask the curation to fix it** leaves a draft in the vault inbox when the right text cannot be calculated; **Open the note** opens it in Obsidian; **Ignore** hides the finding until the note or the evidence changes. The same card has **Update the map**. A **Curate now** button appears in the header when drafts are waiting.
+
+<p align="center"><img src="docs/img/vault-health.png" alt="The Vault health card: findings with their quote and evidence, Apply, Ask the curation to fix it, Open the note and Ignore" width="860"></p>
+
 **Review warnings.** A card under review warns when the change is larger than `review_limits` (800 lines or 25 files by default) or touches a path matching `protected_paths`. It only informs: the review and your decision are unchanged, and no file names leave the server.
 
 **Projects** lists every project with its category, branch and uncommitted changes, open requests, fixes waiting, and estimated cost. Sort by **Needs attention** (the default) or **Name**, and the search box filters by name. Click one to open its page: a header with a one-sentence description, the branch, changes and last commit, then **Needs attention** (review findings and blocked to-dos, each review finding with a **Create fix request** button that opens the new-request dialog as a bug fix with the finding filled in), its **requests**, an **overview and architecture** (from the vault note or the README), its **documents** (README, `CLAUDE.md`, `ARCHITECTURE.md`, `docs/specs|plans|analyses`, opened in a dialog), its **tools** (commands and the names of the Claude Code skills, agents and MCP servers it configures), **costs**, and its **workers and to-dos**. Each block says where its data came from and disappears when it has nothing to show. Project names elsewhere in the dashboard link to the page.
@@ -256,7 +260,18 @@ That separation is what lets you **evolve the application while you use it**:
 
 If you keep notes in an Obsidian-style folder, point `vault` at it. Workers leave a note in its `inbox/` when they finish; when the inbox has been quiet for 10 minutes the curator makes a **checkpoint commit**, promotes the drafts into `wiki/` and your project notes, and makes a **second commit** with only what it changed, so `git revert` undoes it. It never deletes a draft it is unsure about (it moves it to a review folder), omits secrets, and marks what it could not confirm. Outside that curation, the Chief never edits an existing note. If a usage limit interrupts the curation it is paused, not failed: the dashboard says when it continues, and it does not count towards the failures that stop the automation.
 
+The curator starts **inside the vault**, with background worktree isolation turned off for its own session only (Claude Code otherwise makes a background session in a git repository work in a worktree copy, which would leave its edits where the Chief never commits them). Nothing in your vault is changed to do that.
+
 If Claude Code does not trust the vault folder, the curation cannot start: it shows as **blocked**, not as a failure, retries by itself and starts as soon as you trust the folder (see above). `python scripts/chief.py doctor` warns about it too.
+
+### Keeping the vault right
+
+Two small automations run on top of the curation; both write the vault only through a checkpoint commit and a result commit (so each change can be reverted), and both wait while the curation is running.
+
+- **The sanitizer** (the *Vault health* card above). A note is checked again only when its text, the project's HEAD or the project's facts changed. It runs after a request closes, weekly and on demand, 20 notes per run (more soon while some are waiting), and 3 failures in a row stop it until you press the button. The worker never gets the vault: only copies of the notes and a small facts file, in a throw-away folder.
+- **The map.** `Mapa automático.canvas` is generated from the `[[links]]` between your hubs (projects and areas): areas on top, projects by category below, up to four key notes under each, and one relation per linked pair. A relation's label is written by a read-only worker from the sentence that links the two notes («hosts», «replaced by»…); the Chief checks the label and the quote it rests on, and with no valid label the relation says how many notes cite it. Your own hand-drawn `Mapa.canvas` is never touched. The picture below is drawn by the same code from a sample vault (`python docs/render_vault_map.py`).
+
+<p align="center"><img src="docs/img/vault-map.svg" alt="The generated vault map: areas and projects grouped by category, with labelled relations such as hosts and replaced by" width="760"></p>
 
 The folder and key names follow `vault_language` (`en` by default, or `pt`):
 
@@ -287,6 +302,8 @@ The folder and key names follow `vault_language` (`en` by default, or `pt`):
 | `protected_paths` | Globs of paths that are sensitive (`["**/migrations/**", "*.ddl"]`): a card whose change touches one warns. Empty by default. |
 | `phase_tools` | Permission rules handed to the worker of a phase that must run git commands a background worker cannot ask about, keyed `<kind>:<stage>`: `{"ship:review": {"allow": ["Bash(git push -u:*)"], "deny": ["Bash(git push*--force*)"]}}`. By default only the *Publish* request has rules (commit in its first phase; push and `gh pr create` in its second, after you approve, with force, delete and merge denied). An empty entry switches a default off. Your Claude Code settings are never changed. |
 | `prices` | Your own prices per model, in USD per million tokens, for the cost estimates. Overrides the built-in list (see [Work sessions and costs](#work-sessions-and-costs)). |
+| `sanitizer` | The vault sanitizer: `{"enabled": true, "weekly": true, "max_notes": 20, "ignore": ["Projects/Old/**"]}`. All optional. `phase_models.sanitize` picks the model of its workers (and of the map's). |
+| `vault_map` | The generated vault map: `{"enabled": true, "labels": true}`. `labels: false` writes the map with counts only, with no worker. |
 | `resume_after_limit` | `true` (default): restart a phase a usage limit interrupted, once the limit has reset. See [Plan usage and usage limits](#plan-usage-and-usage-limits). |
 | `clone_hosts` | Hosts "clone a repo" may use (default GitHub, GitLab, Bitbucket, Codeberg). |
 | `sensitive_paths` | Name fragments of folders that must never be added as projects. `.ssh`, `.aws`, `.gnupg` and `.kube` are always refused. |
@@ -302,6 +319,7 @@ The folder and key names follow `vault_language` (`en` by default, or `pt`):
 - The Chief never reads or stores credentials and never logs in to GitHub for you; cloning uses the login your git already has.
 - The one place it writes in Claude Code's own settings is when you click **Trust this folder** (and **Connect** for the plan meters): it sets that single flag, leaves a backup next to the file and reads nothing else from it.
 - The project pages read only files inside the project's folder, and only the documents the Chief lists (README, `CLAUDE.md`, `ARCHITECTURE.md`, `docs/specs|plans|analyses`). `.env*`, keys, tokens, secrets files, `settings.local.json` and `CLAUDE.local.md` are never read, and links that leave the project folder are refused. Text is redacted (secrets, private IP addresses, e-mails) before it leaves the server; the Tools block shows names only, never values. Vault `[[wikilinks]]` render as plain text, or as a link when they name a project.
+- The vault sanitizer and the map never give a worker the vault: it sees copies and facts (redacted: no secrets, private IPs or e-mails), writes one file the server validates whole, and only your click on **Apply** changes a note; the generated map is the only file the Chief creates there by itself.
 - Session to-dos are read from your Claude Code sessions with secrets, e-mails and private IP addresses stripped.
 - Costs are computed locally from your own session logs; nothing about them is sent anywhere.
 
@@ -336,14 +354,14 @@ The images in `docs/img/` are produced from the demo, so they never contain anyo
 node docs/capture_screenshots.mjs       # needs Node 22+ and Chrome, Chromium or Edge (set CHROME_PATH if it is not found)
 ```
 
-It starts its own demo server and a headless browser, takes the pictures, and cleans up after itself. The two diagrams are plain SVG files (`docs/img/architecture.svg`, `pipeline.svg`).
+It starts its own demo server and a headless browser, takes the pictures, and cleans up after itself. The *Vault health* picture feeds the page a sample state, because the demo has no real vault to check. The diagrams are plain SVG files (`docs/img/architecture.svg`, `pipeline.svg`), and `docs/img/vault-map.svg` is drawn by `python docs/render_vault_map.py` from a sample vault, with the code that writes the real map.
 
 ### Repository layout
 
 ```
 app/            the dashboard: server.py (HTTP + API) and index.html (the whole UI)
 scripts/        the Chief itself: chief.py (CLI), features.py (pipeline), prompts*.py, curation.py, ...
-docs/           capture_screenshots.mjs and docs/img/
+docs/           capture_screenshots.mjs, render_vault_map.py and docs/img/
 tests/          pytest suite; tests/real/ drives real Claude Code workers (opt-in); tests/legacy_pipelines/ keeps the pipelines without the concept for the tests of that flow
 CLAUDE.md       the instructions Claude Code follows when you open it in this folder
 ```

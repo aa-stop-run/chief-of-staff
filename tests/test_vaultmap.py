@@ -117,3 +117,11 @@ def test_only_the_generated_file_is_written_and_unchanged_content_is_not_rewritt
     for bad in ("Mapa.canvas", "../x.canvas", "wiki/Mapa automático.canvas"):
         with pytest.raises(ValueError):
             vm.write_canvas(vault, bad, text)
+
+
+def test_the_fixed_texts_follow_the_vault_language(vault):
+    mp = vm.collect(vault, HUB_DIRS)
+    pt, en = vm.canvas(mp), vm.canvas(mp, lang="en")
+    assert [n["label"] for n in pt["nodes"] if n["type"] == "group"][0] == "Áreas" and [n["label"] for n in en["nodes"] if n["type"] == "group"][0] == "Areas"
+    assert all(e["label"].startswith("cited in") for e in en["edges"] if e["id"].startswith("e-"))
+    assert vm.lang_of("Portuguese (European)") == "pt" and vm.lang_of("English") == "en"

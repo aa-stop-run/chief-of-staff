@@ -161,7 +161,12 @@ async function main() {
     await page.eval(`document.querySelector("#setBtn").click()`);
     await page.waitFor(`document.querySelector("#setD").open && document.querySelectorAll("#setBody section.sset").length >= 3`);
     await sleep(500);
+    // the dialog scrolls inside a 900 px viewport: use a tall one for this shot so every section shows, the new «Server» one included
+    await page.send("Emulation.setDeviceMetricsOverride", { width: WIDTH, height: 1900, deviceScaleFactor: SCALE, mobile: false });
+    await sleep(500);
     await page.shot("settings.png", await page.rect(`document.querySelector("#setD")`, 0));
+    await page.send("Emulation.setDeviceMetricsOverride", { width: WIDTH, height: 900, deviceScaleFactor: SCALE, mobile: false });
+    await sleep(300);
     await page.eval(`document.querySelector("#setD").close()`);
     // 10-11. the session pill opens the sessions and costs dialog: this session, then (scrolled down) the past ones
     await page.eval(`document.querySelector("#sessBtn").click()`);
@@ -229,6 +234,19 @@ async function main() {
     await page.eval(`(() => { S.trust = [{ path: "C:/vault", name: "Vault", kind: "vault", reason: "" }, { path: "C:/projects/storefront", name: "Storefront", kind: "project", reason: "" }]; render(); })()`);
     await sleep(250);
     await page.shot("trust-alert.png", await page.rectBetween(`document.querySelectorAll("#banner [data-trust]")[0].parentElement`, `document.querySelectorAll("#banner [data-trust]")[1].parentElement`, 10));
+    // The «Vault health» card needs a real vault and a Claude Code that is not simulated, so the demo feeds the page a sample state (the same shape
+    // `SANITIZER.status()` and `MAPPER.status()` return); the buttons and texts are the page's own.
+    await page.eval(`(() => { S.trust = []; S.vault = true; S.curation = { drafts: 3, running: false, attempts: 0 };
+      S.vault_map = { enabled: true, running: false, hubs: 7, pairs: 4, labelled: 3, last: { ok: true, info: "ok" }, attempts: 0 };
+      S.vault_health = { enabled: true, running: false, vault_name: "Vault", open: 4, counts: { audit: 3, structure: 1 }, queued: 0, attempts: 0, last: { ok: true, info: "15 note(s) checked, 3 finding(s)" },
+        findings: [
+          { id: "a1", layer: "audit", kind: "stale", severity: "medium", note: "Projects/Storefront.md", quote: "The repo has no remote.", evidence: ["facts/Storefront.json: the repository has a remote (origin)."], detail: "A reader may think the code only exists on this machine.", replace: true, old: "The repo has no remote.", new: "The repo has a remote (origin)." },
+          { id: "a2", layer: "audit", kind: "contradiction", severity: "medium", note: "Projects/Home Automation/Operations.md", quote: "The dashboard listens on port 9000.", evidence: ["Projects/Home Automation/State.md: the dashboard listens on port 8780."], detail: "", replace: false, old: "", new: "" },
+          { id: "a3", layer: "audit", kind: "stale", severity: "low", note: "Projects/Dotfiles/Setup.md", quote: "Run setup.sh.", evidence: ["facts/Dotfiles.json: setup.sh was renamed to install.sh."], detail: "", replace: true, old: "Run setup.sh.", new: "Run install.sh." },
+          { id: "s1", layer: "structure", kind: "lint-orphans", severity: "low", note: "wiki/old-draft.md", quote: "", evidence: ["no note links here"], detail: "", replace: false, old: "", new: "" }] };
+      render(); })()`);
+    await sleep(400);
+    await page.shot("vault-health.png", await page.rect(`document.querySelector("#vhWrap")`, 10));
     await page.eval(`api("/api/features/${made}/cancel", {})`);
     ws.close();
   } finally {
