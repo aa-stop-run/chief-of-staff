@@ -1,7 +1,5 @@
 """The bugs found by the review of 2026-11-14 (docs/reviews/2026-11-14-project-review.md), one test or more per bug."""
 import argparse
-import json
-import subprocess
 import sys
 from pathlib import Path
 

@@ -77,7 +77,7 @@ def test_sort_by_attention_puts_awaiting_first_then_fixes_then_name():
 def test_sort_by_name_is_case_insensitive():
     out = call(f"sortProjects({json.dumps(ROWS)}, 'name').map(r=>r.name)")
     assert out == ["alpha", "Beta", "Delta", "gamma", "zeta"]
-    assert call(f"sortProjects([{{name:'b'}},{{name:'A'}}], 'name').map(r=>r.name)") == ["A", "b"]
+    assert call("sortProjects([{name:'b'},{name:'A'}], 'name').map(r=>r.name)") == ["A", "b"]
 
 
 def test_sort_returns_new_array_and_leaves_input_alone():
@@ -241,7 +241,7 @@ def test_a_wikilink_to_a_project_becomes_a_project_link_case_insensitively():
     out = call(f"cleanWikilinks('Uses [[ava nexus]] and [[Projetos/storefront|the shop]].', {json.dumps(NAMES)})")
     assert '<a class="plink" href="#/project/AVA%20Nexus">ava nexus</a>' in out
     assert 'href="#/project/Storefront">the shop</a>' in out and out.startswith("Uses ")
-    amp = call(f"cleanWikilinks('[[R&D Lab|lab]]', ['R&D Lab'])")
+    amp = call("cleanWikilinks('[[R&D Lab|lab]]', ['R&D Lab'])")
     assert amp == '<a class="plink" href="#/project/R%26D%20Lab">lab</a>'
     assert "[[" not in out
 

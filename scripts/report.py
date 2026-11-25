@@ -5,7 +5,6 @@ to test and the server and the command line cannot disagree.
 """
 from datetime import datetime, timedelta, timezone
 
-import planusage
 import usage
 
 

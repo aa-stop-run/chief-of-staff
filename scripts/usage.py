@@ -108,7 +108,7 @@ def request_from_task(task: str) -> str:
 def prices_signature(overrides: dict | None) -> str:
     """Changes when the prices in use change, so stored costs are recomputed (while the transcript still exists)."""
     blob = json.dumps(["hourly-v1", PRICES_AS_OF, DEFAULT_PRICES, HAIKU_5_5_LONG, overrides or {}], sort_keys=True)
-    return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:10]
+    return hashlib.sha1(blob.encode("utf-8"), usedforsecurity=False).hexdigest()[:10]
 
 
 # ---------------------------------------------------------------- reading the transcripts

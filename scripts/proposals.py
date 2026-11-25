@@ -75,7 +75,7 @@ class Proposals:
             raise ProposalError(f"title required (max. {MAX_TITLE} characters)")
         if not desc or len(desc) > MAX_DESC:
             raise ProposalError(f"description required (max. {MAX_DESC} characters)")
-        pid = "s-" + hashlib.sha1(f"{project}|{kind}|{title}".encode("utf-8")).hexdigest()[:10]
+        pid = "s-" + hashlib.sha1(f"{project}|{kind}|{title}".encode("utf-8"), usedforsecurity=False).hexdigest()[:10]
         with self._lock, atomicio.locked(self._file):       # a worker's `proposals.py add` and the server both write this file
             items = self._load(strict=True)
             open_ = [i for i in items if not i.get("dismissed")]

@@ -59,7 +59,7 @@ class Pending:
             raise PendingError("unknown state")
         if len(summary) > MAX_TEXT or len(missing) > MAX_TEXT:
             raise PendingError(f"text too long (max. {MAX_TEXT} characters)")
-        pid = "p-" + hashlib.sha1(f"{project}|{session}|{title}".encode("utf-8")).hexdigest()[:10]
+        pid = "p-" + hashlib.sha1(f"{project}|{session}|{title}".encode("utf-8"), usedforsecurity=False).hexdigest()[:10]
         with self._lock, atomicio.locked(self._file):       # `pending.py add` in a terminal and the server both write this file
             items = self._load()
             for i in items:

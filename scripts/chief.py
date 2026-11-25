@@ -745,8 +745,9 @@ def cmd_statusline(a):
     shown = ""
     if a.then:
         try:
+            # `--then` is the user's own status-line command (they wrote it into settings.json): trusted on purpose, run through the shell
             shown = subprocess.run(a.then, shell=True, input=raw, capture_output=True, text=True, timeout=10, encoding="utf-8",
-                                   errors="replace", creationflags=NO_WINDOW).stdout.strip()
+                                   errors="replace", creationflags=NO_WINDOW).stdout.strip()  # nosec B602
         except (OSError, subprocess.SubprocessError):
             shown = ""
     try:
