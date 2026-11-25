@@ -141,6 +141,10 @@ td.m{font:12px var(--font-mono);color:var(--mute);white-space:nowrap}
 .steps li.cur.failed::before{border-color:var(--bad);color:var(--bad)}
 @keyframes pulse{50%{box-shadow:0 0 0 5px color-mix(in srgb,var(--ok) 25%,transparent)}}
 .fline{margin:10px 0 0;font-size:13px}.fline .path{display:inline}
+.cardtg{margin-left:auto;border:1px solid var(--line);background:transparent;color:var(--mute);border-radius:6px;width:26px;height:26px;line-height:1;font-size:13px;cursor:pointer;align-self:center}
+.cardtg:hover,.cardtg:focus-visible{color:var(--ink);border-color:var(--mute)}
+.feat.collapsed{padding-top:12px;padding-bottom:12px}
+.feat.collapsed>*:not(.ftop){display:none}
 .art{margin-top:10px;border:1px solid var(--line);border-radius:var(--rs);background:var(--bg)}
 .art summary{cursor:pointer;padding:9px 14px;font:500 13px var(--font-ui);color:var(--mute)}
 .art[open] summary{border-bottom:1px solid var(--line);color:var(--ink)}
@@ -274,7 +278,7 @@ dialog label.nfauto[hidden]{display:none}
 dialog input:focus,dialog select:focus,dialog textarea:focus{outline:none;border-color:var(--acc)}
 dialog .note{font-size:12px;color:var(--mute);margin:0}
 dialog .end{display:flex;justify-content:flex-end;gap:8px}
-.toast{position:fixed;font-weight:500;left:50%;bottom:22px;translate:-50% 0;z-index:20;max-width:min(520px,calc(100vw - 28px));padding:10px 16px;
+.toast{position:fixed;inset:auto auto 22px 50%;margin:0;border:0;overflow:visible;font-weight:500;translate:-50% 0;z-index:20;max-width:min(520px,calc(100vw - 28px));padding:10px 16px;
   border-radius:var(--rs);background:var(--ink);color:var(--bg);font-size:13px;box-shadow:0 8px 30px rgba(0,0,0,.4)}
 .toast.err{background:var(--bad);color:#fff}
 .banner.demo{border-color:color-mix(in srgb,var(--acc) 50%,transparent);background:color-mix(in srgb,var(--acc) 9%,transparent);color:var(--ink)}
@@ -536,7 +540,7 @@ a.plink:active{color:var(--acc);filter:brightness(1.15)}
 <main>
   <div id="banner"></div>
   <div id="todayView">
-  <div class="fhead"><h2>Requests <em id="nFeat"></em></h2><button class="btn pri" id="newBtn" type="button">+ New request</button></div>
+  <div class="fhead"><h2>Requests <em id="nFeat"></em></h2><button class="btn sm ghost" id="collAll" type="button" hidden></button><button class="btn pri" id="newBtn" type="button">+ New request</button></div>
   <div class="feats" id="feats"></div>
   <div id="vhWrap" hidden><div class="fhead"><h2>Vault health <em id="nVh"></em></h2><button class="btn" id="vhCheck" type="button" title="Compare the notes with the projects and with each other">Check the vault now</button></div><p class="m"><span id="vmInfo"></span> <button class="btn sm" id="vmBtn" type="button" title="Rebuild the generated map of the vault (Mapa automático.canvas) from the links of the notes">Update the map</button></p><p class="m"><span id="vhInfo"></span> <button class="btn sm ghost" id="vhMinor" type="button" hidden></button></p><div class="pends" id="vhList"></div></div>
   <div id="propsWrap" hidden><h2>Suggested by workers <em id="nProp"></em></h2><div class="pends" id="props"></div></div>
@@ -597,7 +601,7 @@ a.plink:active{color:var(--acc);filter:brightness(1.15)}
   <div class="shead"><h3 id="docTitle"></h3><button class="btn" id="docClose" type="button">Close</button></div>
   <p class="note" id="docNote" hidden>This document is long: only its beginning is shown.</p>
 </div><div class="md" id="docBody"></div></dialog>
-<div id="toast" class="toast" hidden role="status"></div>
+<div id="toast" class="toast" popover="manual" hidden role="status"></div>
 <script>
 const T="__TOKEN__";
 // ---------- languages: English is the key; Portuguese is an optional translation; switching reloads the page ----------
@@ -700,7 +704,7 @@ const PT = {
   "A pipeline is the sequence of steps a kind of request goes through. Built-in ones cannot be changed: make a copy and edit that. Your own pipelines appear in «+ New request» under «Pipeline».":"Uma pipeline é a sequência de passos por que passa um tipo de pedido. As incluídas não se alteram: faz uma cópia e edita-a. As tuas pipelines aparecem em «+ Novo pedido», em «Pipeline».",
   "Needs attention":"Pede atenção","Open":"Aberto","No open requests":"Sem pedidos abertos","Not a git repo":"Sem git",
   "{n} uncommitted":"{n} por comitar","Git info as of {t}":"Informação do git de há {t}",
-  "Open requests":"Pedidos abertos","Identified fixes":"Correções identificadas","Sort projects":"Ordenar projetos","Name":"Nome",
+  "Open requests":"Pedidos abertos","Trust the Chief's own data folder in Claude Code automatically":"Dar confiança automática à pasta de dados do próprio Chief no Claude Code","Only that one folder, which the Chief creates. Your projects and the vault always wait for your click.":"Só essa pasta, que o Chief cria. Os teus projetos e o vault esperam sempre pelo teu clique.","Collapse the card":"Encolher o cartão","Expand the card":"Expandir o cartão","Collapse all":"Encolher todos","Expand all":"Expandir todos","Identified fixes":"Correções identificadas","Sort projects":"Ordenar projetos","Name":"Nome",
   "Could not load the projects.":"Não foi possível carregar os projetos.","name is not unique":"o nome não é único","This finding is no longer listed.":"Este achado já não consta da lista.","Loading projects…":"A carregar projetos…","Branch":"Ramo",
   "Estimated AI cost: tokens at list prices, not your bill.":"Custo estimado de IA: tokens ao preço de tabela, não é a tua fatura.",
   "No projects for this filter.":"Nenhum projeto para este filtro.","No projects.":"Nenhum projeto.",
@@ -2163,7 +2167,10 @@ const cap=t=>t?t[0].toUpperCase()+t.slice(1):t;
 const FUI={};
 const fui=id=>FUI[id]||(FUI[id]={comment:"",open:{},qa:{},qs:[],fx:{}});
 let toastT;
-function toast(msg,err){const t=$("toast");t.textContent=msg;t.className="toast"+(err?" err":"");t.hidden=false;clearTimeout(toastT);toastT=setTimeout(()=>t.hidden=true,err?6000:2500);}
+// The toast is a popover so that it sits in the top layer, above an open dialog: otherwise the error of a failed «Launch» was hidden behind the form.
+function toast(msg,err){const t=$("toast");t.textContent=msg;t.className="toast"+(err?" err":"");t.hidden=false;
+  try{if(!t.matches(":popover-open"))t.showPopover();}catch(_){/* an old browser: the toast simply has no top layer */}
+  clearTimeout(toastT);toastT=setTimeout(()=>{t.hidden=true;try{t.hidePopover();}catch(_){/* already hidden */}},err?6000:2500);}
 async function api(path,body){
   const r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json","X-Token":T,"X-Lang":LANG},body:JSON.stringify(body||{})});
   const j=await r.json().catch(()=>({error:tt("Invalid response")}));
@@ -2764,8 +2771,9 @@ function finishHtml(f){
 }
 function featCard(f){
   const hist=f.history.map(h=>`<li>${esc(ago(h.at,Date.now(),tt))} · ${esc(h.stage)} · ${esc(up1(tt(h.event)))}${h.note?" — "+esc(h.note):""}</li>`).join("");
-  return `<article class="feat s-${esc(f.status)}" data-fid="${esc(f.id)}"><div class="ftop"><h3>${esc(f.title)}</h3>${projLink(f.project)}<span class="kind">${esc(KIND_LABEL[f.kind]||KIND_LABEL.feature)}</span>${f.pipeline_name?`<span class="kind" title="${esc(tt("Your pipeline"))}">${esc(f.pipeline_name)}</span>`:""}${costChip(f)}${(()=>{const pr=S.projects.find(q=>q.name===f.project),d=pr?dom(pr):"other";return `<span class="dom d-${esc(d)}">${esc(cap(d))}</span>`;})()}
-    ${waitChip(f)}<span class="fst">${esc(f.held?tt("Waiting"):(ST_LABEL[f.status]||f.status))}</span></div>
+  const shut=!!fui(f.id).collapsed;
+  return `<article class="feat s-${esc(f.status)}${shut?" collapsed":""}" data-fid="${esc(f.id)}"><div class="ftop"><h3>${esc(f.title)}</h3>${projLink(f.project)}<span class="kind">${esc(KIND_LABEL[f.kind]||KIND_LABEL.feature)}</span>${f.pipeline_name?`<span class="kind" title="${esc(tt("Your pipeline"))}">${esc(f.pipeline_name)}</span>`:""}${costChip(f)}${(()=>{const pr=S.projects.find(q=>q.name===f.project),d=pr?dom(pr):"other";return `<span class="dom d-${esc(d)}">${esc(cap(d))}</span>`;})()}
+    ${waitChip(f)}<span class="fst">${esc(f.held?tt("Waiting"):(ST_LABEL[f.status]||f.status))}</span><button class="cardtg" type="button" data-act="cardtoggle" data-id="${esc(f.id)}" aria-expanded="${shut?"false":"true"}" title="${esc(shut?tt("Expand the card"):tt("Collapse the card"))}" aria-label="${esc(shut?tt("Expand the card"):tt("Collapse the card"))}">${shut?"▸":"▾"}</button></div>
     <p class="fdesc">${esc(f.desc)}</p>${parentLine(f)}${stepper(f)}${f.held?heldNote(f):statusLine(f)}${pausedNote(f)}${sizeNote(f)}${splitNote(f)}${splitBlock(f)}${diffLine(f)}${diffWarnLine(f)}${threadHtml(f)}${artifacts(f)}${kindSwitch(f)}${finishHtml(f)}${actions(f)}${qaHtml(f)}
     <details class="hist"><summary>${tt("History")}</summary><ul>${hist}</ul></details></article>`;
 }
@@ -2807,7 +2815,7 @@ let cardHtml={};      // what each open card was last drawn from
 function renderFeatures(fs,filtering){
   lastFs=fs;lastFiltering=filtering;
   const open=sortOpen(fs.filter(f=>!CLOSED.includes(f.status)),Date.now()),closed=fs.filter(f=>CLOSED.includes(f.status));   // what needs you first, the longest wait on top
-  $("nFeat").textContent=open.length;
+  $("nFeat").textContent=open.length;syncCollapseAll(open);
   const cards=open.map(f=>[f,featCard(f)]);
   const html=cards.map(c=>c[1]).join("")||`<div class="empty">${filtering?tt("No request in progress for this filter."):tt("Nothing in progress. Create one with “+ New request”.")}</div>`;
   const a=document.activeElement;
@@ -2829,6 +2837,20 @@ function renderFeatures(fs,filtering){
   document.querySelectorAll("#featsDone details.cl").forEach(d=>{if(keep.has(d.dataset.cl))d.open=true;});
 }
 let doneOpen=false;
+// The user's own open/close of a spec, plan or report is remembered: a redraw (every poll that changes something) must not undo it.
+$("feats").addEventListener("click",e=>{
+  const sm=e.target.closest&&e.target.closest("details.art > summary");if(!sm)return;
+  const d=sm.parentElement;fui(d.dataset.id).open[d.dataset.k]=!d.open;      // the click comes before the toggle: the new state is the opposite
+});
+function syncCollapseAll(open){
+  const b=$("collAll"),n=open.length,shut=open.filter(f=>fui(f.id).collapsed).length;
+  b.hidden=n<2;b.dataset.shut=shut===n?"1":"0";
+  b.textContent=shut===n?tt("Expand all"):tt("Collapse all");
+}
+$("collAll").addEventListener("click",()=>{
+  const open=lastFs.filter(f=>!CLOSED.includes(f.status)),all=$("collAll").dataset.shut!=="1";
+  open.forEach(f=>{fui(f.id).collapsed=all;});renderFeatures(lastFs,lastFiltering);
+});
 $("featsDone").addEventListener("change",e=>{if(e.target.id!=="doneProj")return;doneProj=e.target.value;renderFeatures(lastFs,lastFiltering);});
 $("featsDone").addEventListener("toggle",e=>{if(e.target.classList.contains("cls"))doneOpen=e.target.open;},true);
 function askInput(e){
@@ -2913,6 +2935,7 @@ document.addEventListener("click",async ev=>{
 async function featClick(e){
   const b=e.target.closest("[data-act]");if(!b)return;
   const id=b.dataset.id,act=b.dataset.act;
+  if(act==="cardtoggle"){const u0=fui(id);u0.collapsed=!u0.collapsed;renderFeatures(lastFs,lastFiltering);return;}
   if(act==="followup"){const src=(S.features||[]).find(x=>x.id===id);if(src)openNewRequest(followUp(src,tt));return;}
   if(act==="cancel"&&!armed(b,tt("Cancel this feature? The running worker will be stopped (its conversation is kept).")))return;
   const body={};
@@ -3006,6 +3029,8 @@ function renderSettings(){
       <div class="row"><input id="sHosts" value="${esc(SET.hosts.join(", "))}" maxlength="300" aria-label="${esc(tt("Hosts allowed for cloning"))}"><button class="btn" data-sact="hosts" type="button">${tt("Save")}</button></div>
       <p class="m">${tt("Hosts the Chief accepts cloning from (comma-separated).")}</p></section>
     <section class="sset"><h4>${tt("Server")}</h4>
+      <label class="row"><input type="checkbox" id="sAutoTrust" ${SET.auto_trust_state?"checked":""} data-sact="autotrust"> <span>${tt("Trust the Chief's own data folder in Claude Code automatically")}</span></label>
+      <p class="m">${tt("Only that one folder, which the Chief creates. Your projects and the vault always wait for your click.")}</p>
       <p class="m">${tt("The Chief can run without a window. Stopping or restarting it does not stop workers that are already running: they carry on, and the next start picks them up.")}</p>
       <div class="row"><button class="btn" type="button" data-srv="restart" data-id="restart">${tt("Restart the Chief")}</button>
         <button class="btn" type="button" data-srv="stop" data-id="stop">${tt("Stop the Chief")}</button></div>
@@ -3121,6 +3146,7 @@ $("setBody").addEventListener("click",e=>{
   if(act==="plan-on"){setAct("plan_connect",{},tt("Connected."));return;}
   if(act==="plan-off"){setAct("plan_disconnect",{},tt("Disconnected."));return;}
   if(act==="resume"){setAct("resume_after_limit",{on:b.checked},tt("Saved."));return;}
+  if(act==="autotrust"){setAct("auto_trust_state",{on:b.checked},tt("Saved."));return;}
 });
 $("addProjBtn").addEventListener("click",()=>{$("addP").showModal();$("apPath").focus();});
 $("apCancel").addEventListener("click",()=>$("addP").close());

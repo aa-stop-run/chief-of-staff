@@ -150,13 +150,27 @@ def confirm(alerts: "TrustAlerts", path, cfg_path=None) -> dict:
     return out
 
 
+def auto_grant_state(state_dir, cfg_path=None) -> bool:
+    """Trust the Chief's own state folder without a click (the user's setting `auto_trust_state`, on by default). Only that one folder,
+    which the Chief creates and fills; never a folder inside a git repository (that would trust the whole repository). True if it
+    was added now; False if there is nothing to do or it was left to the user."""
+    folder = Path(state_dir)
+    if not folder.is_dir() or repo_root(folder) is not None or is_trusted(folder, cfg_path):
+        return False
+    grant(folder, cfg_path)
+    return True
+
+
 # ---------------------------------------------------------------- the alerts the dashboard shows
 class TrustAlerts:
     """Folders a launch was refused for, until they are trusted. `state_path`: a JSON file in the Chief's state folder."""
 
-    def __init__(self, state_path, allowed, trusted=is_trusted, now=time.time):
-        """allowed() -> the folders the Chief manages (vault, projects, its state): anything else is ignored."""
+    def __init__(self, state_path, allowed, trusted=is_trusted, now=time.time, widen=None):
+        """allowed() -> the folders the Chief manages (vault, projects, its state): anything else is ignored.
+        widen(path) -> the folder to ask the user to trust instead of `path` (e.g. the Chief's state folder for one request's folder, so
+        it is asked once and not for every new request)."""
         self.path, self._allowed, self._trusted, self._now = Path(state_path), allowed, trusted, now
+        self._widen = widen or (lambda p: p)
 
     def _load(self) -> list:
         try:
@@ -178,7 +192,7 @@ class TrustAlerts:
         if not path or not self.manages(path) or self._trusted(path):
             return False
         items = self._load()
-        key = target(path)                  # what gets trusted: the folder's repository, shown to the user as it is
+        key = target(self._widen(path))     # what gets trusted: the folder's repository, shown to the user as it is
         if any(_same(norm(i["path"]), key) for i in items):
             return True
         items.append({"path": key, "name": name or Path(path).name, "kind": kind, "reason": reason[:300], "since": self._now()})

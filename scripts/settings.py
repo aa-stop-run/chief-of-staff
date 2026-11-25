@@ -197,6 +197,13 @@ def set_resume_after_limit(raw) -> dict:
     return {"resume_after_limit": on}
 
 
+def set_auto_trust_state(raw) -> dict:
+    """Whether the Chief trusts its own state folder in Claude Code by itself (never any other folder)."""
+    on = raw is True
+    _save({"auto_trust_state": on})
+    return {"auto_trust_state": on}
+
+
 def claude_settings_path() -> Path:
     return Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude") / "settings.json"
 
@@ -334,4 +341,5 @@ def snapshot() -> dict:
     known = sorted({r["domain"] for r in rows if r["domain"]} | {h["domain"] for h in chief.hubs() if h["domain"]})
     return {"vault": chief.CFG.get("vault") or "", "roots": list(chief.CFG["roots"]), "ignore": list(chief.CFG["ignore"]),
             "hosts": hosts(), "plan": {"resume_after_limit": chief.CFG.get("resume_after_limit", True), "connection": plan_connection()},
+            "auto_trust_state": chief.CFG.get("auto_trust_state", True),
             "domains": known, "projects": rows, "github": github_status()}

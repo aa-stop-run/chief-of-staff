@@ -10,7 +10,7 @@ def seg(a, b):
 
 
 def test_every_card_is_addressable_and_the_redraw_no_longer_stops_at_the_first_text_box():
-    assert 'class="feat s-${esc(f.status)}" data-fid="${esc(f.id)}"' in HTML
+    assert 'class="feat s-${esc(f.status)}${shut?" collapsed":""}" data-fid="${esc(f.id)}"' in HTML
     r = seg("function renderFeatures", "let doneOpen")
     assert "syncAround($(\"feats\"),cards,typing)" in r
     assert 'if(!typing){if(html!==featHtml)' in r                       # nothing focused: the full redraw, as before

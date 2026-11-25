@@ -107,9 +107,37 @@ FEATURES = Features(chief.STATE, chief.launch_worker, _is_active, grace_s=GRACE_
                     cleaner=lambda *a: chief.cleanup_request(*a), pipeline_home=lambda: chief.HOME)
 TICK_S = 10
 PENDING = Pending(chief.STATE)
+def _trust_target(path) -> str:
+    """A request's folder is inside the Chief's state folder, which is outside the trusted application folder: ask for the whole
+    state folder once, not for every new request."""
+    inside = trust.norm(path).lower().startswith(trust.norm(chief.STATE).lower() + "/") and trust.repo_root(path) is None
+    return str(chief.STATE) if inside else str(path)
+
+
 TRUST = trust.TrustAlerts(chief.STATE / "trust.json",
-                          lambda: [chief.VAULT if chief.vault_enabled() else "", chief.STATE, *(p["path"] for p in chief.load_projects() if p.get("path"))])
-chief.UNTRUSTED_HOOK = lambda path, name, kind, message: TRUST.add(path, name, kind, message)   # a refused launch raises an alert
+                          lambda: [chief.VAULT if chief.vault_enabled() else "", chief.STATE, *(p["path"] for p in chief.load_projects() if p.get("path"))],
+                          widen=_trust_target)
+
+
+def _auto_trust_state() -> None:
+    """The Chief's own state folder is trusted without a click unless the user turned that off; any other folder waits for the user."""
+    if DEMO or not chief.CFG.get("auto_trust_state", True):
+        return
+    try:
+        trust.auto_grant_state(chief.STATE)
+    except trust.TrustError as e:
+        print(f"[trust] could not trust the state folder: {e}", file=sys.stderr)
+
+
+def _untrusted(path, name, kind, message) -> None:
+    """A launch was refused: if it was for the state folder it is trusted now (the next try works); else an alert waits for the user."""
+    if trust.norm(_trust_target(path)) == trust.norm(chief.STATE):
+        _auto_trust_state()
+    TRUST.add(path, name, kind, message)
+
+
+chief.UNTRUSTED_HOOK = _untrusted   # a refused launch raises an alert
+_auto_trust_state()
 ALERTS = Alerts()                           # a worker stuck on a prompt or a failed request, once it has lasted a few minutes
 PROPOSALS = Proposals(chief.STATE)          # requests that workers suggested; only the user turns one into a request
 
@@ -627,6 +655,10 @@ class Handler(BaseHTTPRequestHandler):
             return settings.set_clone_hosts(body.get("hosts"))
         if action == "resume_after_limit":
             return settings.set_resume_after_limit(body.get("on"))
+        if action == "auto_trust_state":
+            out = settings.set_auto_trust_state(body.get("on"))
+            _auto_trust_state()
+            return out
         if action == "plan_connect":
             return settings.connect_plan()
         if action == "plan_disconnect":
