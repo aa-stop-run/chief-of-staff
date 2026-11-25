@@ -538,7 +538,7 @@ a.plink:active{color:var(--acc);filter:brightness(1.15)}
   <div id="todayView">
   <div class="fhead"><h2>Requests <em id="nFeat"></em></h2><button class="btn pri" id="newBtn" type="button">+ New request</button></div>
   <div class="feats" id="feats"></div>
-  <div id="vhWrap" hidden><div class="fhead"><h2>Vault health <em id="nVh"></em></h2><button class="btn" id="vhCheck" type="button" title="Compare the notes with the projects and with each other">Check the vault now</button></div><p class="m"><span id="vhInfo"></span> <button class="btn sm ghost" id="vhMinor" type="button" hidden></button></p><div class="pends" id="vhList"></div></div>
+  <div id="vhWrap" hidden><div class="fhead"><h2>Vault health <em id="nVh"></em></h2><button class="btn" id="vhCheck" type="button" title="Compare the notes with the projects and with each other">Check the vault now</button></div><p class="m"><span id="vmInfo"></span> <button class="btn sm" id="vmBtn" type="button" title="Rebuild the generated map of the vault (Mapa automático.canvas) from the links of the notes">Update the map</button></p><p class="m"><span id="vhInfo"></span> <button class="btn sm ghost" id="vhMinor" type="button" hidden></button></p><div class="pends" id="vhList"></div></div>
   <div id="propsWrap" hidden><h2>Suggested by workers <em id="nProp"></em></h2><div class="pends" id="props"></div></div>
   <div class="fhead"><h2>Session to-dos <em id="nPend"></em></h2><button class="btn" id="scanBtn" type="button" title="Look for recent Claude Code sessions of your projects that have no to-do card yet">Scan sessions</button></div>
   <div class="pfilt" id="pfilt"></div>
@@ -634,6 +634,12 @@ const PT = {
   "Curate now":"Curar agora",
   "Process the drafts waiting in the vault inbox now":"Processa já os rascunhos à espera na inbox do vault",
   "Curation started.":"Curadoria iniciada.",
+  "Update the map":"Atualizar o mapa",
+  "Rebuild the generated map of the vault (Mapa automático.canvas) from the links of the notes":"Reconstrói o mapa gerado do vault (Mapa automático.canvas) a partir dos links das notas",
+  "Updating the map…":"A atualizar o mapa…",
+  "The map could not be updated":"Não foi possível atualizar o mapa",
+  "Map: {h} hubs, {p} relations, {l} labelled":"Mapa: {h} hubs, {p} relações, {l} com etiqueta",
+  "Map up to date.":"Mapa atualizado.",
   "Vault health":"Saúde do vault",
   "Check the vault now":"Verificar o vault agora",
   "Compare the notes with the projects and with each other":"Compara as notas com os projetos e entre si",
@@ -3182,12 +3188,15 @@ function vhCard(f){
 }
 function renderVaultHealth(h){
   const w=$("vhWrap");
-  const show=!!h&&h.enabled!==false&&(h.open||h.running||(h.last&&!h.last.ok)||!h.last);
+  const show=!!h&&h.enabled!==false;
   w.hidden=!show;if(!show)return;
   $("nVh").textContent=h.open||"";
   $("vhInfo").textContent=h.running?tt("Checking the notes…"):(h.last?(h.last.ok?"":tt("The last check failed")+": ")+h.last.info:tt("The vault has not been checked yet"));
   $("vhCheck").disabled=!!h.running;
   VH.vault=h.vault_name||"";
+  {const m=S.vault_map;$("vmBtn").hidden=!m;$("vmBtn").disabled=!!(m&&m.running);
+    $("vmInfo").textContent=!m?"":m.running?tt("Updating the map…"):m.last&&!m.last.ok?tt("The map could not be updated")+": "+m.last.info
+      :tt("Map: {h} hubs, {p} relations, {l} labelled").replace("{h}",m.hubs).replace("{p}",m.pairs).replace("{l}",m.labelled);}
   const minor=(h.findings||[]).filter(f=>f.layer!=="audit"&&f.severity==="low"),main=(h.findings||[]).filter(f=>!minor.includes(f));
   $("vhMinor").hidden=!minor.length;$("vhMinor").textContent=VH.minor?tt("Hide {n} minor").replace("{n}",minor.length):tt("Show {n} minor").replace("{n}",minor.length);
   const html=(VH.minor?main.concat(minor):main).map(vhCard).join("");
@@ -3202,7 +3211,10 @@ $("curBtn").addEventListener("click",async ev=>{
   b.disabled=false;
 });
 document.addEventListener("click",async ev=>{
-  const b=ev.target.closest&&ev.target.closest("[data-vh],#vhCheck,#vhMinor");if(!b)return;
+  const b=ev.target.closest&&ev.target.closest("[data-vh],#vhCheck,#vhMinor,#vmBtn");if(!b)return;
+  if(b.id==="vmBtn"){b.disabled=true;
+    try{const r=await api("/api/vault/map",{});toast(r.launched?tt("Updating the map…"):tt("Map up to date."));await load();}
+    catch(err){toast(err.message,true);b.disabled=false;}return;}
   if(b.id==="vhMinor"){VH.minor=!VH.minor;vhHtml="";renderVaultHealth(S.vault_health);return;}
   if(b.id==="vhCheck"){b.disabled=true;
     try{const r=await api("/api/vault/check",{});toast(r.launched?tt("Checking the notes…"):tt("Nothing needed checking."));await load();}

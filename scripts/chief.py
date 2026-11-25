@@ -999,7 +999,7 @@ def launch_curator(prompt):
 def launch_sanitizer(prompt, stage):
     """Launch the vault audit: a read-only `claude --bg` started in the folder that holds the throw-away `stage` folders of copies (never
     the vault). The same folder every time, so Claude Code's trust has to be given once."""
-    cmd = ["claude", "--bg", "-n", "cos-sanitize", "--permission-mode", "auto", "--disallowedTools=" + ",".join(fixed_deny()), "--", prompt]
+    cmd = ["claude", "--bg", "-n", "cos-sanitize", "--permission-mode", "auto", "--settings", BG_NO_ISOLATION, "--disallowedTools=" + ",".join(fixed_deny()), "--", prompt]
     model = (CFG.get("phase_models") or {}).get("sanitize")
     if isinstance(model, str) and re.fullmatch(r"[\w.\-\[\]]{1,64}", model):
         cmd[1:1] = ["--model", model]
