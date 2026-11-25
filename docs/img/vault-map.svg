@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1048" width="1080" height="1048" font-family="system-ui,Segoe UI,Arial,sans-serif">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9aa0a6"/></marker></defs>
+<rect width="1080" height="1048" fill="#14161a"/>
+<rect x="20" y="20" width="360" height="180" rx="14" fill="#7c6cf0" fill-opacity=".10" stroke="#7c6cf0" stroke-opacity=".6"/><text x="36" y="44" fill="#7c6cf0" font-size="15" font-weight="600">Areas</text>
+<rect x="20" y="248" width="700" height="180" rx="14" fill="#3aa17e" fill-opacity=".10" stroke="#3aa17e" stroke-opacity=".6"/><text x="36" y="272" fill="#3aa17e" font-size="15" font-weight="600">home</text>
+<rect x="20" y="476" width="1040" height="276" rx="14" fill="#d1883b" fill-opacity=".10" stroke="#d1883b" stroke-opacity=".6"/><text x="36" y="500" fill="#d1883b" font-size="15" font-weight="600">shop</text>
+<rect x="20" y="800" width="360" height="228" rx="14" fill="#c4527a" fill-opacity=".10" stroke="#c4527a" stroke-opacity=".6"/><text x="36" y="824" fill="#c4527a" font-size="15" font-weight="600">tools</text>
+<line x1="200.0" y1="932" x2="80" y2="976.0" stroke="#9aa0a6" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="880.0" y1="608" x2="760" y2="652.0" stroke="#9aa0a6" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="880.0" y1="608" x2="760" y2="700.0" stroke="#9aa0a6" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="200.0" y1="316" x2="200.0" y2="152" stroke="#9aa0a6" stroke-opacity="1" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="166.0" y="223.0" width="68" height="20" rx="5" fill="#14161a" stroke="#3a3f47"/><text x="200.0" y="238.0" fill="#d7dae0" font-size="12" text-anchor="middle">runs on</text>
+<line x1="340" y1="120.0" x2="400" y2="348.0" stroke="#9aa0a6" stroke-opacity="1" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="344.0" y="223.0" width="52" height="20" rx="5" fill="#14161a" stroke="#3a3f47"/><text x="370.0" y="238.0" fill="#d7dae0" font-size="12" text-anchor="middle">hosts</text>
+<line x1="340" y1="576.0" x2="400" y2="576.0" stroke="#9aa0a6" stroke-opacity="1" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="320.0" y="565.0" width="100" height="20" rx="5" fill="#14161a" stroke="#3a3f47"/><text x="370.0" y="580.0" fill="#d7dae0" font-size="12" text-anchor="middle">replaced by</text>
+<line x1="680" y1="576.0" x2="740" y2="576.0" stroke="#9aa0a6" stroke-opacity="1" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="664.0" y="565.0" width="92" height="20" rx="5" fill="#14161a" stroke="#3a3f47"/><text x="710.0" y="580.0" fill="#d7dae0" font-size="12" text-anchor="middle">is used by</text>
+<rect x="60" y="88" width="280" height="64" rx="8" fill="#23272e" stroke="#3a3f47"/><text x="74" y="125.0" fill="#f0f1f4" font-size="15">Home Server</text>
+<rect x="60" y="316" width="280" height="64" rx="8" fill="#23272e" stroke="#3a3f47"/><text x="74" y="353.0" fill="#f0f1f4" font-size="15">Home Automation</text>
+<rect x="400" y="316" width="280" height="64" rx="8" fill="#23272e" stroke="#3a3f47"/><text x="414" y="353.0" fill="#f0f1f4" font-size="15">Photo Archive</text>
+<rect x="60" y="544" width="280" height="64" rx="8" fill="#23272e" stroke="#3a3f47"/><text x="74" y="581.0" fill="#f0f1f4" font-size="15">Legacy Checkout</text>
+<rect x="400" y="544" width="280" height="64" rx="8" fill="#23272e" stroke="#3a3f47"/><text x="414" y="581.0" fill="#f0f1f4" font-size="15">Payments API</text>
+<rect x="740" y="544" width="280" height="64" rx="8" fill="#23272e" stroke="#3a3f47"/><text x="754" y="581.0" fill="#f0f1f4" font-size="15">Storefront</text>
+<rect x="760" y="632" width="240" height="40" rx="8" fill="#1b1e24" stroke="#3a3f47"/><text x="774" y="657.0" fill="#aeb3bb" font-size="13">Architecture</text>
+<rect x="760" y="680" width="240" height="40" rx="8" fill="#1b1e24" stroke="#3a3f47"/><text x="774" y="705.0" fill="#aeb3bb" font-size="13">State</text>
+<rect x="60" y="868" width="280" height="64" rx="8" fill="#23272e" stroke="#3a3f47"/><text x="74" y="905.0" fill="#f0f1f4" font-size="15">Dotfiles</text>
+<rect x="80" y="956" width="240" height="40" rx="8" fill="#1b1e24" stroke="#3a3f47"/><text x="94" y="981.0" fill="#aeb3bb" font-size="13">Setup</text>
+</svg>
