@@ -75,6 +75,7 @@ import usage  # noqa: E402
 if DEMO:                              # swap `claude`, the GitHub CLI, terminals and cloning for harmless stand-ins
     demo_runtime = demo.install(chief, settings)
 
+_NO_MATCH = object()          # what a group of routes returns for a path that is not its own
 TOKEN = secrets.token_urlsafe(24)
 MAX_BODY = 16_384
 GRACE_S = 15
@@ -394,7 +395,7 @@ def _build_state_uncached() -> dict:
             traceback.print_exc(file=sys.stderr)
     state["features"] = in_scope
     # the page sends this back: while the cards are the same, the next answer leaves them out (they are most of the payload)
-    state["features_hash"] = hashlib.sha1(json.dumps(in_scope, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
+    state["features_hash"] = hashlib.sha1(json.dumps(in_scope, sort_keys=True, ensure_ascii=False).encode("utf-8"), usedforsecurity=False).hexdigest()[:16]
     state["earlier_closed"] = sum(1 for f in every if f["project"] in visible and not _in_scope(f, cur, every))
     # the workers' history is this session's: workers still running are always shown, finished ones only if launched in this session
     state["workers"] = [w for w in state["workers"] if w["project"] in visible and (w.get("state") in chief.ACTIVE or w.get("session") == cur)]
@@ -633,7 +634,15 @@ class Handler(BaseHTTPRequestHandler):
         raise FeatureError("unknown action")
 
     def _route(self, path: str, body: dict):
+        """Each group of routes answers its own paths and returns _NO_MATCH for the rest, so the first match wins, in this order."""
         parts = path.strip("/").split("/")
+        for group in (self._route_settings_projects, self._route_server, self._route_vault, self._route_inbox_pending, self._route_features):
+            result = group(parts, body)
+            if result is not _NO_MATCH:
+                return result
+        raise FeatureError("unknown route")
+
+    def _route_settings_projects(self, parts: list, body: dict):
         if parts[:2] == ["api", "settings"] and len(parts) == 3:
             try:
                 return self._settings_action(parts[2], body)
@@ -651,10 +660,13 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as e:
                 raise FeatureError(str(e)) from e
             return {"ok": True, "name": p["name"], "extraction": translate(_onboard(p), self._lang)}
-        if DEMO and parts == ["api", "demo", "limit"]:        # demo only: pretend a worker hit (or left) a usage limit
-            return {"limit": demo_runtime.set_limit(str(body.get("worker", "")), bool(body.get("on", True)), bool(body.get("auto")))}
         if parts == ["api", "pipelines"] or (parts[:2] == ["api", "pipelines"] and len(parts) == 4):
             return self._pipeline_post(parts, body)
+        return _NO_MATCH
+
+    def _route_server(self, parts: list, body: dict):
+        if DEMO and parts == ["api", "demo", "limit"]:        # demo only: pretend a worker hit (or left) a usage limit
+            return {"limit": demo_runtime.set_limit(str(body.get("worker", "")), bool(body.get("on", True)), bool(body.get("auto")))}
         if parts in (["api", "server", "stop"], ["api", "server", "restart"]):
             restart = parts[2] == "restart"
             if restart and DEMO:
@@ -662,33 +674,44 @@ class Handler(BaseHTTPRequestHandler):
             threading.Thread(target=_end_server, args=(restart,), daemon=True).start()
             return {"ok": True, "restarting": restart}
         if parts == ["api", "trust", "grant"]:
-            if DEMO:
-                raise FeatureError("this is the demo: nothing is changed in Claude Code's settings")
-            try:
-                done = trust.confirm(TRUST, str(body.get("path", "")))
-            except trust.TrustError as e:
-                raise FeatureError(str(e)) from e
-            started = False
-            if chief.vault_enabled() and trust.norm(chief.VAULT) == done["path"] and CURATOR.drafts():
-                try:
-                    CURATOR.start(force=True)            # the vault was why the curation was stuck: it goes on by itself
-                    started = True
-                except CurationError:
-                    pass
-            return {**done, "curation_started": started}
-        if parts[:2] == ["api", "vault"] and not DEMO and chief.vault_enabled():
-            try:
-                if parts == ["api", "vault", "map"]:
-                    return {"ok": True, **MAPPER.start(force=True)}
-                if parts == ["api", "vault", "check"]:
-                    return {"ok": True, **SANITIZER.start(force=True)}
-                if len(parts) == 5 and parts[2] == "findings" and parts[4] in ("apply", "accept", "dismiss", "fix"):
-                    out = getattr(SANITIZER, parts[4])(parts[3])
-                    return {"ok": True, **(out or {})}
-            except (SanitizeError, MapError) as e:
-                raise FeatureError(str(e)) from e
+            return self._trust_grant(body)
         if parts == ["api", "session", "end"]:
             return _end_session()
+        return _NO_MATCH
+
+    @staticmethod
+    def _trust_grant(body: dict) -> dict:
+        if DEMO:
+            raise FeatureError("this is the demo: nothing is changed in Claude Code's settings")
+        try:
+            done = trust.confirm(TRUST, str(body.get("path", "")))
+        except trust.TrustError as e:
+            raise FeatureError(str(e)) from e
+        started = False
+        if chief.vault_enabled() and trust.norm(chief.VAULT) == done["path"] and CURATOR.drafts():
+            try:
+                CURATOR.start(force=True)            # the vault was why the curation was stuck: it goes on by itself
+                started = True
+            except CurationError:
+                pass
+        return {**done, "curation_started": started}
+
+    def _route_vault(self, parts: list, body: dict):
+        if not (parts[:2] == ["api", "vault"] and not DEMO and chief.vault_enabled()):
+            return _NO_MATCH
+        try:
+            if parts == ["api", "vault", "map"]:
+                return {"ok": True, **MAPPER.start(force=True)}
+            if parts == ["api", "vault", "check"]:
+                return {"ok": True, **SANITIZER.start(force=True)}
+            if len(parts) == 5 and parts[2] == "findings" and parts[4] in ("apply", "accept", "dismiss", "fix"):
+                out = getattr(SANITIZER, parts[4])(parts[3])
+                return {"ok": True, **(out or {})}
+        except (SanitizeError, MapError) as e:
+            raise FeatureError(str(e)) from e
+        return _NO_MATCH
+
+    def _route_inbox_pending(self, parts: list, body: dict):
         if parts == ["api", "inbox", "curate"]:
             if not chief.vault_enabled():
                 raise PendingError("no vault configured")
@@ -705,8 +728,11 @@ class Handler(BaseHTTPRequestHandler):
             return _add_todo(str(body.get("project", "")), str(body.get("session", "")))
         if parts[:2] == ["api", "pending"] and len(parts) == 4:
             return self._pending_action(parts[2], parts[3])
+        return _NO_MATCH
+
+    def _route_features(self, parts: list, body: dict):
         if parts[:2] != ["api", "features"]:
-            raise FeatureError("unknown route")
+            return _NO_MATCH
         if len(parts) == 2:
             paths = {p["name"]: p["path"] for p in chief.load_projects()}
             if body.get("project") not in paths:
@@ -716,28 +742,27 @@ class Handler(BaseHTTPRequestHandler):
                                    autopilot=body.get("autopilot") is True, path=paths[body["project"]],
                                    parent=str(body.get("parent") or ""), pipeline=str(body.get("pipeline") or ""))
         if len(parts) == 4:
-            fid, action = parts[2], parts[3]
-            if action == "approve":
-                return FEATURES.approve(fid)
-            if action == "revise":
-                return FEATURES.revise(fid, str(body.get("comment", "")))
-            if action == "fix":
-                return FEATURES.request_fixes(fid, str(body.get("comment", "")), selected=bool(body.get("selected")))
-            if action == "ask":
-                return FEATURES.ask(fid, str(body.get("question", "")))
-            if action == "retry":
-                return FEATURES.retry(fid)
-            if action == "cancel":
-                return FEATURES.cancel(fid)
-            if action == "kind":
-                return FEATURES.set_kind(fid, str(body.get("kind", "")))
-            if action == "cleanup":
-                global CARD_FACTS
-                try:
-                    return FEATURES.cleanup(fid, force=body.get("force") is True)
-                finally:
-                    CARD_FACTS = projectpage.TtlCache(ttl_s=30)        # what the card says about git is out of date now
-        raise FeatureError("unknown route")
+            return self._feature_action(parts[2], parts[3], body)
+        return _NO_MATCH
+
+    @staticmethod
+    def _feature_action(fid: str, action: str, body: dict):
+        simple = {"approve": lambda: FEATURES.approve(fid),
+                  "revise": lambda: FEATURES.revise(fid, str(body.get("comment", ""))),
+                  "fix": lambda: FEATURES.request_fixes(fid, str(body.get("comment", "")), selected=bool(body.get("selected"))),
+                  "ask": lambda: FEATURES.ask(fid, str(body.get("question", ""))),
+                  "retry": lambda: FEATURES.retry(fid),
+                  "cancel": lambda: FEATURES.cancel(fid),
+                  "kind": lambda: FEATURES.set_kind(fid, str(body.get("kind", "")))}
+        if action in simple:
+            return simple[action]()
+        if action == "cleanup":
+            global CARD_FACTS
+            try:
+                return FEATURES.cleanup(fid, force=body.get("force") is True)
+            finally:
+                CARD_FACTS = projectpage.TtlCache(ttl_s=30)        # what the card says about git is out of date now
+        return _NO_MATCH
 
 
 def _reconcile() -> None:

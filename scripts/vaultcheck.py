@@ -92,7 +92,6 @@ def structure_findings(vault, schema: dict, drafts: int = 0, oldest_draft_s: flo
     vault, out = Path(vault), []
     hub_dirs, fm = tuple(schema["hub_dirs"]), schema["fm"]
     index = (vault / "00-Index.md").read_text(encoding="utf-8", errors="replace") if (vault / "00-Index.md").is_file() else None
-    canvas = (vault / "Mapa.canvas").read_text(encoding="utf-8", errors="replace") if (vault / "Mapa.canvas").is_file() else None
     for rel in note_paths(vault, hub_dirs):
         text = read_note(vault, rel)
         props = frontmatter(text)

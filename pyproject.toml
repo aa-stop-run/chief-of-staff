@@ -1,0 +1,14 @@
+[tool.ruff]
+line-length = 200
+target-version = "py312"
+
+[tool.ruff.lint]
+# Real defects only: pyflakes, syntax errors and bugbear (minus the noisy ones). Style is not enforced.
+select = ["F", "E9", "B"]
+ignore = ["B008", "B904", "B905", "B007"]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F811", "F841"]   # pytest fixtures are imported by name and re-requested as arguments

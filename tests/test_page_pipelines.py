@@ -1,6 +1,5 @@
 """The pure helpers of the Pipelines page (the `// <pipelines>` region of app/index.html), run with node."""
 import json
-import re
 import shutil
 import subprocess
 import sys

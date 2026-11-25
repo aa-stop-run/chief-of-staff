@@ -1,6 +1,5 @@
 """The fan-out helpers (scripts/fanout.py), tested first."""
 import json
-import re
 import sys
 from datetime import datetime
 from pathlib import Path

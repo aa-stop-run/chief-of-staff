@@ -8,8 +8,10 @@ a plan that left no questions («run until the review»). The last phase is alwa
 import json
 import re
 import shutil
+import sys
 import threading
-import unicodedata
+import time
+import traceback
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -31,6 +33,12 @@ import splitplan
 from feature_checks import (AWAITING, CANCELLED, CHECK_EVENTS, CONCEPT_REVIEW, DONE, FAILED, GATE_REASONS, PLAN_REVIEW, SUBCHECK_OF, SUBCHECKS, WORKING,  # noqa: F401,E501
                            CheckFlow, COMMIT_TYPES, FeatureError, _now, _slug, commit_message)  # noqa: F401
 
+def _warn(message: str) -> None:
+    """A failure the flow survives: say so on the server's console, with the traceback, instead of hiding it."""
+    print(f"[features] {message}", file=sys.stderr)
+    traceback.print_exc(file=sys.stderr)
+
+
 STAGES = ("spec", "plan", "build", "review")      # the artifact versions every request starts counting (the concept's starts when it is used)
 ARTIFACT = {"concept": "concept.md", "spec": "spec.md", "plan": "plan.md", "build": "report.md", "review": "review.md"}
 # Any model name the user's Claude Code understands (an alias such as "opus", a full model id, a gateway's model name).
@@ -44,7 +52,6 @@ QA_DIR = "qa"                 # «Ask the worker»: one answer file per question
 MAX_QUESTION, MAX_QA_CONTEXT = 2000, 3000   # characters; how much of an earlier answer a new question sees
 ARCHIVE_EVENTS = {"concept": ("concept archived", "concept archiving failed"), "spec": ("spec archived", "spec archiving failed"), "plan": ("plan archived", "plan archiving failed"),
                   "analysis": ("analysis archived", "analysis archiving failed")}
-PLAN_REVIEW = "plan-review.md"   # independent plan validation (a sub-step of the plan phase)
 MAX_PLAN_FIXES = 1               # automatic rounds plan -> validation -> plan fix (one: a validator always finds something)
 AUTOPILOT_STAGES = ("spec", "plan")   # what «run until the review» may approve by itself; never the last phase, never ship/release
 MAX_PLAN_TASKS = prompt_refs.MAX_PLAN_TASKS   # above this many steps the planner plans a first part and the validator proposes a split
@@ -172,7 +179,15 @@ class Features(CheckFlow):
     def _load(self) -> list:
         try:
             return json.loads(self._file.read_text(encoding="utf-8"))
-        except Exception:  # noqa: BLE001 - a missing or corrupt file means no features yet
+        except FileNotFoundError:
+            return []
+        except (OSError, ValueError):
+            # Corrupt or unreadable: keep the bytes for the user before the next _save() replaces the file with an empty list.
+            _warn(f"{self._file} could not be read; moving it aside")
+            try:
+                self._file.replace(self._file.with_name(f"features.corrupt-{int(time.time())}.json"))
+            except OSError:
+                pass
             return []
 
     def _save(self, fs: list) -> None:
@@ -493,7 +508,7 @@ class Features(CheckFlow):
                 if changed:
                     self._save(fs)
         except Exception:  # noqa: BLE001 - housekeeping must never bring the server's ticker down
-            pass
+            _warn("integration housekeeping failed")
 
     # ---- dependent parts: created held at the fan-out, released by the ticker onto the code of the parts they follow ----
     def release_held(self) -> None:
@@ -1162,7 +1177,7 @@ class Features(CheckFlow):
         try:
             self._on_launch(w["id"], request=f["id"], phase=phase)
         except Exception:  # noqa: BLE001 - bookkeeping is an extra
-            pass
+            _warn(f"tagging worker {w.get('id')} failed")
 
     def _release(self, worker_id: str) -> None:
         """Never lets a failure while cleaning up sessions break the feature flow."""
@@ -1171,7 +1186,7 @@ class Features(CheckFlow):
         try:
             self._on_release(worker_id)
         except Exception:  # noqa: BLE001 - cleanup is an extra, it must not fail the feature
-            pass
+            _warn(f"releasing worker {worker_id} failed")
 
     @staticmethod
     def _lang(f: dict) -> str:

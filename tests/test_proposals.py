@@ -83,7 +83,7 @@ def test_the_worker_preamble_tells_workers_how_to_suggest_and_that_it_starts_not
         assert "proposals.py" in pre and "{chief}" in pre and "{worker}" in pre and "cannot start work" in pre
     p = {"slug": "a", "name": "Alfa", "path": ".", "hub": ""}
     name, _, prompt = chief.build_command(p, "task", label="x-build")
-    assert f'--project "Alfa"' in prompt and f'--by "{name}"' in prompt and "scripts/proposals.py" in prompt
+    assert '--project "Alfa"' in prompt and f'--by "{name}"' in prompt and "scripts/proposals.py" in prompt
 
 
 def test_the_command_line_refuses_unknown_projects_and_writes_nothing(tmp_path):

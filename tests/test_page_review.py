@@ -142,7 +142,7 @@ def test_every_split_history_event_has_a_portuguese_string(event):
 def test_a_held_part_says_what_it_waits_for_and_is_not_a_decision():
     held = {"status": "awaiting", "held": True, "held_for": ["API", "DB"]}
     assert call(f"heldLine({json.dumps(held)},t)") == {"text": "Waiting for «API», «DB» to be committed and reviewed; it starts by itself after that.", "warn": False}
-    assert call(f'heldLine({{held:true,held_error:"boom"}},t)') == {"text": "This part cannot start yet: boom", "warn": True}
+    assert call('heldLine({held:true,held_error:"boom"},t)') == {"text": "This part cannot start yet: boom", "warn": True}
     assert call('heldLine({held:true,held_for:[]},t)')["text"].startswith("Starting soon")
     assert call('heldLine({status:"awaiting"},t)') is None
     assert call(f"decides({json.dumps(held)})") is False

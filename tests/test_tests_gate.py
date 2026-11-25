@@ -8,7 +8,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from features import parse_tests, review_tests_gate  # noqa: E402
-from test_auto_review import FakeCommit, feature_in_build, finish_stage  # noqa: E402
+from test_auto_review import feature_in_build, finish_stage  # noqa: E402
 from test_auto_review import auto  # noqa: E402,F401  (fixture)
 from test_questions_js import run  # noqa: E402
 

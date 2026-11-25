@@ -20,7 +20,7 @@ import sessions  # noqa: E402
 import usage  # noqa: E402
 import workerlog  # noqa: E402
 from features import FeatureError, Features  # noqa: E402
-from test_auto_review import REVIEW_OK, Fake, feature_in_build, finish_stage  # noqa: E402
+from test_auto_review import Fake, finish_stage  # noqa: E402
 from test_chief_actions import _repo  # noqa: E402
 
 

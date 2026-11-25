@@ -1,9 +1,6 @@
 """scripts/vaultcheck.py: the checks that need no worker, the ledger, what a worker's findings must satisfy, and the one way a note changes."""
 import json
-import os
-import subprocess
 import sys
-import time
 from datetime import date
 from pathlib import Path
 
