@@ -14,6 +14,7 @@ import pytest
 
 TEST_HOME = Path(tempfile.mkdtemp(prefix="chief-test-home-"))
 os.environ["CHIEF_HOME"] = str(TEST_HOME)
+os.environ["CLAUDE_CONFIG_DIR"] = str(TEST_HOME / "claude-config")   # the tests never read or write the real Claude Code config (trust, settings)
 atexit.register(shutil.rmtree, TEST_HOME, True)          # nothing is left behind after the run
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import chief  # noqa: E402

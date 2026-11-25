@@ -241,3 +241,47 @@ def test_an_untrusted_vault_is_alerted_before_any_launch_is_refused(tmp_path):
     assert [i["kind"] for i in al.items()] == ["vault"] and al.items()[0]["path"] == trust.norm(vault)
     trust.confirm(al, vault, cfg)
     assert al.items() == [] and not al.add(vault, "Vault", "vault")                      # trusted: no alert comes back
+
+
+# ------------------------------------------------------------------ the Chief's own state folder is trusted once, as a whole
+
+def test_a_request_folder_in_the_state_folder_asks_for_the_state_folder_once(tmp_path, cfg):
+    # the data lives outside the trusted application folder: every request has a folder of its own, and trusting each one would be asked again and again
+    state = tmp_path / "state"
+    first, second = state / "features" / "req-1", state / "features" / "req-2"
+    first.mkdir(parents=True), second.mkdir(parents=True)
+    widen = lambda p: str(state) if trust.norm(p).lower().startswith(trust.norm(state).lower() + "/") else p   # noqa: E731
+    al = trust.TrustAlerts(tmp_path / "t.json", lambda: [state], trusted=lambda p: trust.is_trusted(p, cfg), widen=widen)
+    assert al.add(first, name="proj", kind="project", reason="refused")
+    assert [trust.norm(i["path"]) for i in al.items()] == [trust.norm(state)]
+    trust.confirm(al, str(state), cfg)
+    assert trust.is_trusted(first, cfg) and trust.is_trusted(second, cfg)       # a later request needs nothing more
+    assert al.items() == []
+
+
+# ------------------------------------------------------------------ the Chief's own state folder may be trusted without a click (a setting, on by default)
+
+def test_the_state_folder_is_trusted_automatically_and_nothing_else_is_touched(tmp_path, cfg):
+    state, other = tmp_path / "state", tmp_path / "project"
+    state.mkdir(), other.mkdir()
+    assert not trust.is_trusted(state, cfg)
+    assert trust.auto_grant_state(state, cfg) is True
+    assert trust.is_trusted(state, cfg) and trust.is_trusted(state / "features", cfg)
+    assert not trust.is_trusted(other, cfg)                                       # only that folder
+    assert json.loads(cfg.read_text(encoding="utf-8"))["userID"] == "secret-id"   # the rest of Claude Code's config is kept
+
+
+def test_an_already_trusted_or_missing_state_folder_changes_nothing(tmp_path, cfg):
+    state = tmp_path / "state"
+    assert trust.auto_grant_state(state, cfg) is False                            # no such folder
+    state.mkdir()
+    trust.grant(state, cfg)
+    before = cfg.read_text(encoding="utf-8")
+    assert trust.auto_grant_state(state, cfg) is False and cfg.read_text(encoding="utf-8") == before
+
+
+def test_a_state_folder_inside_a_repository_is_left_to_the_user(tmp_path, cfg):
+    (tmp_path / ".git").mkdir()
+    state = tmp_path / "state"
+    state.mkdir()
+    assert trust.auto_grant_state(state, cfg) is False and not trust.is_trusted(state, cfg)   # that would trust the whole repository
