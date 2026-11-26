@@ -1235,6 +1235,17 @@ const PT = {
   "Follows the request “{title}” ({id}).":"Dá seguimento ao pedido «{title}» ({id}).",
   "✓ {br} is merged into {into}. Its worktree and the branch can be removed.":"✓ {br} está integrado em {into}. O worktree e o ramo podem ser removidos.",
   "Remove worktree and branch":"Remover worktree e ramo",
+  "{br} is not merged into {into} yet.":"{br} ainda não está integrado em {into}.",
+  "The Chief integrates it for you once you confirm the exact steps.":"O Chief integra-o por ti depois de confirmares os passos exatos.",
+  "Integrate…":"Integrar…",
+  "Confirm and integrate":"Confirmar e integrar",
+  "Close":"Fechar",
+  "Integrated.":"Integrado.",
+  "Then it is pushed to {r} ({u}), never forced.":"Depois é enviado (push) para {r} ({u}), nunca forçado.",
+  "The project has no remote: nothing is pushed.":"O projeto não tem remoto: nada é enviado.",
+  "What will run, into {into}:":"O que vai correr, em {into}:",
+  "integrated":"integrado",
+  "integration failed":"integração falhou",
   "The cancelled work is still on disk: its worktree and the branch {br}.":"O trabalho cancelado continua no disco: o worktree e o ramo {br}.",
   "{n} uncommitted file(s).":"{n} ficheiro(s) por comitar.",
   "Discard the work":"Deitar fora o trabalho",
@@ -2751,6 +2762,13 @@ function kindSwitch(f){
   const opts=["feature","fix","maintenance","analysis"].filter(x=>x!==k).map(x=>`<option value="${x}">${esc(KIND_LABEL[x])}</option>`).join("");
   return `<p class="kindsw"><label>${tt("Wrong type of request?")}<select data-kindsel="${esc(f.id)}"><option value="">${tt("Change to…")}</option>${opts}</select></label></p>`;
 }
+function integratePlanHtml(pl){
+  const li=a=>a.map(s=>`<li>${esc(s)}</li>`).join("");
+  const commits=(pl.commits||[]).length?`<ul class="cnote2">${li(pl.commits.map(c=>c.sha+" "+c.subject))}</ul>`:"";
+  const dest=pl.remote?tt("Then it is pushed to {r} ({u}), never forced.",{r:pl.remote,u:pl.remote_url}):tt("The project has no remote: nothing is pushed.");
+  const probs=(pl.problems||[]).length?`<ul class="cnote2 warn">${li(pl.problems)}</ul>`:"";
+  return `<span class="plan"><b>${tt("What will run, into {into}:",{into:pl.into||"?"})}</b>${commits}<span class="cmds">${(pl.commands||[]).map(c=>cp(c)).join("")}</span>${esc(dest)}${probs}</span>`;
+}
 function finishHtml(f){
   if(!["done","cancelled"].includes(f.status))return "";
   const id=esc(f.id),x=f.finish;
@@ -2764,8 +2782,11 @@ function finishHtml(f){
     btn=`<button class="btn pri" data-act="cleanup" data-id="${id}" type="button">${tt("Remove worktree and branch")}</button>`;}
   else if(f.status==="cancelled"){body=tt("The cancelled work is still on disk: its worktree and the branch {br}.",{br})+dirty;btn=discard;}
   else if(x.exists&&x.committed){
-    body=tt("{br} is not merged into {into} yet. To merge it (the Chief never merges or pushes):",{br,into})+`<span class="cmds">${(x.commands||[]).map(c=>cp(c)).join("")}</span>`+tt("After merging, come back here to remove the worktree and the branch.");
-    btn=x.worktree&&!x.dirty?`<button class="btn" data-act="cleanup" data-id="${id}" type="button">${tt("Remove the worktree (keep the branch)")}</button>`:"";}
+    const pl=fui(f.id).plan;
+    body=tt("{br} is not merged into {into} yet.",{br,into})+" "+tt("The Chief integrates it for you once you confirm the exact steps.")+(pl?integratePlanHtml(pl):"");
+    btn=!pl?`<button class="btn pri" data-act="integrate" data-id="${id}" type="button">${tt("Integrate…")}</button>`
+      :(pl.ok?`<button class="btn pri" data-act="integrate" data-go="1" data-id="${id}" type="button">${tt("Confirm and integrate")}</button>`:"")
+       +`<button class="btn ghost" data-act="integrate-cancel" data-id="${id}" type="button">${tt("Close")}</button>`;}
   else{body=tt("This request left a worktree whose work was never committed.")+dirty;btn=discard;}
   return `<div class="finish"><p>${body}</p><div class="acts">${btn}${follow}</div></div>`;
 }
@@ -2936,6 +2957,15 @@ async function featClick(e){
   const b=e.target.closest("[data-act]");if(!b)return;
   const id=b.dataset.id,act=b.dataset.act;
   if(act==="cardtoggle"){const u0=fui(id);u0.collapsed=!u0.collapsed;renderFeatures(lastFs,lastFiltering);return;}
+  if(act==="integrate-cancel"){delete fui(id).plan;featHtml="";doneHtml="";await load();return;}
+  if(act==="integrate"){                        // first click: the plan; the click on «Confirm» authorises exactly that plan
+    const ui=fui(id),go=b.dataset.go==="1";
+    document.querySelectorAll(`#featsDone [data-id="${id}"].btn`).forEach(x=>x.disabled=true);
+    try{
+      if(go){await api(`/api/features/${encodeURIComponent(id)}/integrate`,{confirm:true,expect:ui.plan.expect});delete ui.plan;toast(tt("Integrated."));}
+      else ui.plan=(await api(`/api/features/${encodeURIComponent(id)}/integrate`,{})).plan;
+    }catch(err){delete ui.plan;toast(err.message,true);}
+    featHtml="";doneHtml="";await load();return;}
   if(act==="followup"){const src=(S.features||[]).find(x=>x.id===id);if(src)openNewRequest(followUp(src,tt));return;}
   if(act==="cancel"&&!armed(b,tt("Cancel this feature? The running worker will be stopped (its conversation is kept).")))return;
   const body={};
@@ -2972,7 +3002,7 @@ async function featClick(e){
   if(act==="ask"){const ta=document.getElementById("ask-"+id);if(ta)ta.focus();}
 }
 $("feats").addEventListener("click",featClick);
-$("featsDone").addEventListener("click",e=>{if(e.target.closest("[data-act='ask'],[data-act='cleanup'],[data-act='followup']"))featClick(e);});
+$("featsDone").addEventListener("click",e=>{if(e.target.closest("[data-act='ask'],[data-act='cleanup'],[data-act='followup'],[data-act='integrate'],[data-act='integrate-cancel']"))featClick(e);});
 $("feats").addEventListener("change",async e=>{
   const s=e.target.closest("select[data-kindsel]");if(!s||!s.value)return;
   try{await api(`/api/features/${encodeURIComponent(s.dataset.kindsel)}/kind`,{kind:s.value});toast(tt("Type changed: the first phase starts again."));}

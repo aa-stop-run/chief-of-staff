@@ -676,6 +676,14 @@ def request_change_warnings(work, diff) -> list:
     return changecheck.warnings(diff, finish.changed_files(work) if protected else [], changecheck.limits(CFG.get("review_limits")), protected)
 
 
+def integrate_request(project_path, work, branch: str, expect=None) -> dict:
+    """Without `expect`: the plan to integrate a request's branch (reads only). With it (the user confirmed that plan): do it."""
+    import integrate
+    if expect is None:
+        return integrate.plan(project_path, work, branch, secret_paths=secret_paths)
+    return integrate.run(project_path, work, branch, expect, secret_paths=secret_paths)
+
+
 def cleanup_request(project_path, work, branch: str, force: bool = False) -> tuple:
     return finish.remove(project_path, work, branch, force)
 

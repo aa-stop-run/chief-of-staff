@@ -104,7 +104,7 @@ FEATURES = Features(chief.STATE, chief.launch_worker, _is_active, grace_s=GRACE_
                     has_vault=chief.vault_enabled(), session=SESSIONS.current_id, on_launch=chief.tag_worker, limit=chief.worker_limit,
                     route=chief.route, tools=chief.tools_for, live_known=lambda: _live["map"] is not None,
                     route_step=chief.route_step, tools_for_step=chief.tools_for_step,
-                    cleaner=lambda *a: chief.cleanup_request(*a), pipeline_home=lambda: chief.HOME)
+                    cleaner=lambda *a: chief.cleanup_request(*a), integrator=lambda *a: chief.integrate_request(*a), pipeline_home=lambda: chief.HOME)
 TICK_S = 10
 PENDING = Pending(chief.STATE)
 def _trust_target(path) -> str:
@@ -788,10 +788,14 @@ class Handler(BaseHTTPRequestHandler):
                   "kind": lambda: FEATURES.set_kind(fid, str(body.get("kind", "")))}
         if action in simple:
             return simple[action]()
-        if action == "cleanup":
+        if action in ("cleanup", "integrate"):
             global CARD_FACTS
             try:
-                return FEATURES.cleanup(fid, force=body.get("force") is True)
+                if action == "cleanup":
+                    return FEATURES.cleanup(fid, force=body.get("force") is True)
+                if body.get("confirm") is True:              # the click that authorises the plan the user was shown
+                    return FEATURES.integrate(fid, body.get("expect") if isinstance(body.get("expect"), dict) else {})
+                return {"plan": FEATURES.integrate_plan(fid)}
             finally:
                 CARD_FACTS = projectpage.TtlCache(ttl_s=30)        # what the card says about git is out of date now
         return _NO_MATCH
