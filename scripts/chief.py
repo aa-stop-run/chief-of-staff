@@ -1030,10 +1030,32 @@ ARCHIVE_LABELS = {"concept": ("Conceito aprovado", "Concept"), "spec": ("Spec ap
                   "analysis": ("Análise aprovada", "Analysis")}   # (repo label in Portuguese, repo label in English)
 
 
+def exclude_archive(root: Path) -> None:
+    """Keep the archive folders out of the project's git, on this machine only: `.git/info/exclude` (never the project's own
+    `.gitignore`, which is shared). Added once; a folder that is not a git repository, or any failure, changes nothing."""
+    try:
+        r = subprocess.run(["git", "-C", str(root), "rev-parse", "--git-path", "info/exclude"], capture_output=True, text=True,
+                           encoding="utf-8", timeout=15, creationflags=NO_WINDOW)
+        if r.returncode != 0 or not r.stdout.strip():
+            return
+        target = Path(r.stdout.strip())
+        target = target if target.is_absolute() else Path(root) / target
+        have = target.read_text(encoding="utf-8").splitlines() if target.is_file() else []
+        lines = [f"/docs/{d}/" for d in ARCHIVE_DIRS.values() if f"/docs/{d}/" not in have]
+        if lines:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            head = [] if "# Chief archive: local only, never committed" in have else ["# Chief archive: local only, never committed"]
+            text = ("\n" if have and have[-1] else "") + "\n".join(head + lines) + "\n"
+            with target.open("a", encoding="utf-8", newline="\n") as fh:
+                fh.write(text)
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
 def archive_doc(kind, project, title, fid, created, text, lang="en"):
     """Archive an approved spec, plan or analysis: copy it to <project>/docs/{specs,plans,analyses}/ and leave a draft in the vault inbox.
 
-    Never overwrites, commits or pushes. Returns a sentence describing what it did; raises ValueError if it cannot."""
+    Never overwrites, commits or pushes, and keeps the folders out of git (`exclude_archive`). Returns a sentence describing what it did; raises ValueError if it cannot."""
     if kind not in ARCHIVE_DIRS or not (text or "").strip():
         raise ValueError("nothing to archive")
     p = next((x for x in load_projects() if x["name"] == project), None)
@@ -1047,6 +1069,7 @@ def archive_doc(kind, project, title, fid, created, text, lang="en"):
     pt_label, en_label = ARCHIVE_LABELS[kind]
     note = (f"> {en_label} approved in the Chief of Staff (request `{fid}`, project {p['name']}).\n\n" if lang == "en"
             else f"> {pt_label} no Chief of Staff (pedido `{fid}`, projeto {p['name']}).\n\n")
+    exclude_archive(root)                    # local only: the archive never reaches the project's remote
     dest = root / "docs" / ARCHIVE_DIRS[kind] / f"{base}.md"
     where = f"docs/{ARCHIVE_DIRS[kind]}/{base}.md"
     if dest.exists():

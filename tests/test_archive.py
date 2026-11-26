@@ -140,3 +140,27 @@ def test_publish_approved_does_not_retry_a_failure_forever(tmp_path):
     fs = Features(tmp_path, fake.launch, fake.is_active, publisher=Recorder(fail=True))
     assert fs.publish_approved() == 1 and fs.publish_approved() == 0
 
+
+
+def _git_init(path):
+    import subprocess
+    subprocess.run(["git", "-C", str(path), "init", "-q"], check=True)
+
+
+def test_the_archive_is_kept_out_of_git_locally_and_never_committed(env):
+    import subprocess
+    _, proj = env
+    _git_init(proj)
+    chief.archive_doc("spec", "Alfa", "Login", "x", "2026-11-07T10:00:00", "# Spec")
+    chief.archive_doc("plan", "Alfa", "Login", "x", "2026-11-07T10:00:00", "# Plan")
+    out = subprocess.run(["git", "-C", str(proj), "status", "--porcelain", "-uall"], capture_output=True, text=True, check=True).stdout
+    assert out.strip() == ""                                              # nothing shows up as a change
+    exclude = (proj / ".git" / "info" / "exclude").read_text(encoding="utf-8")
+    assert exclude.count("/docs/specs/") == 1 and "/docs/plans/" in exclude  # added once, however many documents are archived
+    assert not (proj / ".gitignore").exists()                             # the project's own files are not touched
+
+
+def test_a_project_that_is_not_a_git_repo_is_archived_without_error(env):
+    _, proj = env
+    info = chief.archive_doc("spec", "Alfa", "Login", "x", "2026-11-07T10:00:00", "# Spec")
+    assert "copied to" in info and not (proj / ".git").exists()
