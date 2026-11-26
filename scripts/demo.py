@@ -526,7 +526,7 @@ def seed(base: Path, now: datetime | None = None) -> Path:
 
 # ---------------------------------------------------------------- the simulated machine
 PATCHED_CHIEF = ("worker_limit", "sessions_checked", "launch_worker", "stop_worker", "commit_worktree", "open_session", "launch_curator", "clone_project",
-                 "worker_last_message", "request_finish", "request_diff", "cleanup_request")
+                 "worker_last_message", "request_finish", "request_diff", "cleanup_request", "integrate_request")
 PATCHED_SETTINGS = ("github_status", "plan_connection", "connect_plan", "disconnect_plan")
 
 
@@ -593,6 +593,16 @@ class Runtime:
     @staticmethod
     def cleanup_request(project_path, work, branch, force=False):
         return True, f"(demo) worktree removed; branch {branch} deleted"
+
+    @staticmethod
+    def integrate_request(project_path, work, branch, expect=None):
+        into = "main"
+        if expect is None:
+            return {"ok": True, "problems": [], "into": into, "mode": "merge", "commits": [{"sha": "a1b2c3d", "subject": "feat: demo change"}],
+                    "remote": "origin", "remote_url": "https://example.com/demo/repo.git", "expect": {"into": into, "mode": "merge"},
+                    "commands": [f"git merge --no-ff {branch}", f"git push origin {into}:{into}"]}
+        return {"ok": True, "merged": True, "pushed": True, "error": "",
+                "steps": [f"(demo) merged {branch} into {into}", f"(demo) pushed {into} to origin"]}
 
     @staticmethod
     def open_session(project, session_id):

@@ -143,7 +143,7 @@ class Features(CheckFlow):
     def __init__(self, root, launcher, is_active, grace_s: int = 0, is_busy=None, on_release=None,
                  auto_review: bool = False, committer=None, publisher=None, note_lang: str = "English", has_vault: bool = True,
                  session=None, on_launch=None, limit=None, route=None, tools=None, route_step=None, tools_for_step=None,
-                 live_known=None, cleaner=None, pipeline_home=None):
+                 live_known=None, cleaner=None, pipeline_home=None, integrator=None):
         """is_active: the worker session exists; is_busy: it is really working (defaults to is_active).
 
         A worker may finish the phase and keep the session open waiting for input: active, but not busy."""
@@ -169,6 +169,7 @@ class Features(CheckFlow):
         self._limit = limit              # limit(worker_id) -> the usage-limit notice stopping that worker, or None
         self._live_known = live_known or (lambda: True)   # False while the host cannot ask Claude Code for its sessions
         self._cleaner = cleaner          # cleaner(project_path, worktree, branch, force) -> (ok, info): removes what a request left in git
+        self._integrator = integrator    # integrator(project_path, worktree, branch, expect|None) -> plan dict (None) or result dict
         self._lock = threading.RLock()
 
     # ---- persistence ----
@@ -1044,6 +1045,39 @@ class Features(CheckFlow):
             if not ok:
                 raise FeatureError(info)
             return f
+
+    # ---- integrate: merge the branch, push, clean up, after the user's confirmation of the exact plan ----
+    def integrate_plan(self, fid: str) -> dict:
+        """What «Integrate» would do for a finished request (reads only; nothing is changed)."""
+        with self._lock:
+            f = self._integrable(self._get(self._load(), fid))
+            return self._integrator(f["path"], self._dir(fid) / "work", f"feat/{fid}", None)
+
+    def integrate(self, fid: str, expect: dict) -> dict:
+        """The user confirmed the plan they were shown (`expect` is that plan's state): do it. Raises FeatureError with the reason
+        when it could not; the history records both outcomes."""
+        with self._lock:
+            fs = self._load()
+            f = self._integrable(self._get(fs, fid))
+            res = self._integrator(f["path"], self._dir(fid) / "work", f"feat/{fid}", expect)
+            if res["ok"]:
+                self._log(f, "integrated", f["stage"], "; ".join(res["steps"]))
+            else:
+                done = ("; ".join(res["steps"]) + "; ") if res["steps"] else ""
+                self._log(f, "integration failed", f["stage"], done + res["error"])
+            self._save(fs)
+            if not res["ok"]:
+                raise FeatureError(res["error"])
+            return f
+
+    def _integrable(self, f: dict) -> dict:
+        if f["status"] != DONE:
+            raise FeatureError("only a finished request can be integrated")
+        if not self._integrator or not f.get("path"):
+            raise FeatureError("this request's project folder is not known")
+        if not any(h["event"] == "committed" for h in f["history"]):
+            raise FeatureError("the pipeline did not commit this request: there is nothing to integrate")
+        return f
 
     # ---- archive of the approved specs and plans ----
     def _archive_target(self, f: dict, stage: str):
